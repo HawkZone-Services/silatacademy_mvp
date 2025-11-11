@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Pencak Silat Academy Design System - Discipline. Heritage. Power. */
+
+    /* Core Brand Colors - Traditional meets Modern */
+    --background: 0 0% 7%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Primary: Deep Crimson Red - Strength & Passion */
+    --primary: 0 72% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 0 72% 55%;
+
+    /* Secondary: Rich Gold - Heritage & Excellence */
+    --secondary: 45 85% 55%;
+    --secondary-foreground: 0 0% 10%;
+
+    /* Accent: Charcoal - Discipline & Focus */
+    --accent: 0 0% 15%;
+    --accent-foreground: 45 85% 55%;
+
+    --muted: 0 0% 20%;
+    --muted-foreground: 0 0% 65%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 18%;
+    --ring: 0 72% 45%;
+
+    --radius: 0.75rem;
+
+    /* Gradients - Power & Energy */
+    --gradient-hero: linear-gradient(
+      135deg,
+      hsl(0 72% 35%),
+      hsl(0 72% 50%),
+      hsl(45 85% 55%)
+    );
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 12%), hsl(0 0% 8%));
+    --gradient-gold: linear-gradient(135deg, hsl(45 85% 45%), hsl(45 85% 65%));
+
+    /* Shadows - Depth & Drama */
+    --shadow-glow: 0 0 40px hsl(0 72% 45% / 0.3);
+    --shadow-gold: 0 10px 40px hsl(45 85% 55% / 0.2);
+    --shadow-card: 0 4px 20px hsl(0 0% 0% / 0.5);
+
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+
+  .gradient-gold {
+    background: var(--gradient-gold);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .shadow-gold {
+    box-shadow: var(--shadow-gold);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+}
