@@ -15,12 +15,12 @@ interface PlayerStats {
 interface PlayerCardProps {
   id: string;
   name: string;
-  belt: string;
-  beltColor: string;
-  age: number;
-  stats: PlayerStats;
+  belt?: string;
+  beltColor?: string;
+  age?: number;
+  stats?: Partial<PlayerStats>;
   image?: string;
-  trainingYears: number;
+  trainingYears?: number;
 }
 
 export const PlayerCard = ({
@@ -34,9 +34,27 @@ export const PlayerCard = ({
 }: PlayerCardProps) => {
   const navigate = useNavigate();
 
+  // 🔹 Defaults آمنة للـ stats
+  const safeStats: PlayerStats = {
+    power: stats?.power ?? 0,
+    flexibility: stats?.flexibility ?? 0,
+    endurance: stats?.endurance ?? 0,
+    speed: stats?.speed ?? 0,
+  };
+
   const avgScore = Math.round(
-    (stats.power + stats.flexibility + stats.endurance + stats.speed) / 4
+    (safeStats.power +
+      safeStats.flexibility +
+      safeStats.endurance +
+      safeStats.speed) /
+      4
   );
+
+  const displayAge = typeof age === "number" ? age : "-";
+  const displayYears = typeof trainingYears === "number" ? trainingYears : 0;
+
+  const displayBelt = belt || "White Belt";
+  const displayBeltColor = beltColor || "#e5e5e5";
 
   return (
     <Card className="gradient-card shadow-card border-border/40 overflow-hidden group hover:shadow-gold transition-smooth">
@@ -50,15 +68,15 @@ export const PlayerCard = ({
             <div>
               <h3 className="font-display text-lg font-bold">{name}</h3>
               <p className="text-sm text-muted-foreground">
-                Age {age} • {trainingYears} years
+                Age {displayAge} • {displayYears} years
               </p>
             </div>
           </div>
           <Badge
             className="font-semibold"
-            style={{ backgroundColor: beltColor, color: "#000" }}
+            style={{ backgroundColor: displayBeltColor, color: "#000" }}
           >
-            {belt}
+            {displayBelt}
           </Badge>
         </div>
 
@@ -67,34 +85,34 @@ export const PlayerCard = ({
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Power</span>
             <span className="font-semibold text-foreground">
-              {stats.power}%
+              {safeStats.power}%
             </span>
           </div>
-          <Progress value={stats.power} className="h-2" />
+          <Progress value={safeStats.power} className="h-2" />
 
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Flexibility</span>
             <span className="font-semibold text-foreground">
-              {stats.flexibility}%
+              {safeStats.flexibility}%
             </span>
           </div>
-          <Progress value={stats.flexibility} className="h-2" />
+          <Progress value={safeStats.flexibility} className="h-2" />
 
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Endurance</span>
             <span className="font-semibold text-foreground">
-              {stats.endurance}%
+              {safeStats.endurance}%
             </span>
           </div>
-          <Progress value={stats.endurance} className="h-2" />
+          <Progress value={safeStats.endurance} className="h-2" />
 
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Speed</span>
             <span className="font-semibold text-foreground">
-              {stats.speed}%
+              {safeStats.speed}%
             </span>
           </div>
-          <Progress value={stats.speed} className="h-2" />
+          <Progress value={safeStats.speed} className="h-2" />
         </div>
 
         {/* Overall Performance */}

@@ -1,367 +1,408 @@
-import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+// ===============================
+// IMPORTS
+// ===============================
+import { useEffect, useState } from "react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+
 import { Navbar } from "@/components/Navbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Clock, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
-import { useTranslation } from "react-i18next";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
-interface Question {
-  id: string;
-  question_text: string;
-  question_type: string;
-  options: any;
-  correct_answer: string | null;
-  points: number;
-  order_index: number;
-}
+import { Clock } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
-interface Exam {
-  id: string;
-  title: string;
-  time_limit_minutes: number;
-  passing_score: number;
-}
+// -------------------------------
+// API BASE URL
+// -------------------------------
+const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
 export default function ExamInterface() {
-  const { t } = useTranslation();
-  const { examId } = useParams();
-  const { user } = useAuth();
+  // ===============================
+  // ROUTER PARAMS
+  // ===============================
+  const { examId } = useParams(); // examId from URL: /exam/:examId
   const navigate = useNavigate();
 
-  const [exam, setExam] = useState<Exam | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [attemptId, setAttemptId] = useState<string | null>(null);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [searchParams] = useSearchParams();
+  const attemptFromQuery = searchParams.get("attempt"); // allow continuing existing attempt
+
+  // ===============================
+  // AUTH
+  // ===============================
+  const token =
+    localStorage.getItem("token") || sessionStorage.getItem("token");
+
+  const user =
+    JSON.parse(localStorage.getItem("user") || "null") ||
+    JSON.parse(sessionStorage.getItem("user") || "null");
+
+  // ===============================
+  // STATE
+  // ===============================
+  const [exam, setExam] = useState<any>(null); // exam details from API
+  const [questions, setQuestions] = useState<any[]>([]); // exam.questions
+  const [attemptId, setAttemptId] = useState<string | null>(attemptFromQuery); // active attemptId
+
+  const [answers, setAnswers] = useState<any>({}); // student answers
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0); // navigation slider
+
+  const [timeRemaining, setTimeRemaining] = useState(0); // countdown timer
   const [loading, setLoading] = useState(true);
-  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [windowSwitches, setWindowSwitches] = useState(0);
+
+  // Anti-cheat
+  const [focusLosses, setFocusLosses] = useState(0);
   const [cheatingDetected, setCheatingDetected] = useState(false);
 
-  useEffect(() => {
-    initializeExam();
-  }, [examId, user]);
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Anti-cheat monitoring
+  // ===============================
+  // 1) Load exam by ID
+  // ===============================
+  const loadExam = async () => {
+    try {
+      const res = await fetch(`${API}/exams/${examId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+
+      setExam(data.exam);
+      setQuestions(data.exam.questions);
+
+      // FIXED TIMER → 20 minutes
+      setTimeRemaining(20 * 60);
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Failed to load exam",
+      });
+    }
+  };
+
+  // ===============================
+  // 2) Start new attempt if none exists
+  // ===============================
+  const startAttempt = async () => {
+    if (attemptId) return;
+
+    try {
+      const res = await fetch(`${API}/exams/attempt/start`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ examId, studentId: user._id }),
+      });
+
+      const data = await res.json();
+      setAttemptId(data.attemptId);
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Could not start exam",
+      });
+    }
+  };
+
+  // ===============================
+  // INITIAL LOAD
+  // ===============================
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && !cheatingDetected && attemptId) {
-        setWindowSwitches((prev) => {
-          const newCount = prev + 1;
-          if (newCount >= 3) {
+    loadExam()
+      .then(startAttempt)
+      .finally(() => setLoading(false));
+  }, []);
+
+  // ===============================
+  // TIMER
+  // ===============================
+  // Timer Run Once – Only When Attempt Exists & Time Is Set
+  // TIMER — runs once when attemptId is ready
+  useEffect(() => {
+    if (!attemptId) return;
+    if (timeRemaining <= 0) return;
+
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+
+          toast({
+            title: "Time up",
+            description: "Submitting your exam automatically.",
+          });
+
+          handleSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [attemptId]); // NOT timeRemaining
+
+  // ===============================
+  // ANTI-CHEAT: Detect switching tabs
+  // ===============================
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden && attemptId) {
+        setFocusLosses((prev) => {
+          const updated = prev + 1;
+
+          toast({
+            variant: updated >= 3 ? "destructive" : "warning",
+            title:
+              updated >= 3
+                ? "Cheating detected! Exam will be submitted."
+                : `Warning: Window switched (${updated}/3)`,
+          });
+
+          // Auto-submit if max warnings reached
+          if (updated >= 3) {
             setCheatingDetected(true);
-            toast.error(t("examClosedCheating"));
             handleSubmit(true);
-          } else {
-            toast.warning(`${t("windowSwitchWarning")} (${newCount}/3)`);
           }
-          return newCount;
+
+          return updated;
         });
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("visibilitychange", handleVisibility);
     return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [cheatingDetected, attemptId, t]);
+      document.removeEventListener("visibilitychange", handleVisibility);
+  }, [attemptId]);
 
-  useEffect(() => {
-    if (timeRemaining <= 0 && attemptId) {
-      toast.warning(t("timeUp"));
-      handleSubmit();
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => Math.max(0, prev - 1));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [timeRemaining, attemptId]);
-
-  const initializeExam = async () => {
-    try {
-      const [examResponse, questionsResponse] = await Promise.all([
-        supabase.from("exams").select("*").eq("id", examId).single(),
-        supabase
-          .from("questions")
-          .select("*")
-          .eq("exam_id", examId)
-          .order("order_index"),
-      ]);
-
-      if (examResponse.error) throw examResponse.error;
-      if (questionsResponse.error) throw questionsResponse.error;
-
-      setExam(examResponse.data);
-      setQuestions(questionsResponse.data);
-      setTimeRemaining(examResponse.data.time_limit_minutes * 60);
-
-      const { data: attemptData, error: attemptError } = await supabase
-        .from("exam_attempts")
-        .insert({
-          exam_id: examId,
-          student_id: user?.id,
-          time_remaining_seconds: examResponse.data.time_limit_minutes * 60,
-        })
-        .select()
-        .single();
-
-      if (attemptError) throw attemptError;
-      setAttemptId(attemptData.id);
-    } catch (error: any) {
-      toast.error("Failed to load exam");
-      navigate("/dashboard");
-    } finally {
-      setLoading(false);
-    }
+  // ===============================
+  // UPDATE ANSWER
+  // ===============================
+  const handleAnswer = (qid: string, value: any) => {
+    setAnswers((prev: any) => ({ ...prev, [qid]: value }));
   };
 
-  const handleAnswer = (questionId: string, answer: string) => {
-    setAnswers((prev) => ({ ...prev, [questionId]: answer }));
-  };
-
-  const handleSubmit = async (isCheating = false) => {
+  // ===============================
+  // SUBMIT EXAM
+  // ===============================
+  const handleSubmit = async (forced = false) => {
     if (submitting) return;
     setSubmitting(true);
 
     try {
-      let totalScore = 0;
-      let totalPoints = 0;
+      // Format answers for backend API
+      const formattedAnswers = questions.map((q: any) => ({
+        questionId: q._id,
+        selectedIndex:
+          q.type === "mcq"
+            ? q.choices.indexOf(answers[q._id] || "")
+            : undefined,
+        essayText: q.type === "essay" ? answers[q._id] || "" : "",
+      }));
 
-      for (const question of questions) {
-        totalPoints += question.points;
-        const answer = answers[question.id] || "";
-        const isCorrect =
-          question.question_type === "multiple_choice"
-            ? answer === question.correct_answer
-            : false;
-        const pointsEarned = isCorrect ? question.points : 0;
-        totalScore += pointsEarned;
-
-        await supabase.from("exam_answers").insert({
-          attempt_id: attemptId,
-          question_id: question.id,
-          answer_text: answer,
-          is_correct:
-            question.question_type === "multiple_choice" ? isCorrect : null,
-          points_earned: pointsEarned,
-        });
-      }
-
-      const finalScore = Math.round((totalScore / totalPoints) * 100);
-      const passed = finalScore >= (exam?.passing_score || 70);
-
-      await supabase
-        .from("exam_attempts")
-        .update({
-          submitted_at: new Date().toISOString(),
-          status: "submitted",
-          window_switches: windowSwitches,
-          cheating_detected: isCheating,
-        })
-        .eq("id", attemptId);
-
-      await supabase.from("exam_results").insert({
-        attempt_id: attemptId,
-        student_id: user?.id,
-        exam_id: examId,
-        theoretical_score: finalScore,
-        total_score: finalScore,
-        passed,
+      const res = await fetch(`${API}/exams/attempt/submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          attemptId,
+          answers: formattedAnswers,
+          focusLosses,
+          forcedSubmitReason: forced ? "CHEATING" : null,
+        }),
       });
 
-      toast.success(
-        isCheating ? t("examSubmittedCheating") : t("examSubmitted")
-      );
-      navigate("/dashboard");
-    } catch (error: any) {
-      toast.error("Failed to submit exam");
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast({
+          variant: "destructive",
+          title: data.message || "Submission failed",
+        });
+        return;
+      }
+
+      // Success feedback
+      toast({
+        title: "Exam submitted",
+        description: data.pass
+          ? "Congratulations! You passed."
+          : "You did not pass this attempt.",
+      });
+
+      // Redirect to student dashboard
+      navigate("/student-dashboard");
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error submitting exam",
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
+  // ===============================
+  // RENDER LOADING
+  // ===============================
   if (loading || !exam) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-card">
-        <Navbar />
-        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-          <p className="text-muted-foreground">{t("loading")}</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Loading exam…</p>
       </div>
     );
   }
 
-  const currentQuestion = questions[currentQuestionIndex];
+  // ===============================
+  // CURRENT QUESTION
+  // ===============================
+  const q = questions[currentQuestionIndex];
+
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
 
+  const formatTime = (s: number) =>
+    `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+
+  // ===============================
+  // UI RENDERING
+  // ===============================
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-card">
+    <div className="min-h-screen bg-background">
       <Navbar />
 
-      {windowSwitches > 0 && !cheatingDetected && (
-        <div className="bg-yellow-500/10 border-b border-yellow-500/20 py-2">
-          <div className="container mx-auto px-4 flex items-center justify-center gap-2 text-yellow-500">
-            <AlertTriangle className="w-4 h-4" />
-            <span className="text-sm font-medium">
-              {t("windowSwitchWarning")} ({windowSwitches}/3)
-            </span>
-          </div>
-        </div>
-      )}
-
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="mb-6 flex items-center justify-between">
+        {/* Exam Header */}
+        <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold">{exam.title}</h1>
             <p className="text-muted-foreground">
-              {t("question")} {currentQuestionIndex + 1} {t("of")}{" "}
-              {questions.length}
+              Question {currentQuestionIndex + 1} / {questions.length}
             </p>
           </div>
+
+          {/* TIMER */}
           <div
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+            className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
               timeRemaining < 300
-                ? "bg-destructive/20 text-destructive"
-                : "bg-muted"
+                ? "bg-red-500/20 text-red-500"
+                : "bg-muted text-foreground"
             }`}
           >
-            <Clock className="w-5 h-5" />
-            <span className="text-lg font-mono font-bold">
-              {formatTime(timeRemaining)}
-            </span>
+            <Clock className="h-4 w-4" />
+            <span className="font-bold">{formatTime(timeRemaining)}</span>
           </div>
         </div>
 
-        <div className="w-full bg-muted rounded-full h-2 mb-6">
+        {/* Progress Bar */}
+        <div className="w-full h-2 bg-muted rounded-full mb-6">
           <div
-            className="bg-primary h-2 rounded-full transition-all duration-300"
+            className="h-2 rounded-full bg-primary transition-all"
             style={{ width: `${progress}%` }}
           />
         </div>
 
-        <Card className="border-border shadow-[var(--shadow-elevated)]">
+        {/* QUESTION CARD */}
+        <Card>
           <CardHeader>
-            <CardTitle className="text-xl">
-              {currentQuestion.question_text}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {currentQuestion.points} {t("points")}
-            </p>
+            <CardTitle>{q.text}</CardTitle>
+            <p className="text-sm text-muted-foreground">{q.maxScore} points</p>
           </CardHeader>
+
           <CardContent className="space-y-4">
-            {currentQuestion.question_type === "multiple_choice" ? (
+            {/* MULTIPLE CHOICE */}
+            {q.type === "mcq" ? (
               <RadioGroup
-                value={answers[currentQuestion.id] || ""}
-                onValueChange={(value) =>
-                  handleAnswer(currentQuestion.id, value)
-                }
+                value={answers[q._id] || ""}
+                onValueChange={(v) => handleAnswer(q._id, v)}
               >
-                {currentQuestion.options?.map((option, index) => (
+                {q.choices.map((c: string, idx: number) => (
                   <div
-                    key={index}
-                    className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted transition-colors"
+                    key={idx}
+                    className="flex items-center gap-3 p-2 rounded hover:bg-muted"
                   >
-                    <RadioGroupItem value={option} id={`option-${index}`} />
-                    <Label
-                      htmlFor={`option-${index}`}
-                      className="flex-1 cursor-pointer"
-                    >
-                      {option}
-                    </Label>
+                    <RadioGroupItem value={c} id={`c-${idx}`} />
+                    <Label htmlFor={`c-${idx}`}>{c}</Label>
                   </div>
                 ))}
               </RadioGroup>
             ) : (
+              // ESSAY
               <Textarea
-                value={answers[currentQuestion.id] || ""}
-                onChange={(e) =>
-                  handleAnswer(currentQuestion.id, e.target.value)
-                }
-                placeholder={t("typeAnswer")}
-                rows={6}
+                rows={5}
+                value={answers[q._id] || ""}
+                onChange={(e) => handleAnswer(q._id, e.target.value)}
+                placeholder="Type your answer…"
               />
             )}
 
-            <div className="flex items-center justify-between pt-4">
+            {/* NAVIGATION BUTTONS */}
+            <div className="flex justify-between pt-4">
               <Button
                 variant="outline"
-                onClick={() =>
-                  setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))
-                }
                 disabled={currentQuestionIndex === 0}
+                onClick={() =>
+                  setCurrentQuestionIndex((i) => Math.max(0, i - 1))
+                }
               >
-                {t("previous")}
+                Previous
               </Button>
+
               {currentQuestionIndex === questions.length - 1 ? (
                 <Button
-                  variant="hero"
+                  variant="default"
                   onClick={() => setShowSubmitDialog(true)}
                 >
-                  {t("submit")}
+                  Submit
                 </Button>
               ) : (
                 <Button
-                  variant="hero"
                   onClick={() =>
-                    setCurrentQuestionIndex((prev) =>
-                      Math.min(questions.length - 1, prev + 1)
+                    setCurrentQuestionIndex((i) =>
+                      Math.min(questions.length - 1, i + 1)
                     )
                   }
                 >
-                  {t("next")}
+                  Next
                 </Button>
               )}
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      <AlertDialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("confirm")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("examSubmitConfirm")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => handleSubmit(false)}
-              disabled={submitting}
-            >
-              {submitting ? t("loading") : t("submit")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* SUBMIT CONFIRMATION */}
+        {showSubmitDialog && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black/50">
+            <Card className="p-6 max-w-sm space-y-4">
+              <h2 className="text-xl font-bold">Submit Exam?</h2>
+              <p className="text-muted-foreground">
+                You cannot change your answers after submission.
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSubmitDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => handleSubmit(false)}
+                  disabled={submitting}
+                >
+                  {submitting ? "Submitting…" : "Submit"}
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,56 +1,64 @@
-import { ReactNode, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { Loader2 } from "lucide-react";
+import { Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 interface ProtectedRouteProps {
-  children: ReactNode;
-  requireAdmin?: boolean;
-  requireCoach?: boolean;
+  children: React.ReactNode;
+  requiredRole?: string;
 }
 
-export function ProtectedRoute({
+export const ProtectedRoute = ({
   children,
-  requireAdmin,
-  requireCoach,
-}: ProtectedRouteProps) {
-  const { user, loading, isAdmin, isCoach } = useAuth();
-  const navigate = useNavigate();
+  requiredRole,
+}: ProtectedRouteProps) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate("/login");
-    }
+    const loadUser = () => {
+      // token saved in either sessionStorage or localStorage depending on rememberMe
+      const token =
+        localStorage.getItem("token") || sessionStorage.getItem("token");
 
-    if (!loading && user) {
-      if (requireAdmin && !isAdmin) {
-        navigate("/dashboard");
-      }
-      if (requireCoach && !isCoach && !isAdmin) {
-        navigate("/dashboard");
-      }
-    }
-  }, [user, loading, navigate, requireAdmin, requireCoach, isAdmin, isCoach]);
+      const savedUser =
+        JSON.parse(localStorage.getItem("user") || "null") ||
+        JSON.parse(sessionStorage.getItem("user") || "null");
 
-  if (loading) {
+      if (token && savedUser) {
+        setUser(savedUser);
+        setUserRole(savedUser.role || "student"); // default role
+      } else {
+        setUser(null);
+        setUserRole(null);
+      }
+
+      setIsLoading(false);
+    };
+
+    loadUser();
+  }, []);
+
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   if (!user) {
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
-  if (requireAdmin && !isAdmin) {
-    return null;
-  }
+  if (requiredRole && userRole !== requiredRole) {
+    if (userRole === "admin") return <Navigate to="/dashboard" replace />;
+    if (userRole === "instructor")
+      return <Navigate to="/instructor-dashboard" replace />;
+    if (userRole === "student")
+      return <Navigate to="/student-dashboard" replace />;
 
-  if (requireCoach && !isCoach && !isAdmin) {
-    return null;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
-}
+};

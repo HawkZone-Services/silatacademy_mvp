@@ -1,0 +1,12 @@
+export { default as adminController } from "./adminController.js";
+export { default as attendanceController } from "./attendanceController.js";
+export { default as authController } from "./authController.js";
+export { default as coachController } from "./coachController.js";
+export { default as eventController } from "./eventController.js";
+export { default as examController } from "./examController.js";
+export { default as libraryController } from "./libraryController.js";
+export { default as notificationController } from "./notificationcontroller.js";
+export { default as playerController } from "./playerController.js";
+export { default as programController } from "./programController.js";
+export { default as rankingController } from "./rankingController.js";
+export { default as userController } from "./userController.js";

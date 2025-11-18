@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 const navLinks = [
   { name: "Home", href: "/", isRoute: true },
@@ -12,6 +13,7 @@ const navLinks = [
   { name: "Programs", href: "/programs", isRoute: true },
   { name: "Coaches", href: "/coaches", isRoute: true },
   { name: "Library", href: "/library", isRoute: true },
+  { name: "Events", href: "/events", isRoute: true },
   { name: "About", href: "#about", isRoute: false },
   { name: "Contact", href: "#contact", isRoute: false },
 ];
@@ -23,10 +25,21 @@ export const Navbar = () => {
   const [userName, setUserName] = useState("");
 
   useEffect(() => {
-    const authStatus = localStorage.getItem("isAuthenticated") === "true";
-    const name = localStorage.getItem("userName") || "";
-    setIsAuthenticated(authStatus);
-    setUserName(name);
+    const storedUser =
+      JSON.parse(
+        localStorage.getItem("user") || sessionStorage.getItem("user")
+      ) || null;
+
+    const storedToken =
+      localStorage.getItem("token") || sessionStorage.getItem("token");
+
+    if (storedToken && storedUser) {
+      setIsAuthenticated(true);
+      setUserName(storedUser.name || "");
+    } else {
+      setIsAuthenticated(false);
+      setUserName("");
+    }
   }, []);
 
   const handleLogout = () => {
@@ -90,6 +103,7 @@ export const Navbar = () => {
 
           {/* Auth Section */}
           <div className="hidden md:flex items-center gap-3">
+            <LanguageToggle />
             {isAuthenticated ? (
               <>
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 border border-secondary/20">
@@ -126,6 +140,9 @@ export const Navbar = () => {
             </SheetTrigger>
             <SheetContent side="right" className="w-[300px] bg-card">
               <div className="flex flex-col gap-4 mt-8">
+                <div className="pb-4 border-b border-border/40">
+                  <LanguageToggle />
+                </div>
                 {navLinks.map((link) =>
                   link.isRoute ? (
                     <Link

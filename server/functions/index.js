@@ -5,9 +5,11 @@ import cookieSession from "cookie-session";
 import helmet from "helmet";
 import compression from "compression";
 import morgan from "morgan";
-
 import cors from "cors";
 import dotenv from "dotenv";
+import router from "./routes/index.js";
+import { getDb } from "./utils/mongodb.js";
+import { get } from "mongoose";
 
 dotenv.config();
 const app = express();
@@ -45,21 +47,14 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ""))) {
-        callback(null, true);
-      } else {
-        console.error(`❌ CORS Error: ${origin} not allowed`);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: true, // allow all origins dynamically
+    credentials: true, // needed for cookies / sessions
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
   })
 );
-
 // API Routes
+app.use("/api", router);
 
 // Health Check Route
 app.get("/api/health", (req, res) => {
@@ -76,7 +71,7 @@ app.use((err, req, res, next) => {
 // تصدير كـ Firebase Function مع تخصيص الموارد والأسرار
 export const api = functions.https.onRequest(
   {
-    secrets: [],
+    secrets: ["MONGO_URI", "JWT_SECRET"],
     cpu: 1, // 1 CPU
     memory: "512MiB", // 512 MB RAM
     maxInstances: 3, // Optional: limit max instances

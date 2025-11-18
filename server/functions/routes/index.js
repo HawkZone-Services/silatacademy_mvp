@@ -1,0 +1,28 @@
+import express from "express";
+import adminRoutes from "./adminRoutes.js";
+import attendanceRoutes from "./attendanceRoutes.js";
+import authRoutes from "./authRoutes.js";
+import coachRoutes from "./coachRoutes.js";
+import eventRoutes from "./eventRoutes.js";
+import examRoutes from "./examRoutes.js";
+import libraryRoutes from "./libraryRoutes.js";
+import playerRoutes from "./playerRoutes.js";
+import programRoutes from "./programRoutes.js";
+import rankingRoutes from "./rankingRoutes.js";
+import userRoutes from "./userRoutes.js";
+import certificateRoutes from "./certificateRoutes.js";
+const router = express.Router();
+
+router.use("/admin", adminRoutes);
+router.use("/user", userRoutes);
+router.use("/auth", authRoutes);
+router.use("/coach", coachRoutes);
+router.use("attendance", attendanceRoutes);
+router.use("/event", eventRoutes);
+router.use("/exams", examRoutes);
+router.use("/library", libraryRoutes);
+router.use("/player", playerRoutes);
+router.use("/program", programRoutes);
+router.use("/ranking", rankingRoutes);
+router.use("/certificate", certificateRoutes);
+export default router;
