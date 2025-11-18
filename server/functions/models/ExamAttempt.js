@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 
 const AttemptAnswerSchema = new mongoose.Schema({
   questionId: mongoose.Schema.Types.ObjectId,
-  selectedIndex: Number, // MCQ
-  booleanAnswer: Boolean, // True/False
+  selectedIndex: Number,
+  booleanAnswer: Boolean,
   essayText: String,
   score: Number,
 });
@@ -17,9 +17,11 @@ const ExamAttemptSchema = new mongoose.Schema({
 
   answers: [AttemptAnswerSchema],
 
-  autoScore: Number, // MCQ/T-F auto
-  manualScore: Number, // Essay manually graded
-  theoryScore: Number, // auto + manual
+  autoScore: { type: Number, default: 0 },
+  manualScore: { type: Number, default: 0 },
+  theoryScore: { type: Number, default: 0 },
+
+  pass: { type: Boolean, default: false },
 
   antiCheat: {
     focusLosses: Number,
@@ -27,5 +29,4 @@ const ExamAttemptSchema = new mongoose.Schema({
   },
 });
 
-const ExamAttempt = mongoose.model("ExamAttempt", ExamAttemptSchema);
-export default ExamAttempt;
+export default mongoose.model("ExamAttempt", ExamAttemptSchema);

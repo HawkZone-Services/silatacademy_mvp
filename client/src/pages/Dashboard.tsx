@@ -52,10 +52,10 @@ export default function Dashboard() {
     todayAttendance: 0,
   });
 
-  const [players, setPlayers] = useState<any[]>([]);
-  const [lessons, setLessons] = useState<any[]>([]);
-  const [registrations, setRegistrations] = useState<any[]>([]);
-  const [exams, setExams] = useState<any[]>([]);
+  const [players, setPlayers] = useState([]);
+  const [lessons, setLessons] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
+  const [exams, setExams] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [selectedStudent, setSelectedStudent] = useState("");
@@ -124,7 +124,7 @@ export default function Dashboard() {
       setStats({
         totalPlayers: statsJson.totalPlayers || playersJson.length || 0,
         activePlayers:
-          playersJson.filter((p: any) => p.status === "active")?.length || 0,
+          playersJson.filter((p) => p.status === "active")?.length || 0,
         upcomingLessons: lessonsJson.length || 0,
         todayAttendance: attendanceJson.length || 0,
       });
@@ -161,11 +161,12 @@ export default function Dashboard() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
 
-      const res = await fetch(`${EXAM_API}/admin/registrations`, { headers });
+      const res = await fetch(`${EXAM_API}/registrations`, { headers });
       const data = await safeJSON(res);
 
       setRegistrations(Array.isArray(data) ? data : []);
     } catch (error) {
+      console.error("Fetch registrations error:", error);
       setRegistrations([]);
     }
   };
@@ -176,7 +177,7 @@ export default function Dashboard() {
   const approveFn = async (regId: string) => {
     const headers = { Authorization: `Bearer ${token}` };
 
-    await fetch(`${EXAM_API}/admin/register/${regId}/approve`, {
+    await fetch(`${EXAM_API}/registration/${regId}/approve`, {
       method: "PATCH",
       headers,
     });
@@ -187,7 +188,7 @@ export default function Dashboard() {
   const rejectFn = async (regId: string) => {
     const headers = { Authorization: `Bearer ${token}` };
 
-    await fetch(`${EXAM_API}/admin/register/${regId}/reject`, {
+    await fetch(`${EXAM_API}/registration/${regId}/reject`, {
       method: "PATCH",
       headers,
     });

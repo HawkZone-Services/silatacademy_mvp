@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 
 import { Card } from "@/components/ui/card";
 
-export function ExamList({ exams, onRefresh }: any) {
+export function ExamList({ exams, onRefresh }) {
   return (
     <div className="space-y-3">
       {exams.map((exam: any) => (
@@ -23,12 +23,13 @@ export function ExamList({ exams, onRefresh }: any) {
                   localStorage.getItem("token") ||
                   sessionStorage.getItem("token");
                 await fetch(
-                  `https://api-f3rwhuz64a-uc.a.run.app/api/exams/${exam._id}/publish`,
+                  `https://api-f3rwhuz64a-uc.a.run.app/api/exams/admin/${exam._id}/publish`,
                   {
                     method: "PATCH",
                     headers: { Authorization: `Bearer ${token}` },
                   }
                 );
+
                 onRefresh();
               }}
             >

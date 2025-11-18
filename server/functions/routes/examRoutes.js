@@ -11,7 +11,6 @@ import {
   ExamRegisteration,
   approveRegistration,
   rejectRegistration,
-  listRegistrations,
   gradeManual2,
   combineScores,
   listSubmissions,
@@ -36,33 +35,31 @@ router.post("/register", protect, ExamRegisteration);
 
 router.post("/attempt/start", protect, startAttempt);
 router.post("/attempt/submit", protect, submitAttempt);
+
 /* ================================================
-   ADMIN EXAM ROUTES (Isolated under /admin)
+   ADMIN EXAM ROUTES (Restricted)
 ================================================ */
 
-router.get(
-  "/admin/registrations",
-  protect,
-  checkRole("admin", "instructor"),
-  listRegistrations
-);
-
+// Approve registration
 router.patch(
-  "/admin/register/:id/approve",
+  "/admin/registration/:id/approve",
   protect,
   checkRole("admin", "instructor"),
   approveRegistration
 );
 
+// Reject registration
 router.patch(
-  "/admin/register/:id/reject",
+  "/admin/registration/:id/reject",
   protect,
   checkRole("admin", "instructor"),
   rejectRegistration
 );
 
+// Create exam
 router.post("/admin", protect, checkRole("admin", "instructor"), createExam);
 
+// Publish exam
 router.patch(
   "/admin/:examId/publish",
   protect,
@@ -70,6 +67,7 @@ router.patch(
   publishExam
 );
 
+// Update exam
 router.patch(
   "/admin/:id",
   protect,
@@ -77,6 +75,7 @@ router.patch(
   updateExam
 );
 
+// View submissions for specific exam
 router.get(
   "/admin/submissions/:examId",
   protect,
@@ -84,6 +83,7 @@ router.get(
   listSubmissions
 );
 
+// Save practical score
 router.post(
   "/admin/practical/score",
   protect,
@@ -91,6 +91,7 @@ router.post(
   gradeManual2
 );
 
+// Combine scores for final evaluation
 router.post(
   "/admin/finalize",
   protect,
@@ -98,6 +99,7 @@ router.post(
   combineScores
 );
 
+// Manual grading (essay)
 router.post(
   "/admin/:id/grade",
   protect,

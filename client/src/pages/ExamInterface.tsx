@@ -75,7 +75,8 @@ export default function ExamInterface() {
       setQuestions(data.exam.questions);
 
       // FIXED TIMER → 20 minutes
-      setTimeRemaining(20 * 60);
+      setTimeRemaining((data.exam.timeLimit || 20) * 60);
+      console.log(data.exam.timeLimit);
     } catch (err) {
       toast({
         variant: "destructive",
@@ -83,7 +84,6 @@ export default function ExamInterface() {
       });
     }
   };
-
   // ===============================
   // 2) Start new attempt if none exists
   // ===============================
@@ -197,12 +197,12 @@ export default function ExamInterface() {
 
     try {
       // Format answers for backend API
-      const formattedAnswers = questions.map((q: any) => ({
-        questionId: q._id,
+      const formattedAnswers = questions.map((q) => ({
+        questionId: q._id.toString(),
         selectedIndex:
-          q.type === "mcq"
-            ? q.choices.indexOf(answers[q._id] || "")
-            : undefined,
+          q.type === "mcq" ? q.choices.indexOf(answers[q._id] || "") : null,
+        booleanAnswer:
+          q.type === "truefalse" ? answers[q._id] === "true" : null,
         essayText: q.type === "essay" ? answers[q._id] || "" : "",
       }));
 
@@ -221,6 +221,7 @@ export default function ExamInterface() {
       });
 
       const data = await res.json();
+      console.log(JSON.stringify(formattedAnswers, null, 2));
 
       if (!res.ok) {
         toast({
