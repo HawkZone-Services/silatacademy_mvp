@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,65 +6,117 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
-export function PracticalScoreDialog({ studentId, examId, onSaved }: any) {
+interface Props {
+  studentId: string;
+  examId: string;
+  onSaved?: () => void;
+}
+
+export function PracticalScoreDialog({ studentId, examId, onSaved }: Props) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
   const [scores, setScores] = useState({
-    morality: 0,
-    practicalMethod: 0,
-    technique: 0,
-    physical: 0,
-    mental: 0,
+    morality: "",
+    practicalMethod: "",
+    technique: "",
+    physical: "",
+    mental: "",
   });
 
-  const submit = async () => {
-    const token =
-      localStorage.getItem("token") || sessionStorage.getItem("token");
+  const token =
+    localStorage.getItem("token") || sessionStorage.getItem("token");
 
-    await fetch(
-      `https://api-f3rwhuz64a-uc.a.run.app/api/exams/practical/score`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ...scores, studentId, examId }),
-      }
-    );
+  const disabled = !studentId || !examId || loading;
 
-    onSaved();
-    setOpen(false);
+  const handleSubmit = async () => {
+    if (disabled) return;
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(
+        "https://api-f3rwhuz64a-uc.a.run.app/api/exams/admin/practical/score",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            studentId,
+            examId,
+            ...Object.fromEntries(
+              Object.entries(scores).map(([k, v]) => [k, Number(v)])
+            ),
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      toast({
+        title: "Practical Score Saved",
+        description: "The practical evaluation has been recorded.",
+      });
+
+      setOpen(false);
+      onSaved?.();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to save practical score.",
+        variant: "destructive",
+      });
+    }
+
+    setLoading(false);
   };
 
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)}>
-        Add Practical Score
+      <Button
+        disabled={!studentId || !examId}
+        onClick={() => setOpen(true)}
+        variant="outline"
+      >
+        {loading ? "Loading..." : "Add Practical Score"}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Enter Practical Evaluation</DialogTitle>
+            <DialogTitle>
+              Practical Evaluation {loading && "(Saving…)"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            {Object.entries(scores).map(([field, value]) => (
-              <Input
-                key={field}
-                type="number"
-                placeholder={`${field} Score`}
-                value={value}
-                onChange={(e) =>
-                  setScores((prev) => ({
-                    ...prev,
-                    [field]: Number(e.target.value),
-                  }))
-                }
-              />
+            {Object.keys(scores).map((field) => (
+              <div key={field}>
+                <label className="text-sm capitalize">{field}</label>
+                <Input
+                  type="number"
+                  value={(scores as any)[field]}
+                  onChange={(e) =>
+                    setScores({ ...scores, [field]: e.target.value })
+                  }
+                  disabled={loading}
+                />
+              </div>
             ))}
-            <Button onClick={submit}>Save</Button>
+
+            <Button
+              onClick={handleSubmit}
+              className="w-full"
+              disabled={loading}
+            >
+              {loading ? "Saving..." : "Save Practical Score"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

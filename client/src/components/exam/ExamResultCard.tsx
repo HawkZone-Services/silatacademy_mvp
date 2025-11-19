@@ -1,105 +1,79 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Download } from "lucide-react";
-import { ExamResult } from "@/data/exams";
-import { useToast } from "@/hooks/use-toast";
 
 interface ExamResultCardProps {
-  result: ExamResult;
+  result: {
+    theoryScore: number;
+    practicalScore?: number;
+    passed?: boolean; // final pass from finalize
+    completedAt: string;
+    exam?: {
+      maxTheoryScore?: number;
+    };
+  };
   examTitle: string;
 }
 
-export const ExamResultCard = ({ result, examTitle }: ExamResultCardProps) => {
-  const { toast } = useToast();
-  const scorePercentage = (result.score / result.totalQuestions) * 100;
+export function ExamResultCard({ result, examTitle }: ExamResultCardProps) {
+  const theory = result.theoryScore ?? 0;
+  const practical = result.practicalScore ?? 0;
+  const maxTheoryScore = result.exam?.maxTheoryScore ?? 40;
 
-  const handleDownloadCertificate = () => {
-    toast({
-      title: "Certificate Downloaded",
-      description: "Your certificate has been downloaded successfully.",
-    });
-  };
+  const theoryPercent =
+    maxTheoryScore > 0 ? Math.round((theory / maxTheoryScore) * 100) : 0;
+
+  // ============================
+  // STATUS LOGIC (FINAL)
+  // ============================
+  let statusLabel = "";
+  let statusColor = "";
+
+  const hasPractical = practical > 0;
+  const hasFinalizedResult = typeof result.passed === "boolean";
+
+  if (!hasPractical) {
+    // Student finished theory only
+    statusLabel = "Awaiting Practical Evaluation";
+    statusColor = "text-yellow-600";
+  } else if (hasPractical && !hasFinalizedResult) {
+    // Instructor added practical scores but did NOT finalize
+    statusLabel = "Pending Final Review";
+    statusColor = "text-blue-600";
+  } else {
+    // Final exam result available
+    statusLabel = result.passed ? "Passed" : "Failed";
+    statusColor = result.passed ? "text-green-600" : "text-red-600";
+  }
 
   return (
-    <Card className="gradient-card shadow-card border-border/40">
+    <Card className="shadow-md border border-border/40">
       <CardHeader>
-        <div className="flex items-start justify-between">
-          <CardTitle className="text-lg">{examTitle}</CardTitle>
-          <Badge
-            variant="outline"
-            className={
-              result.passed
-                ? "border-green-500/40 text-green-400"
-                : "border-red-500/40 text-red-400"
-            }
-          >
-            {result.passed ? (
-              <CheckCircle className="h-3 w-3 mr-1" />
-            ) : (
-              <XCircle className="h-3 w-3 mr-1" />
-            )}
-            {result.passed ? "Passed" : "Failed"}
-          </Badge>
-        </div>
+        <CardTitle className="text-lg font-bold">{examTitle}</CardTitle>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Score</p>
-            <p className="text-2xl font-bold text-primary">
-              {scorePercentage}%
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Correct Answers</p>
-            <p className="text-2xl font-bold">
-              {result.score}/{result.totalQuestions}
-            </p>
-          </div>
+      <CardContent className="space-y-3">
+        {/* FINAL STATUS */}
+        <p className={`font-semibold ${statusColor}`}>{statusLabel}</p>
+
+        {/* THEORY */}
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Theory Score</span>
+          <span className="font-semibold">
+            {theory} pts ({theoryPercent}%)
+          </span>
         </div>
 
-        {result.theoryScore !== undefined && (
-          <div className="pt-4 border-t border-border/40">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Theory Score</span>
-              <span className="font-medium">{result.theoryScore}%</span>
-            </div>
-          </div>
-        )}
-
-        {result.practicalScore !== undefined && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Practical Score</span>
-            <span className="font-medium">{result.practicalScore}%</span>
-          </div>
-        )}
-
-        <div className="pt-2">
-          <p className="text-sm text-muted-foreground">
-            Completed:{" "}
-            {new Date(result.completedAt).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
+        {/* PRACTICAL */}
+        <div className="flex justify-between">
+          <span className="text-sm text-muted-foreground">Practical Score</span>
+          <span className="font-semibold">{practical} pts</span>
         </div>
 
-        {result.passed && (
-          <Button
-            className="w-full mt-4"
-            variant="outline"
-            onClick={handleDownloadCertificate}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Download Certificate
-          </Button>
-        )}
+        {/* DATE */}
+        <div className="flex justify-between text-sm mt-2">
+          <span className="text-muted-foreground">Completed:</span>
+          <span>{new Date(result.completedAt).toLocaleString()}</span>
+        </div>
       </CardContent>
     </Card>
   );
-};
+}

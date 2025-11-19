@@ -1,409 +1,282 @@
-// ===============================
-// IMPORTS
-// ===============================
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-
-import { Navbar } from "@/components/Navbar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-
+import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
-import { Clock } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-
-// -------------------------------
-// API BASE URL
-// -------------------------------
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
 export default function ExamInterface() {
-  // ===============================
-  // ROUTER PARAMS
-  // ===============================
-  const { examId } = useParams(); // examId from URL: /exam/:examId
+  const { toast } = useToast();
   const navigate = useNavigate();
+  const { examId } = useParams();
 
-  const [searchParams] = useSearchParams();
-  const attemptFromQuery = searchParams.get("attempt"); // allow continuing existing attempt
+  const [params] = useSearchParams();
+  const attemptId = params.get("attempt");
 
-  // ===============================
-  // AUTH
-  // ===============================
   const token =
     localStorage.getItem("token") || sessionStorage.getItem("token");
 
-  const user =
-    JSON.parse(localStorage.getItem("user") || "null") ||
-    JSON.parse(sessionStorage.getItem("user") || "null");
-
-  // ===============================
-  // STATE
-  // ===============================
-  const [exam, setExam] = useState<any>(null); // exam details from API
-  const [questions, setQuestions] = useState<any[]>([]); // exam.questions
-  const [attemptId, setAttemptId] = useState<string | null>(attemptFromQuery); // active attemptId
-
-  const [answers, setAnswers] = useState<any>({}); // student answers
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0); // navigation slider
-
-  const [timeRemaining, setTimeRemaining] = useState(0); // countdown timer
+  const [exam, setExam] = useState<any>(null);
+  const [attempt, setAttempt] = useState<any>(null);
+  const [answers, setAnswers] = useState<any>({});
   const [loading, setLoading] = useState(true);
-
-  // Anti-cheat
   const [focusLosses, setFocusLosses] = useState(0);
-  const [cheatingDetected, setCheatingDetected] = useState(false);
 
-  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  /* ---------------------------------------------
+     Prevent entering without attempt ID
+  --------------------------------------------- */
+  useEffect(() => {
+    if (!attemptId || !examId) {
+      toast({
+        variant: "destructive",
+        title: "Invalid attempt",
+        description: "You cannot access this exam.",
+      });
+      navigate("/dashboard");
+    }
+  }, [attemptId, examId]);
 
-  // ===============================
-  // 1) Load exam by ID
-  // ===============================
-  const loadExam = async () => {
+  /* ---------------------------------------------
+     Fetch Exam Data
+  --------------------------------------------- */
+  const fetchExam = async () => {
     try {
       const res = await fetch(`${API}/exams/${examId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const data = await res.json();
-
       setExam(data.exam);
-      setQuestions(data.exam.questions);
-
-      // FIXED TIMER → 20 minutes
-      setTimeRemaining((data.exam.timeLimit || 20) * 60);
-      console.log(data.exam.timeLimit);
     } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Failed to load exam",
-      });
+      console.error("Exam fetch error:", err);
     }
   };
-  // ===============================
-  // 2) Start new attempt if none exists
-  // ===============================
-  const startAttempt = async () => {
-    if (attemptId) return;
 
+  /* ---------------------------------------------
+     Fetch Attempt (Ensure it's valid)
+  --------------------------------------------- */
+  const fetchAttempt = async () => {
     try {
-      const res = await fetch(`${API}/exams/attempt/start`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ examId, studentId: user._id }),
+      const res = await fetch(`${API}/exams/my-attempts`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const data = await res.json();
-      setAttemptId(data.attemptId);
+      const found = data.attempts.find((a: any) => a._id === attemptId);
+
+      if (!found) {
+        toast({
+          variant: "destructive",
+          title: "Access Denied",
+          description: "You have no active attempt for this exam.",
+        });
+        navigate("/dashboard");
+        return;
+      }
+
+      // Prevent re-access after submission
+      if (found.submittedAt) {
+        toast({
+          variant: "destructive",
+          title: "Exam already submitted",
+        });
+        navigate("/dashboard");
+      }
+
+      setAttempt(found);
     } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Could not start exam",
-      });
+      console.error("Attempt fetch error:", err);
     }
   };
 
-  // ===============================
-  // INITIAL LOAD
-  // ===============================
+  /* ---------------------------------------------
+     Focus Loss Detection
+  --------------------------------------------- */
   useEffect(() => {
-    loadExam()
-      .then(startAttempt)
-      .finally(() => setLoading(false));
+    const onBlur = () => setFocusLosses((x) => x + 1);
+    window.addEventListener("blur", onBlur);
+
+    return () => window.removeEventListener("blur", onBlur);
   }, []);
 
-  // ===============================
-  // TIMER
-  // ===============================
-  // Timer Run Once – Only When Attempt Exists & Time Is Set
-  // TIMER — runs once when attemptId is ready
+  /* ---------------------------------------------
+     Load Exam + Attempt
+  --------------------------------------------- */
   useEffect(() => {
-    if (!attemptId) return;
-    if (timeRemaining <= 0) return;
+    if (!token) return;
+    Promise.all([fetchExam(), fetchAttempt()]).finally(() => setLoading(false));
+  }, [token]);
 
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-
-          toast({
-            title: "Time up",
-            description: "Submitting your exam automatically.",
-          });
-
-          handleSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [attemptId]); // NOT timeRemaining
-
-  // ===============================
-  // ANTI-CHEAT: Detect switching tabs
-  // ===============================
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden && attemptId) {
-        setFocusLosses((prev) => {
-          const updated = prev + 1;
-
-          toast({
-            variant: updated >= 3 ? "destructive" : "warning",
-            title:
-              updated >= 3
-                ? "Cheating detected! Exam will be submitted."
-                : `Warning: Window switched (${updated}/3)`,
-          });
-
-          // Auto-submit if max warnings reached
-          if (updated >= 3) {
-            setCheatingDetected(true);
-            handleSubmit(true);
-          }
-
-          return updated;
-        });
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibility);
-  }, [attemptId]);
-
-  // ===============================
-  // UPDATE ANSWER
-  // ===============================
-  const handleAnswer = (qid: string, value: any) => {
-    setAnswers((prev: any) => ({ ...prev, [qid]: value }));
+  /* ---------------------------------------------
+     Handle Answer Changes
+  --------------------------------------------- */
+  const handleMCQ = (qId: string, index: number) => {
+    setAnswers({
+      ...answers,
+      [qId]: { selectedIndex: index },
+    });
   };
 
-  // ===============================
-  // SUBMIT EXAM
-  // ===============================
-  const handleSubmit = async (forced = false) => {
-    if (submitting) return;
-    setSubmitting(true);
+  const handleTrueFalse = (qId: string, value: boolean) => {
+    setAnswers({
+      ...answers,
+      [qId]: { booleanAnswer: value },
+    });
+  };
+
+  const handleEssay = (qId: string, text: string) => {
+    setAnswers({
+      ...answers,
+      [qId]: { essayText: text },
+    });
+  };
+
+  /* ---------------------------------------------
+     Submit Exam Attempt
+  --------------------------------------------- */
+  const handleSubmit = async () => {
+    const formattedAnswers = exam.questions.map((q: any) => ({
+      questionId: q._id,
+      selectedIndex:
+        answers[q._id]?.selectedIndex !== undefined
+          ? answers[q._id].selectedIndex
+          : null,
+      booleanAnswer:
+        answers[q._id]?.booleanAnswer !== undefined
+          ? answers[q._id].booleanAnswer
+          : null,
+      essayText: answers[q._id]?.essayText || "",
+    }));
 
     try {
-      // Format answers for backend API
-      const formattedAnswers = questions.map((q) => ({
-        questionId: q._id.toString(),
-        selectedIndex:
-          q.type === "mcq" ? q.choices.indexOf(answers[q._id] || "") : null,
-        booleanAnswer:
-          q.type === "truefalse" ? answers[q._id] === "true" : null,
-        essayText: q.type === "essay" ? answers[q._id] || "" : "",
-      }));
-
       const res = await fetch(`${API}/exams/attempt/submit`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           attemptId,
           answers: formattedAnswers,
           focusLosses,
-          forcedSubmitReason: forced ? "CHEATING" : null,
+          forcedSubmitReason: null,
         }),
       });
 
       const data = await res.json();
-      console.log(JSON.stringify(formattedAnswers, null, 2));
 
       if (!res.ok) {
         toast({
           variant: "destructive",
-          title: data.message || "Submission failed",
+          title: "Submit failed",
+          description: data.message || "An error occurred.",
         });
         return;
       }
 
-      // Success feedback
       toast({
         title: "Exam submitted",
-        description: data.pass
-          ? "Congratulations! You passed."
-          : "You did not pass this attempt.",
+        description: "Your theory exam has been submitted successfully.",
       });
 
-      // Redirect to student dashboard
-      navigate("/student-dashboard");
+      navigate("/dashboard");
     } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Error submitting exam",
-      });
-    } finally {
-      setSubmitting(false);
+      console.error("Submit error:", err);
     }
   };
 
-  // ===============================
-  // RENDER LOADING
-  // ===============================
+  /* ---------------------------------------------
+     Rendering
+  --------------------------------------------- */
   if (loading || !exam) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loading exam…</p>
+      <div className="flex items-center justify-center h-screen">
+        <span>Loading exam...</span>
       </div>
     );
   }
 
-  // ===============================
-  // CURRENT QUESTION
-  // ===============================
-  const q = questions[currentQuestionIndex];
-
-  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
-
-  const formatTime = (s: number) =>
-    `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
-
-  // ===============================
-  // UI RENDERING
-  // ===============================
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Exam Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">{exam.title}</h1>
-            <p className="text-muted-foreground">
-              Question {currentQuestionIndex + 1} / {questions.length}
-            </p>
+    <div className="min-h-screen p-6">
+      <Card className="mx-auto max-w-3xl shadow-xl">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-center">
+            {exam.title}
+          </CardTitle>
+          <div className="text-center text-muted-foreground">
+            {exam.questions.length} Questions • {exam.timeLimit} Minutes
           </div>
+        </CardHeader>
 
-          {/* TIMER */}
-          <div
-            className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
-              timeRemaining < 300
-                ? "bg-red-500/20 text-red-500"
-                : "bg-muted text-foreground"
-            }`}
-          >
-            <Clock className="h-4 w-4" />
-            <span className="font-bold">{formatTime(timeRemaining)}</span>
-          </div>
-        </div>
+        <CardContent className="space-y-6">
+          {exam.questions.map((q: any, index: number) => (
+            <div key={q._id} className="p-4 rounded-lg border bg-card/40">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold">
+                  Q{index + 1}. {q.question}
+                </h3>
+                <Badge variant="outline" className="capitalize">
+                  {q.type}
+                </Badge>
+              </div>
 
-        {/* Progress Bar */}
-        <div className="w-full h-2 bg-muted rounded-full mb-6">
-          <div
-            className="h-2 rounded-full bg-primary transition-all"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+              {/* MCQ */}
+              {q.type === "mcq" && (
+                <RadioGroup onValueChange={(v) => handleMCQ(q._id, Number(v))}>
+                  {q.choices.map((choice: string, i: number) => (
+                    <div key={i} className="flex items-center space-x-2">
+                      <RadioGroupItem value={String(i)} id={`${q._id}-${i}`} />
+                      <label htmlFor={`${q._id}-${i}`}>{choice}</label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              )}
 
-        {/* QUESTION CARD */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{q.text}</CardTitle>
-            <p className="text-sm text-muted-foreground">{q.maxScore} points</p>
-          </CardHeader>
-
-          <CardContent className="space-y-4">
-            {/* MULTIPLE CHOICE */}
-            {q.type === "mcq" ? (
-              <RadioGroup
-                value={answers[q._id] || ""}
-                onValueChange={(v) => handleAnswer(q._id, v)}
-              >
-                {q.choices.map((c: string, idx: number) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-3 p-2 rounded hover:bg-muted"
+              {/* TRUE / FALSE */}
+              {q.type === "truefalse" && (
+                <div className="space-x-4">
+                  <Button
+                    variant={
+                      answers[q._id]?.booleanAnswer === true
+                        ? "default"
+                        : "outline"
+                    }
+                    onClick={() => handleTrueFalse(q._id, true)}
                   >
-                    <RadioGroupItem value={c} id={`c-${idx}`} />
-                    <Label htmlFor={`c-${idx}`}>{c}</Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            ) : (
-              // ESSAY
-              <Textarea
-                rows={5}
-                value={answers[q._id] || ""}
-                onChange={(e) => handleAnswer(q._id, e.target.value)}
-                placeholder="Type your answer…"
-              />
-            )}
+                    True
+                  </Button>
 
-            {/* NAVIGATION BUTTONS */}
-            <div className="flex justify-between pt-4">
-              <Button
-                variant="outline"
-                disabled={currentQuestionIndex === 0}
-                onClick={() =>
-                  setCurrentQuestionIndex((i) => Math.max(0, i - 1))
-                }
-              >
-                Previous
-              </Button>
+                  <Button
+                    variant={
+                      answers[q._id]?.booleanAnswer === false
+                        ? "default"
+                        : "outline"
+                    }
+                    onClick={() => handleTrueFalse(q._id, false)}
+                  >
+                    False
+                  </Button>
+                </div>
+              )}
 
-              {currentQuestionIndex === questions.length - 1 ? (
-                <Button
-                  variant="default"
-                  onClick={() => setShowSubmitDialog(true)}
-                >
-                  Submit
-                </Button>
-              ) : (
-                <Button
-                  onClick={() =>
-                    setCurrentQuestionIndex((i) =>
-                      Math.min(questions.length - 1, i + 1)
-                    )
-                  }
-                >
-                  Next
-                </Button>
+              {/* ESSAY */}
+              {q.type === "essay" && (
+                <Textarea
+                  placeholder="Write your answer here..."
+                  onChange={(e) => handleEssay(q._id, e.target.value)}
+                />
               )}
             </div>
-          </CardContent>
-        </Card>
+          ))}
 
-        {/* SUBMIT CONFIRMATION */}
-        {showSubmitDialog && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black/50">
-            <Card className="p-6 max-w-sm space-y-4">
-              <h2 className="text-xl font-bold">Submit Exam?</h2>
-              <p className="text-muted-foreground">
-                You cannot change your answers after submission.
-              </p>
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowSubmitDialog(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => handleSubmit(false)}
-                  disabled={submitting}
-                >
-                  {submitting ? "Submitting…" : "Submit"}
-                </Button>
-              </div>
-            </Card>
-          </div>
-        )}
-      </div>
+          <Button className="w-full py-6 text-lg" onClick={handleSubmit}>
+            Submit Exam
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { ExamResultCard } from "@/components/exam/ExamResultCard";
 
 import { Calendar, Trophy, TrendingUp, Award } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -36,7 +37,24 @@ export default function StudentDashboard() {
 
   const [availableExams, setAvailableExams] = useState<any[]>([]);
   const [results, setResults] = useState<any[]>([]);
+  const [certificates, setCertificates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  /* ---------------------------------------------
+     Fetch student's registration status for an exam
+  --------------------------------------------- */
+  const getExamStatus = async (examId: string) => {
+    try {
+      const res = await fetch(`${API}/exams/registration/status/${examId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+      return data.status || "none"; // none | pending | approved | rejected
+    } catch {
+      return "none";
+    }
+  };
 
   /* ---------------------------------------------
      Fetch exams available for student
@@ -48,7 +66,30 @@ export default function StudentDashboard() {
       });
 
       const data = await res.json();
-      if (Array.isArray(data.exams)) setAvailableExams(data.exams);
+
+      if (Array.isArray(data.exams)) {
+        // Add registration status for each exam
+        const examsWithStatus = await Promise.all(
+          data.exams.map(async (exam: any) => {
+            const status = await getExamStatus(exam._id);
+
+            const passMark = exam.passMark ?? 0;
+            const maxTheoryScore = exam.maxTheoryScore ?? 40;
+            const passPercent =
+              maxTheoryScore > 0
+                ? Math.round((passMark / maxTheoryScore) * 100)
+                : passMark;
+
+            return {
+              ...exam,
+              status,
+              passPercent,
+            };
+          })
+        );
+
+        setAvailableExams(examsWithStatus);
+      }
     } catch (err) {
       console.error("Fetch available exams error:", err);
     }
@@ -74,25 +115,83 @@ export default function StudentDashboard() {
   };
 
   /* ---------------------------------------------
-     Start exam
+     Fetch student's certificates
+  --------------------------------------------- */
+  const fetchCertificates = async () => {
+    try {
+      const res = await fetch(`${API}/certificates/my`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+      if (Array.isArray(data.certificates)) {
+        setCertificates(data.certificates);
+      }
+    } catch (err) {
+      console.error("Certificate fetch error:", err);
+    }
+  };
+
+  /* ---------------------------------------------
+     Student registers for an exam
+  --------------------------------------------- */
+  const handleRegister = async (examId: string) => {
+    try {
+      const res = await fetch(`${API}/exams/register`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          examId,
+          playerId: user._id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        toast({
+          variant: "destructive",
+          title: "Registration Failed",
+          description: data.message || "Unable to register.",
+        });
+        return;
+      }
+
+      toast({
+        title: "Registration Sent",
+        description: "Waiting for instructor approval.",
+      });
+
+      fetchAvailableExams();
+    } catch (err) {
+      console.error("Register error:", err);
+    }
+  };
+
+  /* ---------------------------------------------
+     Start exam once approved
   --------------------------------------------- */
   const handleStartExam = async (examId: string) => {
     try {
       const res = await fetch(`${API}/exams/attempt/start`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ examId }),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
         toast({
           variant: "destructive",
-          title: "Error",
-          description: data.message || "Unable to start exam",
+          title: "Could not start exam",
+          description: data.message || "Error",
         });
         return;
       }
@@ -114,9 +213,11 @@ export default function StudentDashboard() {
   useEffect(() => {
     if (!token) return;
 
-    Promise.all([fetchAvailableExams(), fetchResults()]).finally(() =>
-      setLoading(false)
-    );
+    Promise.all([
+      fetchAvailableExams(),
+      fetchResults(),
+      fetchCertificates(),
+    ]).finally(() => setLoading(false));
   }, [token]);
 
   /* ---------------------------------------------
@@ -158,7 +259,7 @@ export default function StudentDashboard() {
 
       <div className="container px-4 py-8">
         {/* Header */}
-        <div className="mb-8 animate-fade-in">
+        <div className="mb-8">
           <h1 className="font-display text-4xl font-bold mb-2">
             Welcome back, <span className="text-primary">{studentName}</span>
           </h1>
@@ -167,16 +268,12 @@ export default function StudentDashboard() {
           </p>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {stats.map((stat, index) => {
             const Icon = stat.icon;
             return (
-              <Card
-                key={stat.title}
-                className="gradient-card shadow-card border-border/40 animate-fade-in"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
+              <Card key={index}>
                 <CardHeader className="pb-2">
                   <CardDescription className="flex items-center gap-2">
                     <Icon className={`h-4 w-4 ${stat.color}`} />
@@ -196,24 +293,23 @@ export default function StudentDashboard() {
           <TabsList className="grid w-full grid-cols-3 max-w-md">
             <TabsTrigger value="exams">Available Exams</TabsTrigger>
             <TabsTrigger value="results">My Results</TabsTrigger>
-            <TabsTrigger value="progress">Progress</TabsTrigger>
+            <TabsTrigger value="certs">Certificates</TabsTrigger>
           </TabsList>
 
-          {/* -------------------------- */}
           {/* Available Exams */}
-          {/* -------------------------- */}
           <TabsContent value="exams">
             <Card>
               <CardHeader>
                 <CardTitle>Available Exams</CardTitle>
                 <CardDescription>Start your belt exams</CardDescription>
               </CardHeader>
+
               <CardContent>
                 {availableExams.length === 0 ? (
                   <p className="text-muted-foreground">No exams available.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {availableExams.map((exam: any) => (
+                    {availableExams.map((exam) => (
                       <ExamCard
                         key={exam._id}
                         exam={{
@@ -222,10 +318,12 @@ export default function StudentDashboard() {
                           description: exam.description || "",
                           beltLevel: exam.beltLevel,
                           duration: exam.timeLimit || 20,
-                          passingScore: exam.passingScore || 60,
+                          passingScore: exam.passPercent,
                           totalQuestions: exam.questions?.length || 0,
                           type: "theory",
+                          status: exam.status,
                         }}
+                        onRegister={handleRegister}
                         onStart={handleStartExam}
                       />
                     ))}
@@ -235,9 +333,7 @@ export default function StudentDashboard() {
             </Card>
           </TabsContent>
 
-          {/* -------------------------- */}
           {/* Results */}
-          {/* -------------------------- */}
           <TabsContent value="results">
             <Card>
               <CardHeader>
@@ -248,16 +344,22 @@ export default function StudentDashboard() {
                   <p className="text-muted-foreground">No results yet.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {results.map((result: any) => (
+                    {results.map((result) => (
                       <ExamResultCard
                         key={result._id}
                         result={{
-                          score: result.autoScore || 0,
-                          totalQuestions: result.answers?.length || 1,
-                          theoryScore: result.autoScore,
-                          practicalScore: result.manualScore,
-                          passed: result.pass,
+                          theoryScore: result.autoScore ?? 0,
+                          practicalScore:
+                            result.practicalScores?.morality +
+                              result.practicalScores?.practicalMethod +
+                              result.practicalScores?.technique +
+                              result.practicalScores?.physical +
+                              result.practicalScores?.mental || 0, // التقييم العملي الصحيح
+                          passed: result.passed, // النتيجة النهائية بعد finalize
                           completedAt: result.submittedAt,
+                          exam: {
+                            maxTheoryScore: result.exam?.maxTheoryScore || 40,
+                          },
                         }}
                         examTitle={result.exam?.title || "Exam"}
                       />
@@ -268,35 +370,43 @@ export default function StudentDashboard() {
             </Card>
           </TabsContent>
 
-          {/* -------------------------- */}
-          {/* Progress */}
-          {/* -------------------------- */}
-          <TabsContent value="progress">
+          {/* Certificates */}
+          <TabsContent value="certs">
             <Card>
               <CardHeader>
-                <CardTitle>Training Progress</CardTitle>
+                <CardTitle>My Certificates</CardTitle>
+                <CardDescription>Completed belt exams</CardDescription>
               </CardHeader>
+
               <CardContent>
-                <div className="space-y-4">
-                  {["white", "yellow", "blue", "brown", "red", "black"].map(
-                    (belt) => (
-                      <div key={belt}>
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`h-8 w-8 rounded-full ${
-                              beltLevel === belt
-                                ? "bg-secondary/20 border-2 border-secondary"
-                                : "bg-muted border-2 border-muted"
-                            }`}
-                          />
-                          <span className="font-semibold">
-                            {belt.toUpperCase()} Belt
-                          </span>
-                        </div>
+                {certificates.length === 0 ? (
+                  <p className="text-muted-foreground">
+                    No certificates available yet.
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {certificates.map((c) => (
+                      <div key={c._id} className="p-4 rounded-lg bg-accent/10">
+                        <h3 className="text-lg font-semibold">
+                          {c.exam?.title}
+                        </h3>
+                        <p className="text-sm">
+                          Belt: <Badge variant="outline">{c.beltLevel}</Badge>
+                        </p>
+                        <p className="text-sm mt-1">
+                          Score: <strong>{c.totalScore}</strong>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Issued: {new Date(c.issuedAt).toLocaleDateString()}
+                        </p>
+
+                        <Button size="sm" variant="outline" className="mt-3">
+                          Download PDF
+                        </Button>
                       </div>
-                    )
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

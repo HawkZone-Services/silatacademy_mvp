@@ -11,11 +11,13 @@ import {
   ExamRegisteration,
   approveRegistration,
   rejectRegistration,
-  gradeManual2,
   combineScores,
   listSubmissions,
   gradeManual,
   getMyAttempts,
+  listRegistrations,
+  getRegistrationStatus,
+  gradeManual2,
 } from "../controllers/examController.js";
 
 import { protect, checkRole } from "../middlewares/authMiddleware.js";
@@ -35,6 +37,7 @@ router.post("/register", protect, ExamRegisteration);
 
 router.post("/attempt/start", protect, startAttempt);
 router.post("/attempt/submit", protect, submitAttempt);
+router.get("/registration/status/:examId", protect, getRegistrationStatus);
 
 /* ================================================
    ADMIN EXAM ROUTES (Restricted)
@@ -55,7 +58,14 @@ router.patch(
   checkRole("admin", "instructor"),
   rejectRegistration
 );
+// View registrations for specific exam
 
+router.get(
+  "/admin/registrations/:examId",
+  protect,
+  checkRole("admin", "instructor"),
+  listRegistrations
+);
 // Create exam
 router.post("/admin", protect, checkRole("admin", "instructor"), createExam);
 

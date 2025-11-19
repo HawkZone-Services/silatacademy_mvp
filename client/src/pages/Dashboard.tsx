@@ -31,6 +31,17 @@ import { CreateExamDialog } from "@/components/admin/test/CreateExamDialog";
 import { ExamList } from "@/components/admin/test/ExamList";
 import { PracticalScoreDialog } from "@/components/admin/test/PracticalScoreDialog";
 
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { SubmissionsList } from "@/components/admin/test/SubmissionsList";
+import { FinalizeResultButton } from "@/components/admin/test/FinalizeResultButton";
+import { CertificateGenerator } from "@/components/admin/test/CertificateGenerator";
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -52,28 +63,18 @@ export default function Dashboard() {
     todayAttendance: 0,
   });
 
-  const [players, setPlayers] = useState([]);
-  const [lessons, setLessons] = useState([]);
-  const [registrations, setRegistrations] = useState([]);
-  const [exams, setExams] = useState([]);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [exams, setExams] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [selectedStudent, setSelectedStudent] = useState("");
   const [selectedExam, setSelectedExam] = useState("");
 
   // ==========================================
-  // Helper JSON parser
-  // ==========================================
-  const safeJSON = async (res: Response) => {
-    try {
-      return await res.json();
-    } catch {
-      return null;
-    }
-  };
-
-  // ==========================================
-  // Authentication
+  // AUTH
   // ==========================================
   const checkAuth = () => {
     const savedUser =
@@ -86,14 +87,15 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // Load Dashboard Data
+  // JSON PARSER
   // ==========================================
-  useEffect(() => {
-    checkAuth();
-    fetchDashboardData();
-    fetchExams();
-    fetchRegistrations();
-  }, [token, navigate]);
+  const safeJSON = async (res: Response) => {
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
+  };
 
   // ==========================================
   // Fetch dashboard data
@@ -124,7 +126,7 @@ export default function Dashboard() {
       setStats({
         totalPlayers: statsJson.totalPlayers || playersJson.length || 0,
         activePlayers:
-          playersJson.filter((p) => p.status === "active")?.length || 0,
+          playersJson.filter((p: any) => p.status === "active")?.length || 0,
         upcomingLessons: lessonsJson.length || 0,
         todayAttendance: attendanceJson.length || 0,
       });
@@ -139,7 +141,7 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // Fetch Exams (Admin + Student)
+  // Fetch Exams (Admin)
   // ==========================================
   const fetchExams = async () => {
     try {
@@ -148,20 +150,51 @@ export default function Dashboard() {
       const res = await fetch(`${EXAM_API}`, { headers });
       const data = await safeJSON(res);
 
-      setExams(data?.exams || []);
+      const list = data?.exams || [];
+      setExams(list);
+
+      // لو مفيش امتحان مختار، اختار أول واحد تلقائيًا
+      if (!selectedExam && list.length > 0) {
+        setSelectedExam(list[0]._id);
+      }
     } catch (error) {
       console.error("Fetch Exams Error:", error);
     }
   };
 
   // ==========================================
-  // Fetch registrations (ADMIN)
+  // Fetch registrations (ADMIN) for selectedExam
   // ==========================================
-  // Fetch registrations (ADMIN)
   const fetchRegistrations = async () => {
     try {
       if (!selectedExam) {
         setRegistrations([]);
+        return;
+      }
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // هنا بنجيب examRegistrations مع player (lookup) من الباك إند
+      const res = await fetch(
+        `${EXAM_API}/admin/registrations/${selectedExam}`,
+        {
+          headers,
+        }
+      );
+      const data = await safeJSON(res);
+
+      setRegistrations(
+        Array.isArray(data?.registrations) ? data.registrations : []
+      );
+    } catch (error) {
+      console.error("Fetch registrations error:", error);
+      setRegistrations([]);
+    }
+  };
+  const fetchSubmissions = async () => {
+    try {
+      if (!selectedExam) {
+        setSubmissions([]);
         return;
       }
 
@@ -173,17 +206,25 @@ export default function Dashboard() {
 
       const data = await safeJSON(res);
 
-      setRegistrations(
-        Array.isArray(data?.submissions) ? data.submissions : []
-      );
+      setSubmissions(Array.isArray(data?.submissions) ? data.submissions : []);
+      console.log(submissions);
     } catch (error) {
-      console.error("Fetch registrations error:", error);
-      setRegistrations([]);
+      console.error("Fetch submissions error:", error);
+      setSubmissions([]);
     }
   };
-  // run whenever selectedExam changes
+  // ==========================================
+  // RUN ON LOAD
+  // ==========================================
+  useEffect(() => {
+    checkAuth();
+    fetchDashboardData();
+    fetchExams();
+  }, [token]);
+
   useEffect(() => {
     fetchRegistrations();
+    fetchSubmissions();
   }, [selectedExam]);
 
   // ==========================================
@@ -214,7 +255,7 @@ export default function Dashboard() {
   // ==========================================
   // PLAYER FILTER
   // ==========================================
-  const filteredPlayers = players.filter((player) => {
+  const filteredPlayers = players.filter((player: any) => {
     const q = searchQuery.toLowerCase();
     return (
       player.name?.toLowerCase().includes(q) ||
@@ -334,7 +375,7 @@ export default function Dashboard() {
                 />
 
                 <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                  {filteredPlayers.map((player) => (
+                  {filteredPlayers.map((player: any) => (
                     <div
                       key={player._id}
                       className="flex items-center justify-between p-4 bg-accent/10 rounded-lg hover:bg-accent/20 transition"
@@ -384,7 +425,7 @@ export default function Dashboard() {
           </TabsContent>
 
           {/* =========================================== */}
-          {/* TESTING MANAGEMENT */}
+          {/* TESTING TAB */}
           {/* =========================================== */}
           <TabsContent value="testing">
             <div className="space-y-10">
@@ -399,14 +440,43 @@ export default function Dashboard() {
                 <ExamList exams={exams} onRefresh={fetchExams} />
               </section>
 
-              {/* Registrations */}
+              {/* Registration Management */}
               <section>
-                <h2 className="text-xl font-bold mt-6 mb-2">Registrations</h2>
+                <h2 className="text-xl font-bold mt-6 mb-2">
+                  Exam Registrations
+                </h2>
+
+                <Select value={selectedExam} onValueChange={setSelectedExam}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Exam" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {exams.map((exam) => (
+                      <SelectItem key={exam._id} value={exam._id}>
+                        {exam.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <RegistrationList
                   list={registrations}
                   onApprove={approveFn}
                   onReject={rejectFn}
-                  onSelect={(studentId: string, examId: string) => {
+                />
+              </section>
+
+              {/* Exam Submissions */}
+              <section>
+                <h2 className="text-xl font-bold mt-6 mb-2">
+                  Exam Submissions
+                </h2>
+
+                <SubmissionsList
+                  list={submissions}
+                  onSelect={(studentId, examId) => {
+                    console.log("Selected student:", studentId);
+                    console.log("Selected exam:", examId);
                     setSelectedStudent(studentId);
                     setSelectedExam(examId);
                   }}
@@ -416,16 +486,28 @@ export default function Dashboard() {
               {/* Practical Scoring */}
               <section>
                 <h2 className="text-xl font-bold mt-6 mb-2">
-                  Practical Scoring
+                  Practical Evaluation
                 </h2>
 
                 <PracticalScoreDialog
                   studentId={selectedStudent}
                   examId={selectedExam}
                   onSaved={() => {
-                    fetchRegistrations();
-                    fetchExams();
+                    fetchSubmissions();
                   }}
+                />
+
+                <FinalizeResultButton
+                  studentId={selectedStudent}
+                  examId={selectedExam}
+                  onFinalized={() => {
+                    fetchSubmissions();
+                  }}
+                />
+
+                <CertificateGenerator
+                  studentId={selectedStudent}
+                  examId={selectedExam}
                 />
               </section>
             </div>
@@ -449,7 +531,7 @@ export default function Dashboard() {
               <CardContent>
                 <div className="space-y-3 max-h-[600px] overflow-y-auto">
                   {Array.isArray(lessons) &&
-                    lessons.map((lesson) => (
+                    lessons.map((lesson: any) => (
                       <div
                         key={lesson._id}
                         className="p-4 bg-accent/10 rounded-lg"
