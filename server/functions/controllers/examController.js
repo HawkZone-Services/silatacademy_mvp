@@ -387,7 +387,7 @@ export const listSubmissions = asyncHandler(async (req, res) => {
 
   const submissions = await db
     .collection("examAttempts")
-    .find({ exam: new ObjectId(req.params.id) })
+    .find({ exam: new ObjectId(req.params.examId) })
     .toArray();
 
   res.json({ success: true, submissions });

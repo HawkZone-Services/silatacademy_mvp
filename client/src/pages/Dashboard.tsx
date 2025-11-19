@@ -157,19 +157,34 @@ export default function Dashboard() {
   // ==========================================
   // Fetch registrations (ADMIN)
   // ==========================================
+  // Fetch registrations (ADMIN)
   const fetchRegistrations = async () => {
     try {
+      if (!selectedExam) {
+        setRegistrations([]);
+        return;
+      }
+
       const headers = { Authorization: `Bearer ${token}` };
 
-      const res = await fetch(`${EXAM_API}/registrations`, { headers });
+      const res = await fetch(`${EXAM_API}/admin/submissions/${selectedExam}`, {
+        headers,
+      });
+
       const data = await safeJSON(res);
 
-      setRegistrations(Array.isArray(data) ? data : []);
+      setRegistrations(
+        Array.isArray(data?.submissions) ? data.submissions : []
+      );
     } catch (error) {
       console.error("Fetch registrations error:", error);
       setRegistrations([]);
     }
   };
+  // run whenever selectedExam changes
+  useEffect(() => {
+    fetchRegistrations();
+  }, [selectedExam]);
 
   // ==========================================
   // Approve / Reject registration
@@ -177,7 +192,7 @@ export default function Dashboard() {
   const approveFn = async (regId: string) => {
     const headers = { Authorization: `Bearer ${token}` };
 
-    await fetch(`${EXAM_API}/registration/${regId}/approve`, {
+    await fetch(`${EXAM_API}/admin/registration/${regId}/approve`, {
       method: "PATCH",
       headers,
     });
@@ -188,7 +203,7 @@ export default function Dashboard() {
   const rejectFn = async (regId: string) => {
     const headers = { Authorization: `Bearer ${token}` };
 
-    await fetch(`${EXAM_API}/registration/${regId}/reject`, {
+    await fetch(`${EXAM_API}/admin/registration/${regId}/reject`, {
       method: "PATCH",
       headers,
     });

@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -23,50 +22,85 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
   const [beltLevel, setBeltLevel] = useState("white");
   const [questions, setQuestions] = useState<any[]>([]);
 
+  // ------------------------------
+  // Add new question
+  // ------------------------------
   const addQuestion = () => {
     setQuestions([
       ...questions,
       {
-        text: "",
+        question: "",
         type: "mcq",
         choices: ["", ""],
         correctIndex: 0,
+        correctBoolean: true,
         maxScore: 1,
       },
     ]);
   };
 
+  // ------------------------------
+  // Update question
+  // ------------------------------
   const updateQuestion = (index: number, field: string, value: any) => {
     const updated = [...questions];
     updated[index][field] = value;
     setQuestions(updated);
   };
 
+  // ------------------------------
+  // Add MCQ choice
+  // ------------------------------
   const addChoice = (index: number) => {
     const updated = [...questions];
     updated[index].choices.push("");
     setQuestions(updated);
   };
 
+  // ------------------------------
+  // Create exam (POST)
+  // ------------------------------
   const createExam = async () => {
     const token =
       localStorage.getItem("token") || sessionStorage.getItem("token");
 
-    console.log("USED TOKEN:", token);
-
     const payload = {
       title,
       beltLevel,
-      questions: questions.map((q) => ({
-        ...q,
-        maxScore: q.maxScore ?? 1,
-      })),
-      schedule: {
-        startsAt: new Date(),
-        endsAt: new Date(),
-      },
+      schedule: { startsAt: new Date(), endsAt: new Date() },
       maxTheoryScore: 40,
-      createdBy: JSON.parse(localStorage.getItem("user") || "{}")?._id,
+      createdBy:
+        JSON.parse(localStorage.getItem("user") || "{}")?._id ||
+        JSON.parse(sessionStorage.getItem("user") || "{}")?._id,
+
+      // format questions for backend
+      questions: questions.map((q) => {
+        const base = {
+          question: q.question,
+          type: q.type,
+          maxScore: q.maxScore ?? 1,
+        };
+
+        if (q.type === "mcq") {
+          return {
+            ...base,
+            choices: q.choices,
+            correctIndex: Number(q.correctIndex),
+          };
+        }
+
+        if (q.type === "truefalse") {
+          return {
+            ...base,
+            correctBoolean: Boolean(q.correctBoolean),
+          };
+        }
+
+        // Essay
+        return {
+          ...base,
+        };
+      }),
     };
 
     const res = await fetch(
@@ -87,6 +121,7 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
     setOpen(false);
     onCreated();
   };
+
   return (
     <>
       <Button onClick={() => setOpen(true)}>+ Create New Exam</Button>
@@ -98,12 +133,14 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Exam Title */}
             <Input
               placeholder="Exam Title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
 
+            {/* Belt Level */}
             <Select onValueChange={setBeltLevel} defaultValue="white">
               <SelectTrigger>
                 <SelectValue placeholder="Choose Belt Level" />
@@ -119,16 +156,21 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
               </SelectContent>
             </Select>
 
+            {/* Add question */}
             <Button variant="outline" onClick={addQuestion}>
               + Add Question
             </Button>
 
+            {/* QUESTIONS */}
             {questions.map((q, i) => (
               <Card key={i} className="p-4 space-y-3">
+                {/* QUESTION TEXT */}
                 <Input
                   placeholder="Question text"
-                  value={q.text}
-                  onChange={(e) => updateQuestion(i, "text", e.target.value)}
+                  value={q.question}
+                  onChange={(e) =>
+                    updateQuestion(i, "question", e.target.value)
+                  }
                 />
 
                 {/* Question Type */}
@@ -137,7 +179,7 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
                   defaultValue={q.type}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mcq">Multiple Choice</SelectItem>
@@ -146,9 +188,11 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
                   </SelectContent>
                 </Select>
 
-                {/* MCQ */}
+                {/* MCQ SECTION */}
                 {q.type === "mcq" && (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
+                    <h4 className="font-medium">Choices</h4>
+
                     {q.choices.map((c: string, idx: number) => (
                       <Input
                         key={idx}
@@ -161,6 +205,7 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
                         }}
                       />
                     ))}
+
                     <Button
                       size="sm"
                       variant="outline"
@@ -168,28 +213,50 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
                     >
                       + Add Choice
                     </Button>
+
+                    <h4 className="font-medium mt-3">Correct Answer</h4>
+                    <Select
+                      onValueChange={(v) =>
+                        updateQuestion(i, "correctIndex", Number(v))
+                      }
+                      defaultValue={String(q.correctIndex)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Correct Choice" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {q.choices.map((_: string, idx: number) => (
+                          <SelectItem key={idx} value={String(idx)}>
+                            Choice {idx + 1}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
 
-                {/* True/False */}
+                {/* TRUE/FALSE */}
                 {q.type === "truefalse" && (
-                  <Select
-                    onValueChange={(v) =>
-                      updateQuestion(i, "correctBoolean", v === "true")
-                    }
-                    defaultValue="true"
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="true">True</SelectItem>
-                      <SelectItem value="false">False</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div>
+                    <h4 className="font-medium">Correct Answer</h4>
+                    <Select
+                      onValueChange={(v) =>
+                        updateQuestion(i, "correctBoolean", v === "true")
+                      }
+                      defaultValue={q.correctBoolean ? "true" : "false"}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="True or False" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">True</SelectItem>
+                        <SelectItem value="false">False</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
 
-                {/* Essay Score */}
+                {/* Essay max score */}
                 {q.type === "essay" && (
                   <Input
                     placeholder="Max Score"
