@@ -1,3 +1,7 @@
+// ===============================
+// Student Dashboard (FULL PATCHED)
+// ===============================
+
 import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
@@ -40,9 +44,9 @@ export default function StudentDashboard() {
   const [certificates, setCertificates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /* ---------------------------------------------
-     Fetch student's registration status for an exam
-  --------------------------------------------- */
+  // ===============================
+  // Exam Registration Status
+  // ===============================
   const getExamStatus = async (examId: string) => {
     try {
       const res = await fetch(`${API}/exams/registration/status/${examId}`, {
@@ -50,15 +54,15 @@ export default function StudentDashboard() {
       });
 
       const data = await res.json();
-      return data.status || "none"; // none | pending | approved | rejected
+      return data.status || "none";
     } catch {
       return "none";
     }
   };
 
-  /* ---------------------------------------------
-     Fetch exams available for student
-  --------------------------------------------- */
+  // ===============================
+  // Fetch Available Exams (PATCHED)
+  // ===============================
   const fetchAvailableExams = async () => {
     try {
       const res = await fetch(`${API}/exams/available/${beltLevel}`, {
@@ -68,7 +72,6 @@ export default function StudentDashboard() {
       const data = await res.json();
 
       if (Array.isArray(data.exams)) {
-        // Add registration status for each exam
         const examsWithStatus = await Promise.all(
           data.exams.map(async (exam: any) => {
             const status = await getExamStatus(exam._id);
@@ -80,11 +83,11 @@ export default function StudentDashboard() {
                 ? Math.round((passMark / maxTheoryScore) * 100)
                 : passMark;
 
-            return {
-              ...exam,
-              status,
-              passPercent,
-            };
+            // CHECK IF STUDENT ALREADY COMPLETED THIS EXAM
+            const attempt = results.find((r) => r.exam?._id === exam._id);
+            const attemptStatus = attempt ? "completed" : "notAttempted";
+
+            return { ...exam, status, passPercent, attemptStatus };
           })
         );
 
@@ -95,9 +98,9 @@ export default function StudentDashboard() {
     }
   };
 
-  /* ---------------------------------------------
-     Fetch student's exam results
-  --------------------------------------------- */
+  // ===============================
+  // Fetch Results (PATCHED)
+  // ===============================
   const fetchResults = async () => {
     try {
       const res = await fetch(`${API}/exams/my-attempts`, {
@@ -114,9 +117,9 @@ export default function StudentDashboard() {
     }
   };
 
-  /* ---------------------------------------------
-     Fetch student's certificates
-  --------------------------------------------- */
+  // ===============================
+  // Fetch Certificates
+  // ===============================
   const fetchCertificates = async () => {
     try {
       const res = await fetch(`${API}/certificates/my`, {
@@ -132,9 +135,9 @@ export default function StudentDashboard() {
     }
   };
 
-  /* ---------------------------------------------
-     Student registers for an exam
-  --------------------------------------------- */
+  // ===============================
+  // Register for Exam
+  // ===============================
   const handleRegister = async (examId: string) => {
     try {
       const res = await fetch(`${API}/exams/register`, {
@@ -171,9 +174,9 @@ export default function StudentDashboard() {
     }
   };
 
-  /* ---------------------------------------------
-     Start exam once approved
-  --------------------------------------------- */
+  // ===============================
+  // Start Exam
+  // ===============================
   const handleStartExam = async (examId: string) => {
     try {
       const res = await fetch(`${API}/exams/attempt/start`, {
@@ -207,22 +210,33 @@ export default function StudentDashboard() {
     }
   };
 
-  /* ---------------------------------------------
-     Load everything on mount
-  --------------------------------------------- */
+  // ===============================
+  // PAGE LOAD
+  // ===============================
   useEffect(() => {
     if (!token) return;
 
     Promise.all([
+      fetchResults(), // must load first
       fetchAvailableExams(),
-      fetchResults(),
       fetchCertificates(),
     ]).finally(() => setLoading(false));
   }, [token]);
 
-  /* ---------------------------------------------
-     Stats section
-  --------------------------------------------- */
+  // ===============================
+  // AUTO REFRESH LOGIC
+  // ===============================
+  useEffect(() => {
+    if (localStorage.getItem("refreshResults") === "1") {
+      fetchResults();
+      fetchAvailableExams();
+      localStorage.removeItem("refreshResults");
+    }
+  }, []);
+
+  // ===============================
+  // STATS
+  // ===============================
   const stats = [
     {
       title: "Current Belt",
@@ -232,7 +246,7 @@ export default function StudentDashboard() {
     },
     {
       title: "Exams Passed",
-      value: results.filter((r) => r.pass).length.toString(),
+      value: results.filter((r) => r.passed).length.toString(),
       icon: Trophy,
       color: "text-primary",
     },
@@ -250,9 +264,6 @@ export default function StudentDashboard() {
     },
   ];
 
-  /* ---------------------------------------------
-     UI Render
-  --------------------------------------------- */
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -296,7 +307,9 @@ export default function StudentDashboard() {
             <TabsTrigger value="certs">Certificates</TabsTrigger>
           </TabsList>
 
-          {/* Available Exams */}
+          {/* ========================= */}
+          {/* AVAILABLE EXAMS */}
+          {/* ========================= */}
           <TabsContent value="exams">
             <Card>
               <CardHeader>
@@ -322,6 +335,7 @@ export default function StudentDashboard() {
                           totalQuestions: exam.questions?.length || 0,
                           type: "theory",
                           status: exam.status,
+                          attemptStatus: exam.attemptStatus,
                         }}
                         onRegister={handleRegister}
                         onStart={handleStartExam}
@@ -333,7 +347,9 @@ export default function StudentDashboard() {
             </Card>
           </TabsContent>
 
-          {/* Results */}
+          {/* ========================= */}
+          {/* RESULTS */}
+          {/* ========================= */}
           <TabsContent value="results">
             <Card>
               <CardHeader>
@@ -344,40 +360,44 @@ export default function StudentDashboard() {
                   <p className="text-muted-foreground">No results yet.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {results.map((result) => (
-                      <ExamResultCard
-                        key={result._id}
-                        result={{
-                          theoryScore: result.autoScore ?? 0,
-                          practicalScore:
-                            result.practicalScores?.morality +
-                              result.practicalScores?.practicalMethod +
-                              result.practicalScores?.technique +
-                              result.practicalScores?.physical +
-                              result.practicalScores?.mental || 0, // التقييم العملي الصحيح
-                          passed: result.passed, // النتيجة النهائية بعد finalize
-                          completedAt: result.submittedAt,
-                          exam: {
-                            maxTheoryScore: result.exam?.maxTheoryScore || 40,
-                          },
-                        }}
-                        examTitle={result.exam?.title || "Exam"}
-                      />
-                    ))}
+                    {results.map((result) => {
+                      const practical =
+                        (result.practicalScores?.morality || 0) +
+                          (result.practicalScores?.practicalMethod || 0) +
+                          (result.practicalScores?.technique || 0) +
+                          (result.practicalScores?.physical || 0) +
+                          (result.practicalScores?.mental || 0) || 0;
+
+                      return (
+                        <ExamResultCard
+                          key={result._id}
+                          result={{
+                            theoryScore: result.theoryScore ?? 0,
+                            practicalScore: practical,
+                            passed: result.passed,
+                            completedAt: result.submittedAt,
+                            exam: {
+                              maxTheoryScore: result.exam?.maxTheoryScore || 40,
+                            },
+                          }}
+                          examTitle={result.exam?.title || "Exam"}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Certificates */}
+          {/* ========================= */}
+          {/* CERTIFICATES */}
+          {/* ========================= */}
           <TabsContent value="certs">
             <Card>
               <CardHeader>
                 <CardTitle>My Certificates</CardTitle>
-                <CardDescription>Completed belt exams</CardDescription>
               </CardHeader>
-
               <CardContent>
                 {certificates.length === 0 ? (
                   <p className="text-muted-foreground">
