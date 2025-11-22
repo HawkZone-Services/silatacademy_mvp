@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Props {
   studentId: string;
@@ -8,28 +8,68 @@ interface Props {
 }
 
 export function CertificateGenerator({ studentId, examId }: Props) {
-  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [certificateExists, setCertificateExists] = useState(false);
 
-  const disabled = !studentId || !examId || loading;
+  const token =
+    localStorage.getItem("token") || sessionStorage.getItem("token");
 
+  const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
+
+  // ============================
+  // CHECK CERT STATUS
+  // ============================
+  const checkCertificate = async () => {
+    if (!studentId || !examId) return;
+
+    try {
+      const res = await fetch(
+        `${API}/certificates/check/${examId}/${studentId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const data = await res.json();
+      setCertificateExists(data.exists);
+    } catch (err) {
+      console.error("Certificate check failed:", err);
+    }
+  };
+
+  useEffect(() => {
+    checkCertificate();
+  }, [studentId, examId]);
+
+  // ============================
+  // GENERATE / DOWNLOAD CERT PDF
+  // ============================
   const generate = async () => {
-    if (disabled) return;
+    if (!certificateExists) {
+      toast({
+        variant: "destructive",
+        title: "Finalize Required",
+        description:
+          "You must finalize the result before generating certificate.",
+      });
+      return;
+    }
 
     setLoading(true);
 
     try {
-      const url = `https://api-f3rwhuz64a-uc.a.run.app/api/certificates/generate/${examId}/${studentId}`;
+      const url = `${API}/certificates/admin/pdf/${examId}/${studentId}`;
       window.open(url, "_blank");
 
       toast({
-        title: "Certificate Generated",
-        description: "The certificate has been opened in a new tab.",
+        title: "Certificate Ready",
+        description: "Opened in new tab.",
       });
-    } catch {
+    } catch (err) {
       toast({
         title: "Error",
-        description: "Could not generate certificate.",
+        description: "Failed to generate certificate.",
         variant: "destructive",
       });
     }
@@ -37,13 +77,21 @@ export function CertificateGenerator({ studentId, examId }: Props) {
     setLoading(false);
   };
 
+  // UI States
+  if (!certificateExists)
+    return (
+      <Button disabled className="w-full mt-4 bg-gray-400 text-white">
+        Finalize Result to Unlock Certificate
+      </Button>
+    );
+
   return (
     <Button
       onClick={generate}
-      disabled={disabled}
-      className="w-full bg-red-600 hover:bg-red-700 text-white mt-4"
+      disabled={loading}
+      className="w-full bg-green-600 hover:bg-green-700 text-white mt-4"
     >
-      {loading ? "Generating..." : "Generate Certificate"}
+      {loading ? "Generating..." : "Download Certificate"}
     </Button>
   );
 }

@@ -26,9 +26,6 @@ export default function ExamInterface() {
   const [loading, setLoading] = useState(true);
   const [focusLosses, setFocusLosses] = useState(0);
 
-  /* ---------------------------------------------
-     Prevent entering without attempt ID
-  --------------------------------------------- */
   useEffect(() => {
     if (!attemptId || !examId) {
       toast({
@@ -40,9 +37,6 @@ export default function ExamInterface() {
     }
   }, [attemptId, examId]);
 
-  /* ---------------------------------------------
-     Fetch Exam Data
-  --------------------------------------------- */
   const fetchExam = async () => {
     try {
       const res = await fetch(`${API}/exams/${examId}`, {
@@ -55,9 +49,6 @@ export default function ExamInterface() {
     }
   };
 
-  /* ---------------------------------------------
-     Fetch Attempt (Ensure it's valid)
-  --------------------------------------------- */
   const fetchAttempt = async () => {
     try {
       const res = await fetch(`${API}/exams/my-attempts`, {
@@ -71,13 +62,12 @@ export default function ExamInterface() {
         toast({
           variant: "destructive",
           title: "Access Denied",
-          description: "You have no active attempt for this exam.",
+          description: "No active attempt found.",
         });
         navigate("/dashboard");
         return;
       }
 
-      // Prevent re-access after submission
       if (found.submittedAt) {
         toast({
           variant: "destructive",
@@ -92,9 +82,6 @@ export default function ExamInterface() {
     }
   };
 
-  /* ---------------------------------------------
-     Focus Loss Detection
-  --------------------------------------------- */
   useEffect(() => {
     const onBlur = () => setFocusLosses((x) => x + 1);
     window.addEventListener("blur", onBlur);
@@ -102,41 +89,23 @@ export default function ExamInterface() {
     return () => window.removeEventListener("blur", onBlur);
   }, []);
 
-  /* ---------------------------------------------
-     Load Exam + Attempt
-  --------------------------------------------- */
   useEffect(() => {
     if (!token) return;
     Promise.all([fetchExam(), fetchAttempt()]).finally(() => setLoading(false));
   }, [token]);
 
-  /* ---------------------------------------------
-     Handle Answer Changes
-  --------------------------------------------- */
   const handleMCQ = (qId: string, index: number) => {
-    setAnswers({
-      ...answers,
-      [qId]: { selectedIndex: index },
-    });
+    setAnswers({ ...answers, [qId]: { selectedIndex: index } });
   };
 
   const handleTrueFalse = (qId: string, value: boolean) => {
-    setAnswers({
-      ...answers,
-      [qId]: { booleanAnswer: value },
-    });
+    setAnswers({ ...answers, [qId]: { booleanAnswer: value } });
   };
 
   const handleEssay = (qId: string, text: string) => {
-    setAnswers({
-      ...answers,
-      [qId]: { essayText: text },
-    });
+    setAnswers({ ...answers, [qId]: { essayText: text } });
   };
 
-  /* ---------------------------------------------
-     Submit Exam Attempt
-  --------------------------------------------- */
   const handleSubmit = async () => {
     const formattedAnswers = exam.questions.map((q: any) => ({
       questionId: q._id,
@@ -177,6 +146,8 @@ export default function ExamInterface() {
         return;
       }
 
+      localStorage.setItem("refreshResults", "1");
+
       toast({
         title: "Exam submitted",
         description: "Your theory exam has been submitted successfully.",
@@ -188,9 +159,6 @@ export default function ExamInterface() {
     }
   };
 
-  /* ---------------------------------------------
-     Rendering
-  --------------------------------------------- */
   if (loading || !exam) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -223,7 +191,6 @@ export default function ExamInterface() {
                 </Badge>
               </div>
 
-              {/* MCQ */}
               {q.type === "mcq" && (
                 <RadioGroup onValueChange={(v) => handleMCQ(q._id, Number(v))}>
                   {q.choices.map((choice: string, i: number) => (
@@ -235,7 +202,6 @@ export default function ExamInterface() {
                 </RadioGroup>
               )}
 
-              {/* TRUE / FALSE */}
               {q.type === "truefalse" && (
                 <div className="space-x-4">
                   <Button
@@ -262,10 +228,9 @@ export default function ExamInterface() {
                 </div>
               )}
 
-              {/* ESSAY */}
               {q.type === "essay" && (
                 <Textarea
-                  placeholder="Write your answer here..."
+                  placeholder="Write your answer..."
                   onChange={(e) => handleEssay(q._id, e.target.value)}
                 />
               )}

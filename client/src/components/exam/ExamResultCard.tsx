@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface ExamResultCardProps {
   result: {
     theoryScore: number;
-    practicalScore?: number;
-    passed?: boolean; // final pass from finalize
-    completedAt: string;
+    practicalScore?: number; // مجموع العملي (قد يكون صفر)
+    passed?: boolean; // نتيجة النهائي بعد finalize
+    completedAt: string; // وقت إنهاء النظري
     exam?: {
       maxTheoryScore?: number;
     };
@@ -22,24 +22,28 @@ export function ExamResultCard({ result, examTitle }: ExamResultCardProps) {
     maxTheoryScore > 0 ? Math.round((theory / maxTheoryScore) * 100) : 0;
 
   // ============================
-  // STATUS LOGIC (FINAL)
+  // FINAL STATUS LOGIC (PATCHED)
   // ============================
+
+  // يعتبر العملي موجوداً حتى لو كانت قيمته = 0
+  const hasPractical =
+    result.practicalScore !== undefined && result.practicalScore !== null;
+
+  const hasFinalizedResult = typeof result.passed === "boolean";
+
   let statusLabel = "";
   let statusColor = "";
 
-  const hasPractical = practical > 0;
-  const hasFinalizedResult = typeof result.passed === "boolean";
-
   if (!hasPractical) {
-    // Student finished theory only
+    // الطالب أنهى النظري فقط
     statusLabel = "Awaiting Practical Evaluation";
     statusColor = "text-yellow-600";
   } else if (hasPractical && !hasFinalizedResult) {
-    // Instructor added practical scores but did NOT finalize
+    // المدرب سجل العملي ولم يعمل Finalize
     statusLabel = "Pending Final Review";
     statusColor = "text-blue-600";
   } else {
-    // Final exam result available
+    // نتيجة نهائية موجودة
     statusLabel = result.passed ? "Passed" : "Failed";
     statusColor = result.passed ? "text-green-600" : "text-red-600";
   }

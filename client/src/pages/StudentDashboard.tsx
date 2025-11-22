@@ -1,5 +1,5 @@
 // ===============================
-// Student Dashboard (FULL PATCHED)
+// Student Dashboard (FINAL VERSION)
 // ===============================
 
 import { useEffect, useState } from "react";
@@ -23,6 +23,7 @@ import { ExamResultCard } from "@/components/exam/ExamResultCard";
 import { Calendar, Trophy, TrendingUp, Award } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { StudentCertificateCard } from "@/components/exam/StudentCertificateCard";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -44,6 +45,43 @@ export default function StudentDashboard() {
   const [certificates, setCertificates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // =======================
+  // AUTO-REFRESH CERTIFICATES
+  // =======================
+  useEffect(() => {
+    if (localStorage.getItem("refreshCertificates") === "1") {
+      fetchCertificates();
+      localStorage.removeItem("refreshCertificates");
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchCertificates();
+    }, 10000); // كل 10 ثواني تحديث الشهادات تلقائياً
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ===============================
+  // Fetch Results FIRST
+  // ===============================
+  const fetchResults = async () => {
+    try {
+      const res = await fetch(`${API}/exams/my-attempts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+
+      if (Array.isArray(data.attempts)) {
+        setResults(data.attempts);
+      }
+    } catch (err) {
+      console.error("Fetch results error:", err);
+    }
+  };
+
   // ===============================
   // Exam Registration Status
   // ===============================
@@ -61,7 +99,7 @@ export default function StudentDashboard() {
   };
 
   // ===============================
-  // Fetch Available Exams (PATCHED)
+  // Fetch Available Exams
   // ===============================
   const fetchAvailableExams = async () => {
     try {
@@ -71,49 +109,29 @@ export default function StudentDashboard() {
 
       const data = await res.json();
 
-      if (Array.isArray(data.exams)) {
-        const examsWithStatus = await Promise.all(
-          data.exams.map(async (exam: any) => {
-            const status = await getExamStatus(exam._id);
+      if (!Array.isArray(data.exams)) return;
 
-            const passMark = exam.passMark ?? 0;
-            const maxTheoryScore = exam.maxTheoryScore ?? 40;
-            const passPercent =
-              maxTheoryScore > 0
-                ? Math.round((passMark / maxTheoryScore) * 100)
-                : passMark;
+      const examsWithStatus = await Promise.all(
+        data.exams.map(async (exam: any) => {
+          const status = await getExamStatus(exam._id);
 
-            // CHECK IF STUDENT ALREADY COMPLETED THIS EXAM
-            const attempt = results.find((r) => r.exam?._id === exam._id);
-            const attemptStatus = attempt ? "completed" : "notAttempted";
+          const passMark = exam.passMark ?? 0;
+          const maxTheoryScore = exam.maxTheoryScore ?? 40;
+          const passPercent =
+            maxTheoryScore > 0
+              ? Math.round((passMark / maxTheoryScore) * 100)
+              : passMark;
 
-            return { ...exam, status, passPercent, attemptStatus };
-          })
-        );
+          const attempt = results.find((r) => r.exam?._id === exam._id);
+          const attemptStatus = attempt ? "completed" : "notAttempted";
 
-        setAvailableExams(examsWithStatus);
-      }
+          return { ...exam, status, passPercent, attemptStatus };
+        })
+      );
+
+      setAvailableExams(examsWithStatus);
     } catch (err) {
       console.error("Fetch available exams error:", err);
-    }
-  };
-
-  // ===============================
-  // Fetch Results (PATCHED)
-  // ===============================
-  const fetchResults = async () => {
-    try {
-      const res = await fetch(`${API}/exams/my-attempts`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await res.json();
-
-      if (Array.isArray(data.attempts)) {
-        setResults(data.attempts);
-      }
-    } catch (err) {
-      console.error("Fetch results error:", err);
     }
   };
 
@@ -178,6 +196,16 @@ export default function StudentDashboard() {
   // Start Exam
   // ===============================
   const handleStartExam = async (examId: string) => {
+    const already = results.find((r) => r.exam?._id === examId);
+    if (already) {
+      toast({
+        variant: "destructive",
+        title: "Exam Already Completed",
+        description: "You cannot retake this exam.",
+      });
+      return;
+    }
+
     try {
       const res = await fetch(`${API}/exams/attempt/start`, {
         method: "POST",
@@ -201,7 +229,7 @@ export default function StudentDashboard() {
 
       toast({
         title: "Exam Started",
-        description: "Redirecting to exam interface...",
+        description: "Redirecting...",
       });
 
       window.location.href = `/exam/${examId}?attempt=${data.attemptId}`;
@@ -211,20 +239,33 @@ export default function StudentDashboard() {
   };
 
   // ===============================
-  // PAGE LOAD
+  // Page Load Logic (Correct Order)
   // ===============================
   useEffect(() => {
     if (!token) return;
 
-    Promise.all([
-      fetchResults(), // must load first
-      fetchAvailableExams(),
-      fetchCertificates(),
-    ]).finally(() => setLoading(false));
+    (async () => {
+      await fetchResults();
+      await fetchAvailableExams();
+      await fetchCertificates();
+      setLoading(false);
+    })();
   }, [token]);
 
   // ===============================
-  // AUTO REFRESH LOGIC
+  // Auto Refresh Every 20 Seconds
+  // ===============================
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchResults();
+      fetchAvailableExams();
+    }, 20000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ===============================
+  // One-time refresh after exam submission
   // ===============================
   useEffect(() => {
     if (localStorage.getItem("refreshResults") === "1") {
@@ -235,7 +276,7 @@ export default function StudentDashboard() {
   }, []);
 
   // ===============================
-  // STATS
+  // Stats
   // ===============================
   const stats = [
     {
@@ -269,7 +310,6 @@ export default function StudentDashboard() {
       <Navbar />
 
       <div className="container px-4 py-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="font-display text-4xl font-bold mb-2">
             Welcome back, <span className="text-primary">{studentName}</span>
@@ -306,10 +346,7 @@ export default function StudentDashboard() {
             <TabsTrigger value="results">My Results</TabsTrigger>
             <TabsTrigger value="certs">Certificates</TabsTrigger>
           </TabsList>
-
-          {/* ========================= */}
           {/* AVAILABLE EXAMS */}
-          {/* ========================= */}
           <TabsContent value="exams">
             <Card>
               <CardHeader>
@@ -346,10 +383,7 @@ export default function StudentDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* ========================= */}
           {/* RESULTS */}
-          {/* ========================= */}
           <TabsContent value="results">
             <Card>
               <CardHeader>
@@ -389,41 +423,30 @@ export default function StudentDashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* ========================= */}
-          {/* CERTIFICATES */}
-          {/* ========================= */}
+          // ======================= // CERTIFICATES TAB (FULL PATCH) //
+          =======================
           <TabsContent value="certs">
             <Card>
               <CardHeader>
                 <CardTitle>My Certificates</CardTitle>
+                <CardDescription>
+                  View, verify & download your Silat certificates
+                </CardDescription>
               </CardHeader>
+
               <CardContent>
                 {certificates.length === 0 ? (
                   <p className="text-muted-foreground">
                     No certificates available yet.
                   </p>
                 ) : (
-                  <div className="space-y-4">
-                    {certificates.map((c) => (
-                      <div key={c._id} className="p-4 rounded-lg bg-accent/10">
-                        <h3 className="text-lg font-semibold">
-                          {c.exam?.title}
-                        </h3>
-                        <p className="text-sm">
-                          Belt: <Badge variant="outline">{c.beltLevel}</Badge>
-                        </p>
-                        <p className="text-sm mt-1">
-                          Score: <strong>{c.totalScore}</strong>
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Issued: {new Date(c.issuedAt).toLocaleDateString()}
-                        </p>
-
-                        <Button size="sm" variant="outline" className="mt-3">
-                          Download PDF
-                        </Button>
-                      </div>
+                  <div className="space-y-12">
+                    {certificates.map((cert) => (
+                      <StudentCertificateCard
+                        key={cert._id}
+                        certificate={cert}
+                        studentName={studentName}
+                      />
                     ))}
                   </div>
                 )}

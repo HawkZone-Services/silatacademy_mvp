@@ -20,6 +20,7 @@ interface ExamCardProps {
     totalQuestions: number;
     type: string;
     status: "none" | "pending" | "approved" | "rejected";
+    attemptStatus?: "completed" | "notAttempted";
   };
   onRegister: (examId: string) => void;
   onStart: (examId: string) => void;
@@ -27,7 +28,14 @@ interface ExamCardProps {
 
 export const ExamCard = ({ exam, onRegister, onStart }: ExamCardProps) => {
   const renderButton = () => {
-    // 🟦 NOT REGISTERED
+    if (exam.attemptStatus === "completed") {
+      return (
+        <Button className="w-full mt-4" disabled variant="secondary">
+          Exam Completed
+        </Button>
+      );
+    }
+
     if (exam.status === "none") {
       return (
         <Button className="w-full mt-4" onClick={() => onRegister(exam.id)}>
@@ -36,16 +44,14 @@ export const ExamCard = ({ exam, onRegister, onStart }: ExamCardProps) => {
       );
     }
 
-    // 🟨 PENDING APPROVAL
     if (exam.status === "pending") {
       return (
         <Button className="w-full mt-4" disabled variant="secondary">
-          Waiting for instructor approval...
+          Waiting for approval...
         </Button>
       );
     }
 
-    // 🟥 REJECTED
     if (exam.status === "rejected") {
       return (
         <Button className="w-full mt-4" disabled variant="destructive">
@@ -54,7 +60,6 @@ export const ExamCard = ({ exam, onRegister, onStart }: ExamCardProps) => {
       );
     }
 
-    // 🟩 APPROVED → START EXAM
     if (exam.status === "approved") {
       return (
         <Button className="w-full mt-4" onClick={() => onStart(exam.id)}>
@@ -85,7 +90,6 @@ export const ExamCard = ({ exam, onRegister, onStart }: ExamCardProps) => {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Exam Stats */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -104,7 +108,6 @@ export const ExamCard = ({ exam, onRegister, onStart }: ExamCardProps) => {
           </div>
         </div>
 
-        {/* Extra Info */}
         <div className="pt-4 border-t border-border/40">
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-muted-foreground">Questions</span>
@@ -119,7 +122,6 @@ export const ExamCard = ({ exam, onRegister, onStart }: ExamCardProps) => {
           </div>
         </div>
 
-        {/* Dynamic Button */}
         {renderButton()}
       </CardContent>
     </Card>

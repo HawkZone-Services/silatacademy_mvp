@@ -153,7 +153,6 @@ export default function Dashboard() {
       const list = data?.exams || [];
       setExams(list);
 
-      // لو مفيش امتحان مختار، اختار أول واحد تلقائيًا
       if (!selectedExam && list.length > 0) {
         setSelectedExam(list[0]._id);
       }
@@ -174,7 +173,6 @@ export default function Dashboard() {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      // هنا بنجيب examRegistrations مع player (lookup) من الباك إند
       const res = await fetch(
         `${EXAM_API}/admin/registrations/${selectedExam}`,
         {
@@ -191,6 +189,7 @@ export default function Dashboard() {
       setRegistrations([]);
     }
   };
+
   const fetchSubmissions = async () => {
     try {
       if (!selectedExam) {
@@ -207,12 +206,12 @@ export default function Dashboard() {
       const data = await safeJSON(res);
 
       setSubmissions(Array.isArray(data?.submissions) ? data.submissions : []);
-      console.log(submissions);
     } catch (error) {
       console.error("Fetch submissions error:", error);
       setSubmissions([]);
     }
   };
+
   // ==========================================
   // RUN ON LOAD
   // ==========================================
@@ -351,9 +350,7 @@ export default function Dashboard() {
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
-          {/* =========================================== */}
           {/* PLAYERS */}
-          {/* =========================================== */}
           <TabsContent value="players">
             <Card>
               <CardHeader>
@@ -424,9 +421,7 @@ export default function Dashboard() {
             </Card>
           </TabsContent>
 
-          {/* =========================================== */}
           {/* TESTING TAB */}
-          {/* =========================================== */}
           <TabsContent value="testing">
             <div className="space-y-10">
               {/* Create Exam */}
@@ -475,8 +470,6 @@ export default function Dashboard() {
                 <SubmissionsList
                   list={submissions}
                   onSelect={(studentId, examId) => {
-                    console.log("Selected student:", studentId);
-                    console.log("Selected exam:", examId);
                     setSelectedStudent(studentId);
                     setSelectedExam(examId);
                   }}
@@ -513,9 +506,7 @@ export default function Dashboard() {
             </div>
           </TabsContent>
 
-          {/* =========================================== */}
           {/* LESSONS */}
-          {/* =========================================== */}
           <TabsContent value="lessons">
             <Card>
               <CardHeader>
@@ -554,16 +545,12 @@ export default function Dashboard() {
             </Card>
           </TabsContent>
 
-          {/* =========================================== */}
           {/* ATTENDANCE */}
-          {/* =========================================== */}
           <TabsContent value="attendance">
             <AttendanceTracker />
           </TabsContent>
 
-          {/* =========================================== */}
           {/* ANALYTICS */}
-          {/* =========================================== */}
           <TabsContent value="analytics">
             <Card>
               <CardHeader>

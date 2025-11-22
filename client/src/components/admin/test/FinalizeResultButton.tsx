@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface Props {
   studentId: string;
@@ -13,47 +13,65 @@ export function FinalizeResultButton({
   examId,
   onFinalized,
 }: Props) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+
   const token =
     localStorage.getItem("token") || sessionStorage.getItem("token");
 
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
-
-  const disabled = !studentId || !examId || loading;
+  const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
   const finalize = async () => {
-    if (disabled) return;
+    if (!studentId || !examId) return;
+
     setLoading(true);
 
     try {
+      // 1) FINALIZE EXAM RESULT
       const res = await fetch(
-        "https://api-f3rwhuz64a-uc.a.run.app/api/exams/admin/finalize",
+        `${API}/exams/admin/finalize/${examId}/${studentId}`,
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            studentId,
-            examId,
-          }),
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
       const data = await res.json();
 
-      toast({
-        title: "Final Result Saved",
-        description: "The exam result has been finalized.",
+      if (!res.ok) {
+        toast({
+          variant: "destructive",
+          title: "Finalize Failed",
+          description: data.message || "Could not finalize result.",
+        });
+        return;
+      }
+
+      // 2) CREATE CERTIFICATE DOCUMENT
+      await fetch(`${API}/certificates/generate`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ examId, studentId }),
       });
 
-      onFinalized?.();
-    } catch {
       toast({
-        title: "Error",
-        description: "Could not finalize result.",
+        title: "Result Finalized",
+        description: "Certificate created successfully.",
+      });
+
+      // 3) refresh admin submissions
+      if (onFinalized) onFinalized();
+
+      // 4) notify student dashboard
+      localStorage.setItem("refreshCertificates", "1");
+    } catch (err: any) {
+      toast({
         variant: "destructive",
+        title: "Error",
+        description: "Finalize operation failed.",
       });
     }
 
@@ -63,8 +81,8 @@ export function FinalizeResultButton({
   return (
     <Button
       onClick={finalize}
-      disabled={disabled}
-      className="w-full bg-red-600 hover:bg-red-700 text-white mt-4"
+      disabled={loading || !studentId || !examId}
+      className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-4"
     >
       {loading ? "Finalizing..." : "Finalize Result"}
     </Button>

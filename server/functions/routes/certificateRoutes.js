@@ -1,21 +1,39 @@
 import express from "express";
-import { protect, checkRole } from "../middlewares/authMiddleware.js";
 import {
   generateCertificate,
   getMyCertificates,
+  checkCertificateExists,
+  generateCertificatePDF,
 } from "../controllers/certificateController.js";
+
+import { protect, checkRole } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-// الطالب يشوف شهاداته
-router.get("/my", protect, getMyCertificates);
-
-// المشرف يصدر شهادة لطالب معيّن (بعد Final Pass)
-router.post(
-  "/admin/generate",
+/* STUDENT */
+router.get("/my", protect, checkRole("player"), getMyCertificates);
+router.get(
+  "/pdf/:examId/:studentId",
   protect,
-  checkRole("admin", "instructor"),
-  generateCertificate
+  checkRole("player"),
+  generateCertificatePDF
+);
+
+/* COACH */
+router.get(
+  "/check/:examId/:studentId",
+  protect,
+  checkRole("coach"),
+  checkCertificateExists
+);
+
+/* ADMIN */
+router.post("/generate", protect, checkRole("admin"), generateCertificate);
+router.get(
+  "/admin/pdf/:examId/:studentId",
+  protect,
+  checkRole("admin"),
+  generateCertificatePDF
 );
 
 export default router;
