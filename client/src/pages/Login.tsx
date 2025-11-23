@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, LogIn } from "lucide-react";
+import { apiClient } from "@/utils/apiClient"; // ← إضافة مهمة جداً
 
 const Login = () => {
   const navigate = useNavigate();
@@ -24,8 +25,6 @@ const Login = () => {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const API_URL = "https://api-f3rwhuz64a-uc.a.run.app/api/auth/login";
 
   // VALIDATION (email OR nationalId OR phone)
   const validateForm = () => {
@@ -52,6 +51,21 @@ const Login = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const redirectByRole = (role: string) => {
+    switch (role) {
+      case "admin":
+        navigate("/admin-dashboard");
+        break;
+      case "coach":
+        navigate("/instructor");
+        break;
+      case "student":
+        navigate("/student-dashboard");
+        break;
+      default:
+        navigate("/login");
+    }
+  };
   // SUBMIT HANDLER
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,27 +74,13 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(API_URL, {
+      const data = await apiClient("auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           username: formData.username.trim(),
           password: formData.password,
-        }),
+        },
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        toast({
-          title: "Login Failed",
-          description: data.message || "Invalid login credentials",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
       // Token check
       const token = data.token || data.user?.token;
       if (!token) {
@@ -104,7 +104,18 @@ const Login = () => {
       });
 
       setLoading(false);
-      navigate("/admin-dashboard");
+
+      const role = data.user?.role;
+      if (!role) {
+        toast({
+          title: "Error",
+          description: "Role missing in server response!",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      redirectByRole(role);
     } catch (error) {
       console.error("Login error:", error);
       toast({

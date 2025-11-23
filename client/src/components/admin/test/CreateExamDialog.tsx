@@ -21,6 +21,7 @@ const EXAM_API = "https://api-f3rwhuz64a-uc.a.run.app/api/exams";
 
 export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Exam fields
   const [title, setTitle] = useState("");
@@ -62,6 +63,7 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
 
   // Submit Exam
   const createExam = async () => {
+    if (saving) return;
     const token =
       localStorage.getItem("token") || sessionStorage.getItem("token");
 
@@ -79,6 +81,13 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
       return;
     }
 
+    if (!title.trim() || questions.length === 0) {
+      alert("Please add a title and at least one question.");
+      return;
+    }
+
+    setSaving(true);
+
     const payload = {
       title,
       beltLevel,
@@ -90,7 +99,7 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
 
       questions: questions.map((q) => {
         const base = {
-          question: q.question,
+          text: q.question,
           type: q.type,
           maxScore: Number(q.maxScore),
         };
@@ -114,29 +123,37 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
       }),
     };
 
-    const res = await fetch(`${EXAM_API}/admin`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const res = await fetch(`${EXAM_API}/admin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
-    const data = await res.json();
-    console.log("Exam Created:", data);
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to create exam");
+      }
 
-    setOpen(false);
-    onCreated?.();
+      setOpen(false);
+      onCreated?.();
 
-    // Reset form
-    setQuestions([]);
-    setTitle("");
-    setSchedule("");
-    setTimeLimit(20);
-    setPassMark(20);
-    setMaxTheoryScore(40);
-    setBeltLevel("white");
+      // Reset form
+      setQuestions([]);
+      setTitle("");
+      setSchedule("");
+      setTimeLimit(20);
+      setPassMark(Math.round((maxTheoryScore || 40) * 0.6));
+      setMaxTheoryScore(40);
+      setBeltLevel("white");
+    } catch (err: any) {
+      alert(err?.message || "Failed to create exam");
+    } finally {
+      setSaving(false);
+    }
   };
   const totalQuestionScore = questions.reduce(
     (sum, q) => sum + (Number(q.maxScore) || 0),
@@ -447,8 +464,8 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
               </div>
             </div>
 
-            <Button onClick={createExam} className="w-full">
-              Create Exam
+            <Button onClick={createExam} className="w-full" disabled={saving}>
+              {saving ? "Creating..." : "Create Exam"}
             </Button>
           </div>
         </DialogContent>

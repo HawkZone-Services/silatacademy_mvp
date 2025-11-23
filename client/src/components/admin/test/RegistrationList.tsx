@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface RegistrationListProps {
-  list: any[];
+  list?: any[];
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
   onSelect?: (studentId: string, examId: string) => void;
@@ -15,7 +15,11 @@ export function RegistrationList({
   onReject,
   onSelect,
 }: RegistrationListProps) {
-  if (!Array.isArray(list) || list.length === 0) {
+  const filtered = Array.isArray(list)
+    ? list.filter((r) => !r?.finalPassed)
+    : [];
+
+  if (!filtered.length) {
     return (
       <div className="text-muted-foreground">
         No registrations or attempts found.
@@ -25,20 +29,24 @@ export function RegistrationList({
 
   return (
     <div className="space-y-3">
-      {list.map((reg: any) => {
+      {filtered.map((reg: any) => {
         const studentId =
-          reg.student?._id || reg.player?._id || reg.student || reg.playerId;
-        const examId = reg.exam?._id || reg.exam || reg.examId;
+          reg?.student?._id ||
+          reg?.player?._id ||
+          reg?.student ||
+          reg?.playerId;
+        const examId = reg?.exam?._id || reg?.exam || reg?.examId;
+        const isFinal = Boolean(reg?.finalPassed);
 
         const name =
-          reg.student?.name ||
-          reg.player?.name ||
-          reg.studentName ||
-          reg.playerName ||
+          reg?.student?.name ||
+          reg?.player?.name ||
+          reg?.studentName ||
+          reg?.playerName ||
           `Student ${studentId?.slice?.(-4) || ""}`;
 
         const examTitle =
-          reg.exam?.title || reg.examTitle || `Exam ${examId?.slice?.(-4)}`;
+          reg?.exam?.title || reg?.examTitle || `Exam ${examId?.slice?.(-4)}`;
 
         return (
           <Card key={reg._id} className="p-4">
@@ -60,6 +68,12 @@ export function RegistrationList({
                     )}
                   </p>
                 )}
+
+                {isFinal && (
+                  <Badge variant="secondary" className="mt-2">
+                    Finalized
+                  </Badge>
+                )}
               </div>
 
               <div className="flex flex-col items-end gap-2">
@@ -67,9 +81,10 @@ export function RegistrationList({
                   <Button
                     size="sm"
                     variant="outline"
+                    disabled={isFinal}
                     onClick={() => onSelect(studentId, examId)}
                   >
-                    Select for practical scoring
+                    {isFinal ? "Finalized" : "Select for practical scoring"}
                   </Button>
                 )}
 

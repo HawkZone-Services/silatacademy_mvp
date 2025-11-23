@@ -17,13 +17,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 
-import { ExamCard } from "@/components/exam/ExamCard";
-import { ExamResultCard } from "@/components/exam/ExamResultCard";
-
 import { Calendar, Trophy, TrendingUp, Award } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { StudentCertificateCard } from "@/components/exam/StudentCertificateCard";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -76,6 +71,7 @@ export default function StudentDashboard() {
 
       if (Array.isArray(data.attempts)) {
         setResults(data.attempts);
+        console.log("Fetched results:", data.attempts);
       }
     } catch (err) {
       console.error("Fetch results error:", err);
@@ -123,13 +119,22 @@ export default function StudentDashboard() {
               : passMark;
 
           const attempt = results.find((r) => r.exam?._id === exam._id);
-          const attemptStatus = attempt ? "completed" : "notAttempted";
+          const attemptStatus = attempt
+            ? attempt.submittedAt
+              ? "completed"
+              : "attempted"
+            : "notAttempted";
 
           return { ...exam, status, passPercent, attemptStatus };
         })
       );
 
-      setAvailableExams(examsWithStatus);
+      const filtered = examsWithStatus.filter((exam) => {
+        const existing = results.find((r) => r.exam?._id === exam._id);
+        return !(existing && (existing.finalPassed || existing.finalTotalScore));
+      });
+
+      setAvailableExams(filtered);
     } catch (err) {
       console.error("Fetch available exams error:", err);
     }
@@ -287,7 +292,7 @@ export default function StudentDashboard() {
     },
     {
       title: "Exams Passed",
-      value: results.filter((r) => r.passed).length.toString(),
+      value: results.filter((r) => r.finalPassed ?? r.passed).length.toString(),
       icon: Trophy,
       color: "text-primary",
     },
@@ -358,26 +363,89 @@ export default function StudentDashboard() {
                 {availableExams.length === 0 ? (
                   <p className="text-muted-foreground">No exams available.</p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {availableExams.map((exam) => (
-                      <ExamCard
-                        key={exam._id}
-                        exam={{
-                          id: exam._id,
-                          title: exam.title,
-                          description: exam.description || "",
-                          beltLevel: exam.beltLevel,
-                          duration: exam.timeLimit || 20,
-                          passingScore: exam.passPercent,
-                          totalQuestions: exam.questions?.length || 0,
-                          type: "theory",
-                          status: exam.status,
-                          attemptStatus: exam.attemptStatus,
-                        }}
-                        onRegister={handleRegister}
-                        onStart={handleStartExam}
-                      />
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border border-border/50">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Exam Title
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Belt Level
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Status
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Attempt Status
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {availableExams.map((exam) => {
+                          const attemptStatus = exam.attemptStatus || "notAttempted";
+                          const canStart =
+                            exam.status === "approved" &&
+                            attemptStatus === "notAttempted";
+                          const alreadyDone = attemptStatus === "completed";
+
+                          let actionLabel = "Register";
+                          let disabled = false;
+                          let onClick: (() => void) | undefined = () =>
+                            handleRegister(exam._id);
+
+                          if (exam.status === "pending") {
+                            actionLabel = "Pending approval";
+                            disabled = true;
+                            onClick = undefined;
+                          } else if (alreadyDone) {
+                            actionLabel = "Completed";
+                            disabled = true;
+                            onClick = undefined;
+                          } else if (canStart) {
+                            actionLabel = "Start Exam";
+                            onClick = () => handleStartExam(exam._id);
+                          } else if (exam.status === "approved") {
+                            actionLabel = "Start Exam";
+                            onClick = () => handleStartExam(exam._id);
+                          }
+
+                          return (
+                            <tr
+                              key={exam._id}
+                              className="border-t border-border/50 text-sm"
+                            >
+                              <td className="px-3 py-2">{exam.title}</td>
+                              <td className="px-3 py-2 capitalize">
+                                {exam.beltLevel}
+                              </td>
+                              <td className="px-3 py-2 capitalize">
+                                {exam.status}
+                              </td>
+                              <td className="px-3 py-2 capitalize">
+                                {attemptStatus}
+                              </td>
+                              <td className="px-3 py-2">
+                                <button
+                                  className={`px-3 py-1 rounded text-white ${
+                                    disabled
+                                      ? "bg-gray-400 cursor-not-allowed"
+                                      : "bg-primary hover:bg-primary/90"
+                                  }`}
+                                  disabled={disabled}
+                                  onClick={onClick}
+                                >
+                                  {actionLabel}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </CardContent>
@@ -393,38 +461,100 @@ export default function StudentDashboard() {
                 {results.length === 0 ? (
                   <p className="text-muted-foreground">No results yet.</p>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {results.map((result) => {
-                      const practical =
-                        (result.practicalScores?.morality || 0) +
-                          (result.practicalScores?.practicalMethod || 0) +
-                          (result.practicalScores?.technique || 0) +
-                          (result.practicalScores?.physical || 0) +
-                          (result.practicalScores?.mental || 0) || 0;
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border border-border/50">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Exam Title
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Theory
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Practical
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Total
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Passed
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Date
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {results.map((result) => {
+                          const practicalScores =
+                            result.finalPracticalScores || result.practicalScores;
+                          let practical =
+                            (practicalScores?.morality || 0) +
+                              (practicalScores?.practicalMethod || 0) +
+                              (practicalScores?.technique || 0) +
+                              (practicalScores?.physical || 0) +
+                              (practicalScores?.mental || 0) || 0;
+
+                          const total =
+                            result.finalTotalScore ??
+                            practical +
+                              (typeof result.theoryScore === "number"
+                                ? result.theoryScore
+                                : 0);
+                          if (
+                            (!practical || practical === 0) &&
+                            typeof total === "number" &&
+                            typeof result.theoryScore === "number"
+                          ) {
+                            practical = Math.max(
+                              0,
+                              total - (result.theoryScore || 0)
+                            );
+                          }
+
+                      const passed =
+                        typeof result.finalPassed === "boolean"
+                          ? result.finalPassed
+                          : result.passed;
+                      const hasFinal = typeof result.finalPassed === "boolean";
 
                       return (
-                        <ExamResultCard
+                        <tr
                           key={result._id}
-                          result={{
-                            theoryScore: result.theoryScore ?? 0,
-                            practicalScore: practical,
-                            passed: result.passed,
-                            completedAt: result.submittedAt,
-                            exam: {
-                              maxTheoryScore: result.exam?.maxTheoryScore || 40,
-                            },
-                          }}
-                          examTitle={result.exam?.title || "Exam"}
-                        />
-                      );
-                    })}
+                          className="border-t border-border/50 text-sm"
+                        >
+                          <td className="px-3 py-2">
+                            {result.exam?.title || "Exam"}
+                          </td>
+                          <td className="px-3 py-2">
+                            {result.theoryScore ?? 0}
+                          </td>
+                          <td className="px-3 py-2">
+                            {hasFinal ? practical : "Pending"}
+                          </td>
+                          <td className="px-3 py-2">
+                            {hasFinal ? total : "Pending"}
+                          </td>
+                          <td className="px-3 py-2">
+                            {hasFinal ? (passed ? "Yes" : "No") : "Pending"}
+                          </td>
+                          <td className="px-3 py-2">
+                            {result.submittedAt
+                              ? new Date(result.submittedAt).toLocaleString()
+                              : "-"}
+                          </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
-          // ======================= // CERTIFICATES TAB (FULL PATCH) //
-          =======================
+          {/* CERTIFICATES */}
           <TabsContent value="certs">
             <Card>
               <CardHeader>
@@ -440,14 +570,77 @@ export default function StudentDashboard() {
                     No certificates available yet.
                   </p>
                 ) : (
-                  <div className="space-y-12">
-                    {certificates.map((cert) => (
-                      <StudentCertificateCard
-                        key={cert._id}
-                        certificate={cert}
-                        studentName={studentName}
-                      />
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border border-border/50">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Issue Date
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Belt Level
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
+                            Download
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {certificates.map((cert) => {
+                          const issueDate = cert.issuedAt
+                            ? new Date(cert.issuedAt).toLocaleDateString()
+                            : "-";
+                          const belt =
+                            cert.exam?.beltLevel || cert.beltLevel || "-";
+
+                          const handleDownload = async () => {
+                            const examId =
+                              cert.exam?._id || cert.exam || cert.examId;
+                            const studentId =
+                              cert.student?._id || cert.student || user?._id;
+                            if (!examId || !studentId) return;
+
+                            try {
+                              const res = await fetch(
+                                `${API}/certificates/pdf/${examId}/${studentId}`,
+                                { headers: { Authorization: `Bearer ${token}` } }
+                              );
+                              if (!res.ok) {
+                                throw new Error("Failed to download certificate");
+                              }
+                              const blob = await res.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const link = document.createElement("a");
+                              link.href = url;
+                              link.download = `certificate-${examId}-${studentId}.pdf`;
+                              document.body.appendChild(link);
+                              link.click();
+                              link.remove();
+                              window.URL.revokeObjectURL(url);
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          };
+
+                          return (
+                            <tr key={cert._id} className="border-t border-border/50">
+                              <td className="px-3 py-2 text-sm">{issueDate}</td>
+                              <td className="px-3 py-2 text-sm capitalize">
+                                {belt}
+                              </td>
+                              <td className="px-3 py-2 text-sm">
+                                <button
+                                  onClick={handleDownload}
+                                  className="px-3 py-1 bg-primary text-white rounded hover:bg-primary/90"
+                                >
+                                  Download Certificate
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </CardContent>

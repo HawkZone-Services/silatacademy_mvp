@@ -20,7 +20,7 @@ interface ExamCardProps {
     totalQuestions: number;
     type: string;
     status: "none" | "pending" | "approved" | "rejected";
-    attemptStatus?: "completed" | "notAttempted";
+    attemptStatus?: "completed" | "attempted" | "notAttempted";
   };
   onRegister: (examId: string) => void;
   onStart: (examId: string) => void;
@@ -56,6 +56,14 @@ export const ExamCard = ({ exam, onRegister, onStart }: ExamCardProps) => {
       return (
         <Button className="w-full mt-4" disabled variant="destructive">
           Registration rejected
+        </Button>
+      );
+    }
+
+    if (exam.attemptStatus === "attempted") {
+      return (
+        <Button className="w-full mt-4" disabled variant="secondary">
+          Attempted
         </Button>
       );
     }

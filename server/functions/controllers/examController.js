@@ -1,29 +1,86 @@
 import asyncHandler from "express-async-handler";
 import { ObjectId } from "mongodb";
 import { getDb } from "../utils/mongodb.js";
+import {
+  assertObjectId,
+  toObjectId,
+  httpError,
+  asNumber,
+} from "../utils/validation.js";
 
-/* =====================================================
-   1) CREATE THEORY EXAM (ADMIN)
-===================================================== */
-export const getRegistrationStatus = asyncHandler(async (req, res) => {
-  const db = await getDb();
-  const examId = new ObjectId(req.params.examId);
-  const studentId = new ObjectId(req.user._id);
+const PRACTICAL_COMPONENT_MAX = 100;
+const PRACTICAL_COMPONENTS = [
+  "morality",
+  "practicalMethod",
+  "technique",
+  "physical",
+  "mental",
+];
 
-  const reg = await db.collection("examRegistrations").findOne({
-    exam: examId,
-    player: studentId,
-  });
+const normalizeQuestions = (questions = []) =>
+  questions.map((q) => ({
+    ...q,
+    maxScore: typeof q.maxScore === "number" ? q.maxScore : 1,
+    _id: toObjectId(q._id) ?? new ObjectId(),
+  }));
 
-  if (!reg) {
-    return res.json({ status: "none" });
-  }
+const computeMaxTheoryScore = (questions, explicitMax) => {
+  const derived = normalizeQuestions(questions).reduce(
+    (sum, q) => sum + asNumber(q.maxScore, 1),
+    0
+  );
+  return typeof explicitMax === "number" ? explicitMax : derived;
+};
 
-  return res.json({ status: reg.status }); // pending / approved / rejected
+const computeTheoryPassMark = (exam) => {
+  if (typeof exam.passMark === "number") return exam.passMark;
+  const maxTheory = asNumber(exam.maxTheoryScore, 0);
+  return Math.round(maxTheory * 0.6);
+};
+
+const computeFinalPassMark = (exam) => {
+  if (typeof exam.passMarkFinal === "number") return exam.passMarkFinal;
+  const theoryMax = asNumber(exam.maxTheoryScore, 0);
+  const practicalMax = PRACTICAL_COMPONENTS.length * PRACTICAL_COMPONENT_MAX;
+  return Math.round((theoryMax + practicalMax) * 0.6);
+};
+
+const mapPracticalScores = (body = {}) => ({
+  morality: asNumber(body.morality),
+  practicalMethod: asNumber(body.practicalMethod),
+  technique: asNumber(body.technique),
+  physical: asNumber(body.physical),
+  mental: asNumber(body.mental),
 });
 
 /* =====================================================
-   1) CREATE THEORY EXAM (ADMIN)
+   REGISTRATION STATUS (STUDENT)
+===================================================== */
+export const getRegistrationStatus = asyncHandler(async (req, res) => {
+  const db = await getDb();
+  const examId = assertObjectId(req.params.examId, "examId");
+  const studentId = assertObjectId(req.user?._id, "studentId");
+
+  const [registration, finalResult] = await Promise.all([
+    db.collection("examRegistrations").findOne({
+      exam: examId,
+      player: studentId,
+    }),
+    db.collection("finalExamResults").findOne({
+      exam: examId,
+      student: studentId,
+    }),
+  ]);
+
+  res.json({
+    success: true,
+    status: registration?.status || "none",
+    finalized: Boolean(finalResult),
+  });
+});
+
+/* =====================================================
+   CREATE EXAM (ADMIN)
 ===================================================== */
 export const createExam = asyncHandler(async (req, res) => {
   const db = await getDb();
@@ -36,204 +93,346 @@ export const createExam = asyncHandler(async (req, res) => {
     passMark,
     maxTheoryScore,
     questions = [],
-    createdBy,
   } = req.body;
 
-  // تأمين الأسئلة + maxScore
-  const questionsWithMeta = questions.map((q) => ({
-    ...q,
-    maxScore: q.maxScore ?? 1,
-    _id: new ObjectId(), // لازم ID لكل سؤال
-  }));
+  if (!title || !beltLevel) {
+    throw httpError(400, "title and beltLevel are required");
+  }
 
-  // حساب مجموع درجات النظري من الأسئلة
-  const computedMaxTheory = questionsWithMeta.reduce(
-    (sum, q) => sum + (q.maxScore || 0),
-    0
+  const creatorId = assertObjectId(
+    req.user?._id || req.body.createdBy,
+    "createdBy"
   );
 
-  // لو مش مبعوت، خليه يساوي مجموع درجات الأسئلة
-  const finalMaxTheoryScore = maxTheoryScore ?? computedMaxTheory;
-
-  // لو مش مبعوت، خليه 60% من الدرجة الكاملة
-  const finalPassMark = passMark ?? Math.round(finalMaxTheoryScore * 0.6);
+  const questionsWithMeta = normalizeQuestions(questions);
+  const computedMaxTheory = computeMaxTheoryScore(
+    questionsWithMeta,
+    maxTheoryScore
+  );
+  const finalPassMark =
+    typeof passMark === "number"
+      ? passMark
+      : Math.round(computedMaxTheory * 0.6);
 
   const exam = {
     title,
     beltLevel,
-    schedule, // ممكن تبقى string ISO أو أي فورمات متفق عليه
+    schedule,
     timeLimit: timeLimit || 20,
     passMark: finalPassMark,
-    maxTheoryScore: finalMaxTheoryScore,
+    maxTheoryScore: computedMaxTheory,
     questions: questionsWithMeta,
-    createdBy: new ObjectId(createdBy),
+    createdBy: creatorId,
     status: "draft",
     createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
   const result = await db.collection("exams").insertOne(exam);
 
-  res.json({ success: true, examId: result.insertedId, exam });
+  res.status(201).json({
+    success: true,
+    exam: { ...exam, _id: result.insertedId },
+  });
 });
 
 /* =====================================================
-   2) LIST EXAMS
+   LIST EXAMS
 ===================================================== */
 export const listExams = asyncHandler(async (req, res) => {
   const db = await getDb();
-  const exams = await db.collection("exams").find({}).toArray();
-  res.json({ success: true, exams });
-});
+  let filter = {};
 
-/* =====================================================
-   3) GET SINGLE EXAM
-===================================================== */
-export const getExam = asyncHandler(async (req, res) => {
-  const db = await getDb();
-  const exam = await db
-    .collection("exams")
-    .findOne({ _id: new ObjectId(req.params.id) });
+  if (req.user?.role === "student") {
+    const studentId = assertObjectId(req.user._id, "studentId");
+    const completed = await db
+      .collection("finalExamResults")
+      .find({ student: studentId })
+      .project({ exam: 1 })
+      .toArray();
+    const excludedIds = completed.map((c) => c.exam);
 
-  if (!exam) return res.status(404).json({ message: "Exam not found" });
-  res.json({ success: true, exam });
-});
+    filter = {
+      status: "published",
+      ...(excludedIds.length ? { _id: { $nin: excludedIds } } : {}),
+    };
+  }
 
-/* =====================================================
-   4) UPDATE EXAM
-===================================================== */
-export const updateExam = asyncHandler(async (req, res) => {
-  const db = await getDb();
-
-  await db
-    .collection("exams")
-    .updateOne({ _id: new ObjectId(req.params.id) }, { $set: req.body });
-
-  res.json({ success: true, message: "Exam updated" });
-});
-
-/* =====================================================
-   5) PUBLISH EXAM
-===================================================== */
-export const publishExam = asyncHandler(async (req, res) => {
-  const db = await getDb();
-
-  await db
-    .collection("exams")
-    .updateOne(
-      { _id: new ObjectId(req.params.examId) },
-      { $set: { status: "published" } }
-    );
-
-  res.json({ success: true, message: "Exam published" });
-});
-
-/* =====================================================
-   6) GET EXAMS BY BELT
-===================================================== */
-export const getExamsByBeltLevel = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const exams = await db
     .collection("exams")
-    .find({ beltLevel: req.params.beltLevel, status: "published" })
+    .find(filter)
+    .sort({ createdAt: -1 })
     .toArray();
 
   res.json({ success: true, exams });
 });
 
 /* =====================================================
-   7) REGISTER FOR EXAM
+   GET SINGLE EXAM
+===================================================== */
+export const getExam = asyncHandler(async (req, res) => {
+  const db = await getDb();
+  const examId = assertObjectId(req.params.id, "id");
+
+  const filter = { _id: examId };
+  if (req.user?.role === "student") {
+    filter.status = "published";
+  }
+
+  const exam = await db.collection("exams").findOne(filter);
+
+  if (!exam) throw httpError(404, "Exam not found");
+
+  res.json({ success: true, exam });
+});
+
+/* =====================================================
+   UPDATE EXAM
+===================================================== */
+export const updateExam = asyncHandler(async (req, res) => {
+  const db = await getDb();
+  const examId = assertObjectId(req.params.id, "id");
+
+  const payload = { ...req.body, updatedAt: new Date() };
+
+  const result = await db
+    .collection("exams")
+    .updateOne({ _id: examId }, { $set: payload });
+
+  if (!result.matchedCount) throw httpError(404, "Exam not found");
+
+  res.json({ success: true, message: "Exam updated" });
+});
+
+/* =====================================================
+   PUBLISH EXAM
+===================================================== */
+export const publishExam = asyncHandler(async (req, res) => {
+  const db = await getDb();
+  const examId = assertObjectId(req.params.examId, "examId");
+
+  const result = await db
+    .collection("exams")
+    .updateOne(
+      { _id: examId },
+      { $set: { status: "published", updatedAt: new Date() } }
+    );
+
+  if (!result.matchedCount) throw httpError(404, "Exam not found");
+
+  res.json({ success: true, message: "Exam published" });
+});
+
+/* =====================================================
+   GET EXAMS BY BELT
+===================================================== */
+export const getExamsByBeltLevel = asyncHandler(async (req, res) => {
+  const db = await getDb();
+  const beltLevel = req.params.beltLevel;
+  const studentId = assertObjectId(req.user?._id, "studentId");
+
+  const completed = await db
+    .collection("finalExamResults")
+    .find({ student: studentId })
+    .project({ exam: 1 })
+    .toArray();
+  const excludedIds = completed.map((c) => c.exam);
+
+  const exams = await db
+    .collection("exams")
+    .find({
+      beltLevel,
+      status: "published",
+      ...(excludedIds.length ? { _id: { $nin: excludedIds } } : {}),
+    })
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  res.json({ success: true, exams });
+});
+
+/* =====================================================
+   REGISTER FOR EXAM
 ===================================================== */
 export const ExamRegisteration = asyncHandler(async (req, res) => {
   const db = await getDb();
 
-  const { examId, playerId } = req.body;
+  const examObjectId = assertObjectId(req.body.examId, "examId");
+  const studentId = assertObjectId(
+    req.user?._id || req.body.playerId,
+    "studentId"
+  );
 
-  if (!examId || !playerId) {
-    return res.status(400).json({
-      success: false,
-      message: "examId and playerId are required",
-    });
+  const exam = await db
+    .collection("exams")
+    .findOne({ _id: examObjectId, status: "published" });
+  if (!exam) throw httpError(404, "Exam not found or not published");
+
+  const finalResult = await db.collection("finalExamResults").findOne({
+    exam: examObjectId,
+    student: studentId,
+  });
+  if (finalResult) {
+    throw httpError(409, "Exam already finalized for this student");
   }
 
-  const examObjectId = new ObjectId(examId);
-  const playerObjectId = new ObjectId(playerId);
+  const registration = await db.collection("examRegistrations").findOneAndUpdate(
+    { exam: examObjectId, player: studentId },
+    {
+      $set: { updatedAt: new Date() },
+      $setOnInsert: { status: "pending", createdAt: new Date() },
+    },
+    { upsert: true, returnDocument: "after" }
+  );
 
-  const exists = await db.collection("examRegistrations").findOne({
-    exam: examObjectId,
-    player: playerObjectId,
-  });
+  const alreadyRegistered = registration?.lastErrorObject?.updatedExisting;
+  const regDoc =
+    registration.value ||
+    (await db.collection("examRegistrations").findOne({
+      _id: registration.lastErrorObject?.upsertedId,
+    }));
 
-  if (exists) {
-    return res.json({
-      success: false,
-      message: "Already registered",
-      registrationId: exists._id,
-      status: exists.status,
-    });
-  }
-
-  const reg = await db.collection("examRegistrations").insertOne({
-    exam: examObjectId,
-    player: playerObjectId,
-    status: "pending",
-    createdAt: new Date(),
-  });
-
-  res.json({
+  res.status(alreadyRegistered ? 200 : 201).json({
     success: true,
-    registrationId: reg.insertedId,
-    status: "pending",
+    registrationId: regDoc?._id,
+    status: regDoc?.status || "pending",
+    alreadyRegistered: Boolean(alreadyRegistered),
   });
 });
+
 /* =====================================================
-   13) LIST SUBMISSIONS
-===================================================== */
-/* =====================================================
-   LIST SUBMISSIONS (ADMIN) — FIXED & ENHANCED
+   LIST SUBMISSIONS (ADMIN)
 ===================================================== */
 export const listSubmissions = asyncHandler(async (req, res) => {
   const db = await getDb();
-  const examId = req.params.examId;
+  const examObjId = assertObjectId(req.params.examId, "examId");
 
   const submissions = await db
     .collection("examAttempts")
     .aggregate([
       {
         $match: {
-          $and: [
-            {
-              $or: [
-                { exam: new ObjectId(examId) }, // exam stored as ObjectId
-                { exam: examId }, // exam stored as string
-              ],
-            },
-            { submittedAt: { $ne: null } },
-          ],
+          exam: examObjId,
+          submittedAt: { $ne: null },
         },
       },
       {
         $lookup: {
-          from: "playerProfiles", // <-- HERE is the correct collection
-          localField: "student", // examAttempts.student = userId
-          foreignField: "user", // playerProfiles.user = same userId
-          as: "studentProfile",
+          from: "users",
+          localField: "student",
+          foreignField: "_id",
+          as: "studentDoc",
         },
       },
-      { $unwind: "$studentProfile" },
+      {
+        $unwind: {
+          path: "$studentDoc",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "exams",
+          localField: "exam",
+          foreignField: "_id",
+          as: "examDoc",
+        },
+      },
+      {
+        $unwind: {
+          path: "$examDoc",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "finalExamResults",
+          let: { examId: "$exam", studentId: "$student" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$exam", "$$examId"] },
+                    { $eq: ["$student", "$$studentId"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { finalizedAt: -1, date: -1, _id: -1 } },
+            { $limit: 1 },
+          ],
+          as: "finalResult",
+        },
+      },
+      {
+        $unwind: {
+          path: "$finalResult",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "practicalEvaluations",
+          let: { examId: "$exam", studentId: "$student" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$exam", "$$examId"] },
+                    { $eq: ["$student", "$$studentId"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1 },
+          ],
+          as: "practicalEval",
+        },
+      },
+      {
+        $unwind: {
+          path: "$practicalEval",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
       {
         $project: {
           _id: 1,
-          exam: 1,
+          exam: {
+            $cond: [
+              { $ifNull: ["$examDoc", false] },
+              {
+                _id: "$examDoc._id",
+                title: "$examDoc.title",
+                beltLevel: "$examDoc.beltLevel",
+              },
+              "$exam",
+            ],
+          },
           student: {
-            _id: "$studentProfile.user",
-            name: "$studentProfile.name",
-            email: "$studentProfile.email",
-            belt: "$studentProfile.belt",
+            _id: "$studentDoc._id",
+            name: "$studentDoc.name",
+            email: "$studentDoc.email",
+            belt: "$studentDoc.beltLevel",
           },
           autoScore: 1,
+          manualScore: 1,
+          theoryScore: 1,
+          pass: 1,
           submittedAt: 1,
+          practicalRecorded: { $cond: [{ $ifNull: ["$practicalEval", false] }, true, false] },
+          finalPassed: {
+            $cond: [{ $ifNull: ["$finalResult", false] }, "$finalResult.passed", null],
+          },
+          finalTotalScore: "$finalResult.totalScore",
+          finalPracticalScores: "$finalResult.practicalScores",
+          finalizedAt: "$finalResult.finalizedAt",
         },
       },
+      { $sort: { submittedAt: -1 } },
     ])
     .toArray();
 
@@ -241,11 +440,11 @@ export const listSubmissions = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   7b) LIST REGISTRATIONS FOR EXAM (ADMIN)
+   LIST REGISTRATIONS FOR EXAM (ADMIN)
 ===================================================== */
 export const listRegistrations = asyncHandler(async (req, res) => {
   const db = await getDb();
-  const examId = new ObjectId(req.params.examId);
+  const examId = assertObjectId(req.params.examId, "examId");
 
   const registrations = await db
     .collection("examRegistrations")
@@ -253,18 +452,77 @@ export const listRegistrations = asyncHandler(async (req, res) => {
       { $match: { exam: examId } },
       {
         $lookup: {
-          from: "players", // لو اسم الكولكشن مختلف عدّله
+          from: "users",
           localField: "player",
           foreignField: "_id",
-          as: "player",
+          as: "student",
+        },
+      },
+      {
+        $unwind: { path: "$student", preserveNullAndEmptyArrays: true },
+      },
+      {
+        $lookup: {
+          from: "exams",
+          localField: "exam",
+          foreignField: "_id",
+          as: "examDoc",
+        },
+      },
+      {
+        $unwind: { path: "$examDoc", preserveNullAndEmptyArrays: true },
+      },
+      {
+        $lookup: {
+          from: "finalExamResults",
+          let: { examId: "$exam", studentId: "$player" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$exam", "$$examId"] },
+                    { $eq: ["$student", "$$studentId"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { finalizedAt: -1, date: -1, _id: -1 } },
+            { $limit: 1 },
+          ],
+          as: "finalResult",
         },
       },
       {
         $unwind: {
-          path: "$player",
+          path: "$finalResult",
           preserveNullAndEmptyArrays: true,
         },
       },
+      {
+        $project: {
+          _id: 1,
+          exam: {
+            _id: "$examDoc._id",
+            title: "$examDoc.title",
+            beltLevel: "$examDoc.beltLevel",
+          },
+          player: "$player",
+          student: {
+            _id: "$student._id",
+            name: "$student.name",
+            email: "$student.email",
+            belt: "$student.beltLevel",
+          },
+          status: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          finalPassed: "$finalResult.passed",
+          finalTotalScore: "$finalResult.totalScore",
+          finalizedAt: "$finalResult.finalizedAt",
+        },
+      },
+      { $sort: { createdAt: -1 } },
     ])
     .toArray();
 
@@ -272,177 +530,177 @@ export const listRegistrations = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   8) APPROVE REGISTRATION
+   APPROVE REGISTRATION
 ===================================================== */
 export const approveRegistration = asyncHandler(async (req, res) => {
   const db = await getDb();
-
-  const id = new ObjectId(req.params.id);
+  const id = assertObjectId(req.params.id, "registrationId");
 
   const result = await db.collection("examRegistrations").updateOne(
-    { _id: id },
+    { _id: id, status: "pending" },
     {
       $set: {
         status: "approved",
         approvedAt: new Date(),
+        updatedAt: new Date(),
       },
     }
   );
 
-  if (!result.modifiedCount) {
-    return res
-      .status(404)
-      .json({ success: false, message: "Registration not found" });
+  if (!result.matchedCount) {
+    throw httpError(404, "Registration not found or already processed");
   }
 
   res.json({ success: true, message: "Registration approved" });
 });
 
-// ============================================
-//  REJECT REGISTRATION (ADMIN)
-// ============================================
+/* =====================================================
+   REJECT REGISTRATION
+===================================================== */
 export const rejectRegistration = asyncHandler(async (req, res) => {
   const db = await getDb();
-
-  const id = new ObjectId(req.params.id);
+  const id = assertObjectId(req.params.id, "registrationId");
 
   const result = await db.collection("examRegistrations").updateOne(
-    { _id: id },
+    { _id: id, status: "pending" },
     {
       $set: {
         status: "rejected",
         rejectedAt: new Date(),
+        updatedAt: new Date(),
       },
     }
   );
 
-  if (!result.modifiedCount) {
-    return res
-      .status(404)
-      .json({ success: false, message: "Registration not found" });
+  if (!result.matchedCount) {
+    throw httpError(404, "Registration not found or already processed");
   }
 
   res.json({ success: true, message: "Registration rejected" });
 });
 
 /* =====================================================
-   9) START ATTEMPT (ONLY IF APPROVED)
+   START ATTEMPT (APPROVED STUDENTS)
 ===================================================== */
 export const startAttempt = asyncHandler(async (req, res) => {
   const db = await getDb();
 
-  const { examId } = req.body;
-  if (!examId) {
-    return res
-      .status(400)
-      .json({ success: false, message: "examId is required" });
+  const examObjectId = assertObjectId(req.body.examId, "examId");
+  const studentId = assertObjectId(req.user?._id, "studentId");
+
+  const exam = await db
+    .collection("exams")
+    .findOne({ _id: examObjectId, status: "published" });
+  if (!exam) {
+    throw httpError(403, "Exam is not available to start");
   }
 
-  const examObjectId = new ObjectId(examId);
-  const studentId = new ObjectId(req.user._id);
-
-  // 1) تأكد إن الامتحان Published
-  const exam = await db.collection("exams").findOne({ _id: examObjectId });
-  if (!exam || exam.status !== "published") {
-    return res.status(403).json({
-      success: false,
-      message: "Exam is not available to start",
-    });
-  }
-
-  // 2) تأكد إن الطالب Approved على الامتحان
-  const registration = await db.collection("examRegistrations").findOne({
-    exam: examObjectId,
-    player: studentId,
-  });
-
-  if (!registration || registration.status !== "approved") {
-    return res.status(403).json({
-      success: false,
-      message: "You are not approved to start this exam.",
-    });
-  }
-
-  // 3) Check if active attempt exists (لم يُقدَّم بعد)
-  let attempt = await db.collection("examAttempts").findOne({
-    exam: examObjectId,
-    student: studentId,
-    submittedAt: null,
-  });
-
-  if (!attempt) {
-    const newAttempt = await db.collection("examAttempts").insertOne({
+  const [registration, finalResult, submittedAttempt] = await Promise.all([
+    db.collection("examRegistrations").findOne({
+      exam: examObjectId,
+      player: studentId,
+      status: "approved",
+    }),
+    db.collection("finalExamResults").findOne({
       exam: examObjectId,
       student: studentId,
-      startedAt: new Date(),
-      submittedAt: null,
-      answers: [],
-      autoScore: 0,
-      manualScore: 0,
-      theoryScore: 0,
-      pass: false, // pass للنظري فقط
-      antiCheat: null,
-    });
-    attempt = { _id: newAttempt.insertedId };
+    }),
+    db.collection("examAttempts").findOne({
+      exam: examObjectId,
+      student: studentId,
+      submittedAt: { $ne: null },
+    }),
+  ]);
+
+  if (!registration) {
+    throw httpError(403, "You are not approved to start this exam");
   }
 
-  res.json({ success: true, attemptId: attempt._id });
+  if (finalResult) {
+    throw httpError(409, "Exam already finalized for this student");
+  }
+
+  if (submittedAttempt) {
+    throw httpError(400, "Attempt already submitted for this exam");
+  }
+
+  const attempt = await db.collection("examAttempts").findOneAndUpdate(
+    { exam: examObjectId, student: studentId, submittedAt: null },
+    {
+      $setOnInsert: {
+        exam: examObjectId,
+        student: studentId,
+        startedAt: new Date(),
+        submittedAt: null,
+        answers: [],
+        autoScore: 0,
+        manualScore: 0,
+        theoryScore: 0,
+        pass: false,
+        antiCheat: null,
+      },
+    },
+    { upsert: true, returnDocument: "after" }
+  );
+
+  res.json({ success: true, attemptId: attempt.value._id, attempt: attempt.value });
 });
 
 /* =====================================================
-   10) SUBMIT ATTEMPT (THEORY ONLY)
+   SUBMIT ATTEMPT (THEORY)
 ===================================================== */
 export const submitAttempt = asyncHandler(async (req, res) => {
   const db = await getDb();
 
-  const { attemptId, answers, focusLosses, forcedSubmitReason } = req.body;
+  const attemptObjectId = assertObjectId(req.body.attemptId, "attemptId");
+  const answers = Array.isArray(req.body.answers) ? req.body.answers : [];
+  const { focusLosses, forcedSubmitReason } = req.body;
 
-  if (!attemptId || !Array.isArray(answers)) {
-    return res.status(400).json({
-      success: false,
-      message: "attemptId and answers are required",
-    });
+  if (!answers.length) {
+    throw httpError(400, "answers are required");
   }
 
-  const attemptObjectId = new ObjectId(attemptId);
-
-  // 1) Get attempt
   const attempt = await db
     .collection("examAttempts")
     .findOne({ _id: attemptObjectId });
 
   if (!attempt) {
-    return res
-      .status(404)
-      .json({ success: false, message: "Attempt not found" });
+    throw httpError(404, "Attempt not found");
   }
 
-  // 2) Get exam
+  if (attempt.student.toString() !== req.user._id.toString()) {
+    throw httpError(403, "Not your attempt");
+  }
+
+  if (attempt.submittedAt) {
+    throw httpError(400, "Attempt already submitted");
+  }
+
+  const finalResult = await db.collection("finalExamResults").findOne({
+    exam: attempt.exam,
+    student: attempt.student,
+  });
+  if (finalResult) {
+    throw httpError(409, "Exam already finalized for this student");
+  }
+
   const exam = await db
     .collection("exams")
     .findOne({ _id: new ObjectId(attempt.exam) });
 
   if (!exam) {
-    return res.status(404).json({ success: false, message: "Exam not found" });
+    throw httpError(404, "Exam not found");
   }
 
   let autoScore = 0;
 
-  // 3) Process each answer safely
   answers.forEach((ans) => {
-    if (!ans.questionId || ans.questionId.trim() === "") return;
-
-    let qid;
-    try {
-      qid = new ObjectId(ans.questionId);
-    } catch {
-      return;
-    }
+    const qid = toObjectId(ans.questionId);
+    if (!qid) return;
 
     const q = exam.questions.find((qq) => qq._id.toString() === qid.toString());
     if (!q) return;
 
-    // MCQ
     if (q.type === "mcq") {
       if (
         typeof ans.selectedIndex === "number" &&
@@ -452,7 +710,6 @@ export const submitAttempt = asyncHandler(async (req, res) => {
       }
     }
 
-    // TRUE / FALSE
     if (q.type === "truefalse") {
       if (
         typeof ans.booleanAnswer === "boolean" &&
@@ -461,12 +718,10 @@ export const submitAttempt = asyncHandler(async (req, res) => {
         autoScore += q.maxScore ?? 1;
       }
     }
-
-    // ESSAY → manual later
   });
 
   const theoryScore = autoScore;
-  const theoryPass = theoryScore >= (exam.passMark ?? 0);
+  const theoryPass = theoryScore >= computeTheoryPassMark(exam);
 
   await db.collection("examAttempts").updateOne(
     { _id: attemptObjectId },
@@ -475,7 +730,7 @@ export const submitAttempt = asyncHandler(async (req, res) => {
         answers,
         autoScore: theoryScore,
         theoryScore,
-        pass: theoryPass, // ده Pass للنظري فقط
+        pass: theoryPass,
         submittedAt: new Date(),
         antiCheat: { focusLosses, forcedSubmitReason },
       },
@@ -484,7 +739,7 @@ export const submitAttempt = asyncHandler(async (req, res) => {
 
   return res.json({
     success: true,
-    attemptId,
+    attemptId: attemptObjectId,
     theoryScore,
     theoryPass,
     message: "Theory submitted. Awaiting practical evaluation.",
@@ -492,149 +747,202 @@ export const submitAttempt = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   11) PRACTICAL SCORING
+   PRACTICAL SCORING
 ===================================================== */
 export const gradeManual2 = asyncHandler(async (req, res) => {
   const db = await getDb();
 
+  const examId = assertObjectId(req.body.examId, "examId");
+  const studentId = assertObjectId(req.body.studentId, "studentId");
+
+  const existingFinal = await db.collection("finalExamResults").findOne({
+    exam: examId,
+    student: studentId,
+  });
+  if (existingFinal) {
+    throw httpError(409, "Result already finalized");
+  }
+
+  const attempt = await db
+    .collection("examAttempts")
+    .findOne({ exam: examId, student: studentId, submittedAt: { $ne: null } });
+  if (!attempt) {
+    throw httpError(404, "Submitted theory attempt not found");
+  }
+
   const evaluation = {
-    exam: new ObjectId(req.body.examId),
-    student: new ObjectId(req.body.studentId),
-    morality: req.body.morality,
-    practicalMethod: req.body.practicalMethod,
-    technique: req.body.technique,
-    physical: req.body.physical,
-    mental: req.body.mental,
+    exam: examId,
+    student: studentId,
+    ...mapPracticalScores(req.body),
     createdAt: new Date(),
   };
 
-  await db.collection("practicalEvaluations").insertOne(evaluation);
+  const writeResult = await db.collection("practicalEvaluations").updateOne(
+    { exam: examId, student: studentId },
+    { $setOnInsert: evaluation },
+    { upsert: true }
+  );
 
-  res.json({ success: true, message: "Practical scores saved" });
+  if (!writeResult.upsertedCount) {
+    throw httpError(409, "Practical evaluation already exists");
+  }
+
+  res.status(201).json({
+    success: true,
+    message: "Practical scores saved",
+    evaluation: { ...evaluation, _id: writeResult.upsertedId },
+  });
 });
 
 /* =====================================================
-   12) COMBINE SCORES (FINAL RESULT)
+   COMBINE SCORES (FINAL RESULT)
 ===================================================== */
 export const combineScores = asyncHandler(async (req, res) => {
   const db = await getDb();
 
-  const { examId, studentId } = req.body;
+  const examId = assertObjectId(req.body.examId, "examId");
+  const studentId = assertObjectId(req.body.studentId, "studentId");
 
-  if (!examId || !studentId) {
-    return res
-      .status(400)
-      .json({ success: false, message: "examId and studentId are required" });
+  const existingFinal = await db
+    .collection("finalExamResults")
+    .findOne({ exam: examId, student: studentId });
+  if (existingFinal) {
+    throw httpError(409, "Result already finalized");
   }
 
-  const examObjectId = new ObjectId(examId);
-  const studentObjectId = new ObjectId(studentId);
-
   const attempt = await db.collection("examAttempts").findOne({
-    exam: examObjectId,
-    student: studentObjectId,
+    exam: examId,
+    student: studentId,
+    submittedAt: { $ne: null },
   });
 
   if (!attempt) {
-    return res.status(404).json({
-      success: false,
-      message: "Theory attempt not found",
-    });
+    throw httpError(404, "Theory attempt not found");
   }
 
   const practical = await db.collection("practicalEvaluations").findOne({
-    exam: examObjectId,
-    student: studentObjectId,
+    exam: examId,
+    student: studentId,
   });
 
   if (!practical) {
-    return res.status(404).json({
-      success: false,
-      message: "Practical evaluation not found",
-    });
+    throw httpError(404, "Practical evaluation not found");
   }
 
-  const exam = await db.collection("exams").findOne({ _id: examObjectId });
+  const exam = await db.collection("exams").findOne({ _id: examId });
   if (!exam) {
-    return res.status(404).json({
-      success: false,
-      message: "Exam not found",
-    });
+    throw httpError(404, "Exam not found");
   }
 
-  const methodTotal =
-    (attempt.theoryScore || 0) + (practical.practicalMethod || 0);
+  const theoryScore = asNumber(attempt.theoryScore, 0);
+  const theoryPass = theoryScore >= computeTheoryPassMark(exam);
 
+  const practicalScores = mapPracticalScores(practical);
+  const methodTotal = theoryScore + practicalScores.practicalMethod;
   const totalScore =
-    (practical.morality || 0) +
+    practicalScores.morality +
     methodTotal +
-    (practical.technique || 0) +
-    (practical.physical || 0) +
-    (practical.mental || 0);
+    practicalScores.technique +
+    practicalScores.physical +
+    practicalScores.mental;
 
-  const passed = totalScore >= (exam.passMark ?? 0);
+  const passed = theoryPass && totalScore >= computeFinalPassMark(exam);
 
   const finalResult = {
-    exam: examObjectId,
-    student: studentObjectId,
-    theoryScore: attempt.theoryScore || 0,
-    practicalScores: {
-      morality: practical.morality || 0,
-      practicalMethod: practical.practicalMethod || 0,
-      technique: practical.technique || 0,
-      physical: practical.physical || 0,
-      mental: practical.mental || 0,
-    },
+    exam: examId,
+    student: studentId,
+    theoryScore,
+    theoryPass,
+    practicalScores,
     methodTotal,
     totalScore,
     passed,
     date: new Date(),
+    finalizedAt: new Date(),
   };
 
-  await db.collection("finalExamResults").insertOne(finalResult);
+  const insertResult = await db.collection("finalExamResults").updateOne(
+    { exam: examId, student: studentId },
+    { $setOnInsert: finalResult },
+    { upsert: true }
+  );
+
+  if (!insertResult.upsertedCount) {
+    throw httpError(409, "Result already finalized");
+  }
+
+  await db.collection("examAttempts").updateOne(
+    { _id: attempt._id, finalizedAt: { $exists: false } },
+    {
+      $set: {
+        finalPassed: passed,
+        finalTotalScore: totalScore,
+        finalPracticalScores: practicalScores,
+        finalizedAt: finalResult.finalizedAt,
+      },
+    }
+  );
 
   res.json({ success: true, finalResult });
 });
 
 /* =====================================================
-   14) GRADE ESSAY MANUALLY
+   GRADE ESSAY MANUALLY
 ===================================================== */
 export const gradeManual = asyncHandler(async (req, res) => {
   const db = await getDb();
 
-  const { attemptId, manualScores } = req.body;
+  const attemptId = assertObjectId(
+    req.params.id || req.body.attemptId,
+    "attemptId"
+  );
+  const manualScore = asNumber(
+    req.body.manualScores ?? req.body.manualScore,
+    0
+  );
 
   const attempt = await db
     .collection("examAttempts")
-    .findOne({ _id: new ObjectId(attemptId) });
+    .findOne({ _id: attemptId });
 
-  const finalScore = attempt.autoScore + manualScores;
+  if (!attempt) {
+    throw httpError(404, "Attempt not found");
+  }
+
+  const exam = await db.collection("exams").findOne({ _id: attempt.exam });
+  if (!exam) {
+    throw httpError(404, "Exam not found");
+  }
+
+  const finalScore = asNumber(attempt.autoScore, 0) + manualScore;
+  const pass = finalScore >= computeTheoryPassMark(exam);
 
   await db.collection("examAttempts").updateOne(
-    { _id: new ObjectId(attemptId) },
+    { _id: attemptId },
     {
       $set: {
-        manualScore: manualScores,
+        manualScore,
         theoryScore: finalScore,
+        pass,
+        updatedAt: new Date(),
       },
     }
   );
 
-  res.json({ success: true, finalScore });
+  res.json({ success: true, finalScore, pass });
 });
 
 /* =====================================================
-   15) STUDENT – MY ATTEMPTS (WITH FINAL RESULT)
+   STUDENT - MY ATTEMPTS (WITH FINAL RESULT)
 ===================================================== */
 export const getMyAttempts = asyncHandler(async (req, res) => {
   const db = await getDb();
-  const studentId = new ObjectId(req.user._id);
+  const studentId = assertObjectId(req.user._id, "studentId");
 
   const attempts = await db
     .collection("examAttempts")
     .aggregate([
       { $match: { student: studentId } },
-
       {
         $lookup: {
           from: "exams",
@@ -644,7 +952,6 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
         },
       },
       { $unwind: "$exam" },
-
       {
         $lookup: {
           from: "finalExamResults",
@@ -660,7 +967,7 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
                 },
               },
             },
-            { $sort: { date: -1 } },
+            { $sort: { finalizedAt: -1, date: -1, _id: -1 } },
             { $limit: 1 },
           ],
           as: "finalResult",
@@ -672,7 +979,6 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
-
       {
         $project: {
           _id: 1,
@@ -686,16 +992,18 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
           autoScore: 1,
           manualScore: 1,
           theoryScore: 1,
-          pass: 1, // Pass للنظري
+          pass: 1,
           submittedAt: 1,
           answers: 1,
-
+          finalPracticalScores: "$finalResult.practicalScores",
+          finalMethodTotal: "$finalResult.methodTotal",
           finalTotalScore: "$finalResult.totalScore",
           finalPassed: "$finalResult.passed",
+          finalizedAt: "$finalResult.finalizedAt",
         },
       },
+      { $sort: { submittedAt: -1 } },
     ])
-    .sort({ submittedAt: -1 })
     .toArray();
 
   res.json({ success: true, attempts });

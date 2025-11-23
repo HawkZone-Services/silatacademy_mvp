@@ -33,7 +33,7 @@ export default function ExamInterface() {
         title: "Invalid attempt",
         description: "You cannot access this exam.",
       });
-      navigate("/dashboard");
+      navigate("/student-dashboard");
     }
   }, [attemptId, examId]);
 
@@ -64,7 +64,7 @@ export default function ExamInterface() {
           title: "Access Denied",
           description: "No active attempt found.",
         });
-        navigate("/dashboard");
+        navigate("/student-dashboard");
         return;
       }
 
@@ -73,7 +73,7 @@ export default function ExamInterface() {
           variant: "destructive",
           title: "Exam already submitted",
         });
-        navigate("/dashboard");
+        navigate("/student-dashboard");
       }
 
       setAttempt(found);
@@ -153,7 +153,7 @@ export default function ExamInterface() {
         description: "Your theory exam has been submitted successfully.",
       });
 
-      navigate("/dashboard");
+      navigate("/student-dashboard");
     } catch (err) {
       console.error("Submit error:", err);
     }
@@ -184,7 +184,7 @@ export default function ExamInterface() {
             <div key={q._id} className="p-4 rounded-lg border bg-card/40">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold">
-                  Q{index + 1}. {q.question}
+                  Q{index + 1}. {q.text || q.question}
                 </h3>
                 <Badge variant="outline" className="capitalize">
                   {q.type}

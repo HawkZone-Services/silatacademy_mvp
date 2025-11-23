@@ -7,7 +7,7 @@ interface Props {
 
 export function CertificateDownloadButton({ examId, studentId }: Props) {
   const download = () => {
-    const url = `https://api-f3rwhuz64a-uc.a.run.app/api/certificates/generate/${examId}/${studentId}`;
+    const url = `https://api-f3rwhuz64a-uc.a.run.app/api/certificates/admin/pdf/${examId}/${studentId}`;
     window.open(url, "_blank");
   };
 

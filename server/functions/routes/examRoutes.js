@@ -28,16 +28,26 @@ const router = express.Router();
    STUDENT EXAM ROUTES  (Safe for students)
 ================================================ */
 
-router.get("/", protect, listExams);
-router.get("/available/:beltLevel", protect, getExamsByBeltLevel);
-router.get("/my-attempts", protect, getMyAttempts);
-router.get("/:id", protect, getExam);
+router.get("/", protect, checkRole("student", "admin"), listExams);
+router.get(
+  "/available/:beltLevel",
+  protect,
+  checkRole("student"),
+  getExamsByBeltLevel
+);
+router.get("/my-attempts", protect, checkRole("student"), getMyAttempts);
+router.get("/:id", protect, checkRole("student"), getExam);
 
-router.post("/register", protect, ExamRegisteration);
+router.post("/register", protect, checkRole("student"), ExamRegisteration);
 
-router.post("/attempt/start", protect, startAttempt);
-router.post("/attempt/submit", protect, submitAttempt);
-router.get("/registration/status/:examId", protect, getRegistrationStatus);
+router.post("/attempt/start", protect, checkRole("student"), startAttempt);
+router.post("/attempt/submit", protect, checkRole("student"), submitAttempt);
+router.get(
+  "/registration/status/:examId",
+  protect,
+  checkRole("student"),
+  getRegistrationStatus
+);
 
 /* ================================================
    ADMIN EXAM ROUTES (Restricted)

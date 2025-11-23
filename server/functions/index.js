@@ -10,6 +10,7 @@ import dotenv from "dotenv";
 import router from "./routes/index.js";
 import { getDb } from "./utils/mongodb.js";
 import { get } from "mongoose";
+import { errorHandler, notFound } from "./middlewares/errorMiddleware.js";
 
 dotenv.config();
 const app = express();
@@ -62,11 +63,8 @@ app.get("/api/health", (req, res) => {
 });
 
 // Error Handling Middleware
-app.use((req, res) => res.status(404).json({ message: "Route not found" }));
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: "Internal server error" });
-});
+app.use(notFound);
+app.use(errorHandler);
 
 // تصدير كـ Firebase Function مع تخصيص الموارد والأسرار
 export const api = functions.https.onRequest(

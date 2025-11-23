@@ -5,9 +5,18 @@ import { useState, useEffect } from "react";
 interface Props {
   studentId: string;
   examId: string;
+  studentName?: string;
+  beltLevel?: string;
+  finalPassed?: boolean;
 }
 
-export function CertificateGenerator({ studentId, examId }: Props) {
+export function CertificateGenerator({
+  studentId,
+  examId,
+  studentName = "Student",
+  beltLevel,
+  finalPassed,
+}: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [certificateExists, setCertificateExists] = useState(false);
@@ -46,38 +55,42 @@ export function CertificateGenerator({ studentId, examId }: Props) {
   // GENERATE / DOWNLOAD CERT PDF
   // ============================
   const generate = async () => {
-    if (!certificateExists) {
-      toast({
-        variant: "destructive",
-        title: "Finalize Required",
-        description:
-          "You must finalize the result before generating certificate.",
-      });
-      return;
-    }
-
+    if (!studentId || !examId) return;
     setLoading(true);
 
     try {
-      const url = `${API}/certificates/admin/pdf/${examId}/${studentId}`;
-      window.open(url, "_blank");
+      if (!certificateExists) {
+        const createRes = await fetch(`${API}/certificates/generate`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ examId, studentId }),
+        });
+        const createJson = await createRes.json();
+        if (!createRes.ok || !createJson?.success) {
+          throw new Error(createJson?.message || "Finalize required");
+        }
+        setCertificateExists(true);
+      }
 
-      toast({
-        title: "Certificate Ready",
-        description: "Opened in new tab.",
-      });
+      window.open(
+        `${API}/certificates/admin/pdf/${examId}/${studentId}`,
+        "_blank"
+      );
     } catch (err) {
       toast({
         title: "Error",
-        description: "Failed to generate certificate.",
+        description:
+          err instanceof Error ? err.message : "Failed to generate certificate.",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  // UI States
   if (!certificateExists)
     return (
       <Button disabled className="w-full mt-4 bg-gray-400 text-white">

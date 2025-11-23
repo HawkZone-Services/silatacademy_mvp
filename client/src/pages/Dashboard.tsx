@@ -28,7 +28,6 @@ import { AttendanceTracker } from "@/components/admin/AttendanceTracker";
 
 import { RegistrationList } from "@/components/admin/test/RegistrationList";
 import { CreateExamDialog } from "@/components/admin/test/CreateExamDialog";
-import { ExamList } from "@/components/admin/test/ExamList";
 import { PracticalScoreDialog } from "@/components/admin/test/PracticalScoreDialog";
 
 import {
@@ -41,6 +40,12 @@ import {
 import { SubmissionsList } from "@/components/admin/test/SubmissionsList";
 import { FinalizeResultButton } from "@/components/admin/test/FinalizeResultButton";
 import { CertificateGenerator } from "@/components/admin/test/CertificateGenerator";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -69,6 +74,7 @@ export default function Dashboard() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [openExamId, setOpenExamId] = useState("");
 
   const [selectedStudent, setSelectedStudent] = useState("");
   const [selectedExam, setSelectedExam] = useState("");
@@ -224,6 +230,7 @@ export default function Dashboard() {
   useEffect(() => {
     fetchRegistrations();
     fetchSubmissions();
+    setSelectedStudent("");
   }, [selectedExam]);
 
   // ==========================================
@@ -262,6 +269,28 @@ export default function Dashboard() {
       player.national_id?.toLowerCase().includes(q)
     );
   });
+
+  const finalizedSubmissions = submissions.filter((s: any) => s?.finalPassed);
+  const pendingSubmissions = submissions.filter((s: any) => !s?.finalPassed);
+  const CERT_API = "https://api-f3rwhuz64a-uc.a.run.app/api/certificates";
+
+  const publishExamAdmin = async (examId: string) => {
+    try {
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      };
+      await fetch(`${EXAM_API}/admin/${examId}/publish`, {
+        method: "PATCH",
+        headers,
+      });
+      fetchExams();
+    } catch (err) {
+      console.error("Publish exam error:", err);
+    }
+  };
+  const finalized = submissions.filter((s: any) => s.finalPassed);
+  const pending = submissions.filter((s: any) => !s.finalPassed);
 
   // ==========================================
   // UI RENDER
@@ -423,86 +452,315 @@ export default function Dashboard() {
 
           {/* TESTING TAB */}
           <TabsContent value="testing">
-            <div className="space-y-10">
-              {/* Create Exam */}
-              <section>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold">Exams</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Manage exams, registrations, submissions, and certificates.
+                  </p>
+                </div>
                 <CreateExamDialog onCreated={fetchExams} />
-              </section>
+              </div>
 
-              {/* Exam List */}
-              <section>
-                <h2 className="text-xl font-bold mt-6 mb-2">Exams List</h2>
-                <ExamList exams={exams} onRefresh={fetchExams} />
-              </section>
+              <div className="overflow-x-auto border border-border/50 rounded-lg">
+                <table className="w-full text-left">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="px-3 py-2 text-sm font-semibold">Exam Title</th>
+                      <th className="px-3 py-2 text-sm font-semibold">Belt Level</th>
+                      <th className="px-3 py-2 text-sm font-semibold">Exam Date</th>
+                      <th className="px-3 py-2 text-sm font-semibold">
+                        Registrations
+                      </th>
+                      <th className="px-3 py-2 text-sm font-semibold">Submissions</th>
+                      <th className="px-3 py-2 text-sm font-semibold">Status</th>
+                      <th className="px-3 py-2 text-sm font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {exams.map((exam: any) => {
+                      const isOpen = openExamId === exam._id;
+                      const regCount = registrations.filter(
+                        (r: any) => r.exam?.toString() === exam._id
+                      ).length;
+                      const subCount = submissions.filter(
+                        (s: any) =>
+                          s.exam?.toString() === exam._id && !s.finalPassed
+                      ).length;
+                      const examDate =
+                        exam.schedule?.startsAt ||
+                        exam.schedule?.date ||
+                        exam.createdAt ||
+                        "";
+                      const formattedDate = examDate
+                        ? new Date(examDate).toLocaleDateString()
+                        : "-";
 
-              {/* Registration Management */}
-              <section>
-                <h2 className="text-xl font-bold mt-6 mb-2">
-                  Exam Registrations
-                </h2>
+                      const toggleOpen = (next: boolean) => {
+                        const val = next ? exam._id : "";
+                        setOpenExamId(val);
+                        setSelectedStudent("");
+                        if (next) {
+                          setSelectedExam(exam._id);
+                        } else {
+                          setSelectedExam("");
+                        }
+                      };
 
-                <Select value={selectedExam} onValueChange={setSelectedExam}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Exam" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {exams.map((exam) => (
-                      <SelectItem key={exam._id} value={exam._id}>
-                        {exam.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      return (
+                        <tr
+                          key={exam._id}
+                          className="border-t border-border/50 text-sm align-top"
+                        >
+                          <td className="px-3 py-2">{exam.title}</td>
+                          <td className="px-3 py-2 capitalize">
+                            {exam.beltLevel || "-"}
+                          </td>
+                          <td className="px-3 py-2">{formattedDate}</td>
+                          <td className="px-3 py-2">{regCount}</td>
+                          <td className="px-3 py-2">{subCount}</td>
+                          <td className="px-3 py-2 capitalize">
+                            {exam.status || "unpublished"}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => toggleOpen(!isOpen)}
+                              >
+                                {isOpen ? "Collapse" : "Expand"}
+                              </Button>
+                              {exam.status !== "published" && (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => publishExamAdmin(exam._id)}
+                                >
+                                  Publish
+                                </Button>
+                              )}
+                              <Button size="sm" variant="destructive" disabled>
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-                <RegistrationList
-                  list={registrations}
-                  onApprove={approveFn}
-                  onReject={rejectFn}
-                />
-              </section>
+              <Accordion
+                type="single"
+                collapsible
+                value={openExamId}
+                onValueChange={(val) => {
+                  setOpenExamId(val);
+                  if (val) setSelectedExam(val);
+                }}
+                className="space-y-3"
+              >
+                {exams.map((exam: any) => {
+                  const examPendingSubs = submissions.filter(
+                    (s: any) => s.exam?.toString() === exam._id
+                  );
+                  const examFinalizedSubs = finalizedSubmissions.filter(
+                    (s: any) => s.exam?.toString() === exam._id
+                  );
+                  const activeRegistrations = registrations.filter(
+                    (r: any) => !r.finalPassed && r.exam?.toString() === exam._id
+                  );
+                  const selectedSubmission = examPendingSubs.find((s: any) => {
+                    const studentId =
+                      typeof s.student === "object" ? s.student?._id : s.student;
+                    const examId =
+                      typeof s.exam === "object" ? s.exam?._id : s.exam;
+                    return (
+                      String(examId) === String(selectedExam) &&
+                      String(studentId) === String(selectedStudent)
+                    );
+                  });
 
-              {/* Exam Submissions */}
-              <section>
-                <h2 className="text-xl font-bold mt-6 mb-2">
-                  Exam Submissions
-                </h2>
+                  return (
+                    <AccordionItem key={exam._id} value={exam._id} className="border">
+                      <AccordionTrigger className="px-4 py-2 text-left">
+                        <div>
+                          <p className="font-semibold">{exam.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {exam.beltLevel || "-"} • {exam.status || "unpublished"}
+                          </p>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-4 py-4 space-y-6">
+                        {/* Registration Management (pending only) */}
+                        <section className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold">
+                              Exam Registrations
+                            </h3>
+                              <Select
+                              value={selectedExam}
+                              onValueChange={(val) => {
+                                setSelectedExam(val);
+                                setOpenExamId(val);
+                                setSelectedStudent("");
+                              }}
+                            >
+                              <SelectTrigger className="w-60">
+                                <SelectValue placeholder="Select Exam" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {exams.map((e) => (
+                                  <SelectItem key={e._id} value={e._id}>
+                                    {e.title}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                <SubmissionsList
-                  list={submissions}
-                  onSelect={(studentId, examId) => {
-                    setSelectedStudent(studentId);
-                    setSelectedExam(examId);
-                  }}
-                />
-              </section>
+                          <RegistrationList
+                            list={activeRegistrations}
+                            onApprove={approveFn}
+                            onReject={rejectFn}
+                          />
+                        </section>
 
-              {/* Practical Scoring */}
-              <section>
-                <h2 className="text-xl font-bold mt-6 mb-2">
-                  Practical Evaluation
-                </h2>
+                        {/* Submissions (all) */}
+                        <section className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold">Exam Submissions</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Select a submission to score and finalize.
+                            </p>
+                          </div>
+                          <SubmissionsList
+                            list={examPendingSubs}
+                            onSelect={(studentId, examId) => {
+                              setSelectedStudent(studentId);
+                              setSelectedExam(examId);
+                              setOpenExamId(examId);
+                            }}
+                          />
+                        </section>
 
-                <PracticalScoreDialog
-                  studentId={selectedStudent}
-                  examId={selectedExam}
-                  onSaved={() => {
-                    fetchSubmissions();
-                  }}
-                />
+                        {/* Practical Scoring & Finalization */}
+                        {selectedSubmission && (
+                          <section className="space-y-3">
+                            <h3 className="text-lg font-semibold">
+                              Practical Evaluation
+                            </h3>
+                            <div className="flex flex-wrap gap-3">
+                              <PracticalScoreDialog
+                                studentId={selectedStudent}
+                                examId={selectedExam}
+                                finalPassed={selectedSubmission.finalPassed}
+                                practicalRecorded={
+                                  selectedSubmission.practicalRecorded
+                                }
+                                onSaved={() => {
+                                  fetchSubmissions();
+                                }}
+                              />
 
-                <FinalizeResultButton
-                  studentId={selectedStudent}
-                  examId={selectedExam}
-                  onFinalized={() => {
-                    fetchSubmissions();
-                  }}
-                />
+                              <FinalizeResultButton
+                                studentId={selectedStudent}
+                                examId={selectedExam}
+                                finalPassed={selectedSubmission.finalPassed}
+                                onFinalized={() => {
+                                  fetchSubmissions();
+                                }}
+                              />
 
-                <CertificateGenerator
-                  studentId={selectedStudent}
-                  examId={selectedExam}
-                />
-              </section>
+                              <CertificateGenerator
+                                studentId={selectedStudent}
+                                examId={selectedExam}
+                                finalPassed={selectedSubmission.finalPassed}
+                              />
+                            </div>
+                          </section>
+                        )}
+
+                        {/* Finalized Certificates for this exam */}
+                        {examFinalizedSubs.length > 0 && (
+                          <section className="space-y-2">
+                            <h3 className="text-lg font-semibold">
+                              Finalized Certificates
+                            </h3>
+                            <div className="overflow-x-auto border border-border/50 rounded-lg">
+                              <table className="w-full text-left">
+                                <thead className="bg-muted">
+                                  <tr>
+                                    <th className="px-3 py-2 text-sm font-semibold">
+                                      Student
+                                    </th>
+                                    <th className="px-3 py-2 text-sm font-semibold">
+                                      Belt Level
+                                    </th>
+                                    <th className="px-3 py-2 text-sm font-semibold">
+                                      Date
+                                    </th>
+                                    <th className="px-3 py-2 text-sm font-semibold">
+                                      Actions
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {examFinalizedSubs.map((s: any) => {
+                                    const issueDate = s.finalizedAt
+                                      ? new Date(s.finalizedAt).toLocaleDateString()
+                                      : "-";
+                                    const belt = s.exam?.beltLevel || "-";
+
+                                    const handlePrint = () => {
+                                      const examId =
+                                        typeof s.exam === "object" ? s.exam?._id : s.exam;
+                                      const studentId =
+                                        typeof s.student === "object"
+                                          ? s.student?._id
+                                          : s.student;
+                                      if (examId && studentId) {
+                                        window.open(
+                                          `${CERT_API}/admin/pdf/${examId}/${studentId}`,
+                                          "_blank"
+                                        );
+                                      }
+                                    };
+
+                                    return (
+                                      <tr
+                                        key={s._id}
+                                        className="border-t border-border/50 text-sm"
+                                      >
+                                        <td className="px-3 py-2">
+                                          {s.student?.name || "Student"}
+                                        </td>
+                                        <td className="px-3 py-2 capitalize">{belt}</td>
+                                        <td className="px-3 py-2">{issueDate}</td>
+                                        <td className="px-3 py-2">
+                                          <button
+                                            onClick={handlePrint}
+                                            className="px-3 py-1 bg-primary text-white rounded hover:bg-primary/90"
+                                          >
+                                            Print Certificate
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          </section>
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
             </div>
           </TabsContent>
 
