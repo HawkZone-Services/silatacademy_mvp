@@ -1,12 +1,14 @@
 import asyncHandler from "express-async-handler";
 import { ObjectId } from "mongodb";
-import { getDb } from "../utils/mongodb.js";
 import {
   assertObjectId,
   toObjectId,
   httpError,
   asNumber,
 } from "../utils/validation.js";
+import { upsertCertificateForFinalResult } from "./certificateController.js";
+import { getDb } from "../utils/mongodb.js";
+import Notification from "../models/Notification.js";
 
 const PRACTICAL_COMPONENT_MAX = 100;
 const PRACTICAL_COMPONENTS = [
@@ -52,6 +54,107 @@ const mapPracticalScores = (body = {}) => ({
   physical: asNumber(body.physical),
   mental: asNumber(body.mental),
 });
+
+const findCompletedExamIdsForStudent = async (db, studentId) => {
+  const [finalized, submittedAttempts] = await Promise.all([
+    db
+      .collection("finalExamResults")
+      .find({ student: studentId })
+      .project({ exam: 1 })
+      .toArray(),
+    db
+      .collection("examAttempts")
+      .find({ student: studentId, submittedAt: { $ne: null } })
+      .project({ exam: 1 })
+      .toArray(),
+  ]);
+
+  const ids = [...finalized, ...submittedAttempts]
+    .map((item) => toObjectId(item.exam))
+    .filter(Boolean);
+
+  return Array.from(new Set(ids.map((id) => id.toString()))).map(
+    (id) => new ObjectId(id)
+  );
+};
+
+const beltToProgramLevel = (belt) => {
+  if (["white", "yellow"].includes(belt)) return "beginner";
+  if (["blue", "brown"].includes(belt)) return "intermediate";
+  if (["red", "black"].includes(belt)) return "advanced";
+  return null;
+};
+
+const lessonCompletionForBelt = async (db, userId, beltLevel) => {
+  const level = beltToProgramLevel(beltLevel);
+  if (!level) return { total: 0, completed: 0 };
+
+  const [totalLessons] = await db
+    .collection("lessons")
+    .aggregate([
+      {
+        $lookup: {
+          from: "programs",
+          localField: "program",
+          foreignField: "_id",
+          as: "program",
+        },
+      },
+      { $unwind: { path: "$program", preserveNullAndEmptyArrays: true } },
+      { $match: { "program.level": level } },
+      { $count: "count" },
+    ])
+    .toArray();
+
+  const [completedLessons] = await db
+    .collection("lessonprogresses")
+    .aggregate([
+      { $match: { user: userId, completed: true } },
+      {
+        $lookup: {
+          from: "lessons",
+          localField: "lesson",
+          foreignField: "_id",
+          as: "lesson",
+        },
+      },
+      { $unwind: { path: "$lesson", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "programs",
+          localField: "lesson.program",
+          foreignField: "_id",
+          as: "program",
+        },
+      },
+      { $unwind: { path: "$program", preserveNullAndEmptyArrays: true } },
+      { $match: { "program.level": level } },
+      { $count: "count" },
+    ])
+    .toArray();
+
+  return {
+    total: totalLessons?.count || 0,
+    completed: completedLessons?.count || 0,
+  };
+};
+
+const withExamLocks = async (db, exams, userId) => {
+  if (!userId) return exams;
+  return Promise.all(
+    exams.map(async (exam) => {
+      const status = await lessonCompletionForBelt(db, userId, exam.beltLevel);
+      const locked =
+        status.total > 0 && status.completed < status.total ? true : false;
+      return {
+        ...exam,
+        locked,
+        lessonsRequired: status.total,
+        lessonsCompleted: status.completed,
+      };
+    })
+  );
+};
 
 /* =====================================================
    REGISTRATION STATUS (STUDENT)
@@ -145,12 +248,7 @@ export const listExams = asyncHandler(async (req, res) => {
 
   if (req.user?.role === "student") {
     const studentId = assertObjectId(req.user._id, "studentId");
-    const completed = await db
-      .collection("finalExamResults")
-      .find({ student: studentId })
-      .project({ exam: 1 })
-      .toArray();
-    const excludedIds = completed.map((c) => c.exam);
+    const excludedIds = await findCompletedExamIdsForStudent(db, studentId);
 
     filter = {
       status: "published",
@@ -164,7 +262,12 @@ export const listExams = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .toArray();
 
-  res.json({ success: true, exams });
+  const enriched =
+    req.user?.role === "student"
+      ? await withExamLocks(db, exams, studentId)
+      : exams;
+
+  res.json({ success: true, exams: enriched });
 });
 
 /* =====================================================
@@ -231,12 +334,7 @@ export const getExamsByBeltLevel = asyncHandler(async (req, res) => {
   const beltLevel = req.params.beltLevel;
   const studentId = assertObjectId(req.user?._id, "studentId");
 
-  const completed = await db
-    .collection("finalExamResults")
-    .find({ student: studentId })
-    .project({ exam: 1 })
-    .toArray();
-  const excludedIds = completed.map((c) => c.exam);
+  const excludedIds = await findCompletedExamIdsForStudent(db, studentId);
 
   const exams = await db
     .collection("exams")
@@ -248,7 +346,9 @@ export const getExamsByBeltLevel = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .toArray();
 
-  res.json({ success: true, exams });
+  const enriched = await withExamLocks(db, exams, studentId);
+
+  res.json({ success: true, exams: enriched });
 });
 
 /* =====================================================
@@ -595,6 +695,21 @@ export const startAttempt = asyncHandler(async (req, res) => {
     throw httpError(403, "Exam is not available to start");
   }
 
+  const lessonStatus = await lessonCompletionForBelt(
+    db,
+    studentId,
+    exam.beltLevel
+  );
+  if (
+    lessonStatus.total > 0 &&
+    lessonStatus.completed < lessonStatus.total
+  ) {
+    throw httpError(
+      403,
+      "Complete all required lessons before taking this exam."
+    );
+  }
+
   const [registration, finalResult, submittedAttempt] = await Promise.all([
     db.collection("examRegistrations").findOne({
       exam: examObjectId,
@@ -627,9 +742,11 @@ export const startAttempt = asyncHandler(async (req, res) => {
   const attempt = await db.collection("examAttempts").findOneAndUpdate(
     { exam: examObjectId, student: studentId, submittedAt: null },
     {
+      $set: { player: studentId },
       $setOnInsert: {
         exam: examObjectId,
         student: studentId,
+        player: studentId,
         startedAt: new Date(),
         submittedAt: null,
         answers: [],
@@ -642,6 +759,13 @@ export const startAttempt = asyncHandler(async (req, res) => {
     },
     { upsert: true, returnDocument: "after" }
   );
+
+  if (attempt?.value?._id) {
+    await db.collection("exams").updateOne(
+      { _id: examObjectId },
+      { $addToSet: { attempts: attempt.value._id } }
+    );
+  }
 
   res.json({ success: true, attemptId: attempt.value._id, attempt: attempt.value });
 });
@@ -883,7 +1007,40 @@ export const combineScores = asyncHandler(async (req, res) => {
     }
   );
 
-  res.json({ success: true, finalResult });
+  let certificate;
+  try {
+    const certResult = await upsertCertificateForFinalResult(
+      db,
+      examId,
+      studentId
+    );
+    certificate = certResult.certificate;
+  } catch (err) {
+    console.error("Certificate generation failed after finalization", err);
+  }
+
+  try {
+    await Notification.create({
+      user: studentId,
+      title: passed ? "Exam Passed" : "Exam Graded",
+      message: passed
+        ? "Congratulations! You passed your exam."
+        : "Your exam has been graded.",
+      type: "result",
+    });
+    if (certificate?._id) {
+      await Notification.create({
+        user: studentId,
+        title: "Certificate Ready",
+        message: "Your certificate is ready for download.",
+        type: "certificate",
+      });
+    }
+  } catch (err) {
+    console.error("Failed to send notifications after grading", err);
+  }
+
+  res.json({ success: true, finalResult, certificate });
 });
 
 /* =====================================================
@@ -980,6 +1137,33 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
         },
       },
       {
+        $lookup: {
+          from: "certificates",
+          let: { examId: "$exam._id", studentId: "$student" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$exam", "$$examId"] },
+                    { $eq: ["$student", "$$studentId"] },
+                  ],
+                },
+              },
+            },
+            { $sort: { issuedAt: -1, createdAt: -1, _id: -1 } },
+            { $limit: 1 },
+          ],
+          as: "certificate",
+        },
+      },
+      {
+        $unwind: {
+          path: "$certificate",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
         $project: {
           _id: 1,
           exam: {
@@ -1000,6 +1184,11 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
           finalTotalScore: "$finalResult.totalScore",
           finalPassed: "$finalResult.passed",
           finalizedAt: "$finalResult.finalizedAt",
+          certificate: {
+            _id: "$certificate._id",
+            issuedAt: { $ifNull: ["$certificate.issuedAt", "$certificate.createdAt"] },
+            beltLevel: "$certificate.beltLevel",
+          },
         },
       },
       { $sort: { submittedAt: -1 } },

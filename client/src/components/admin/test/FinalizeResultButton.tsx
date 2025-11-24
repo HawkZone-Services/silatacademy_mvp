@@ -55,19 +55,11 @@ export function FinalizeResultButton({
         return;
       }
 
-      // 2) CREATE CERTIFICATE DOCUMENT
-      await fetch(`${API}/certificates/generate`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ examId, studentId }),
-      });
-
       toast({
         title: "Result Finalized",
-        description: "Certificate created successfully.",
+        description: data?.certificate
+          ? "Certificate created successfully."
+          : "Scores saved. Certificate pending.",
       });
 
       // 3) refresh admin submissions
@@ -75,6 +67,7 @@ export function FinalizeResultButton({
       onFinalized?.();
 
       // 4) notify student dashboard
+      localStorage.setItem("refreshResults", "1");
       localStorage.setItem("refreshCertificates", "1");
     } catch (err: any) {
       toast({

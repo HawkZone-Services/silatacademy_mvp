@@ -27,6 +27,7 @@ const ExamSchema = new mongoose.Schema({
   passMark: { type: Number, default: 24 }, // 60% of 40
 
   questions: [QuestionSchema],
+  attempts: [{ type: mongoose.Schema.Types.ObjectId, ref: "ExamAttempt" }],
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 
   status: {

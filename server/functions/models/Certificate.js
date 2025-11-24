@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 const CertificateSchema = new mongoose.Schema({
   student: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   exam: { type: mongoose.Schema.Types.ObjectId, ref: "Exam" },
+  attempt: { type: mongoose.Schema.Types.ObjectId, ref: "ExamAttempt" },
+  player: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
 
   scores: {
     morality: Number,

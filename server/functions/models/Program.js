@@ -6,6 +6,12 @@ const ProgramSchema = new mongoose.Schema({
     required: true,
   },
   description: String,
+  moduleRefs: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Module",
+    },
+  ],
   modules: [
     {
       title: String,

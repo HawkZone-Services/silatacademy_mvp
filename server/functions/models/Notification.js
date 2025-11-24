@@ -4,7 +4,11 @@ const NotificationSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   title: String,
   message: String,
-  type: { type: String, enum: ["exam", "result", "system", "event"] },
+  type: {
+    type: String,
+    enum: ["exam", "result", "system", "event", "lesson", "certificate", "belt"],
+  },
+  link: String,
   isRead: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 });

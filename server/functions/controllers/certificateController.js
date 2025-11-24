@@ -2,6 +2,7 @@ import asyncHandler from "express-async-handler";
 import PDFDocument from "pdfkit";
 import { getDb } from "../utils/mongodb.js";
 import { assertObjectId, httpError, asNumber } from "../utils/validation.js";
+import Notification from "../models/Notification.js";
 
 const buildCertificateProjection = () => ({
   _id: 1,
@@ -46,14 +47,12 @@ const fetchFinalResult = async (db, examId, studentId) => {
   return finalResult || null;
 };
 
-/* =====================================================
-   ADMIN: CREATE CERTIFICATE (AFTER FINAL RESULT)
-===================================================== */
-export const generateCertificate = asyncHandler(async (req, res) => {
-  const db = await getDb();
-  const examId = assertObjectId(req.body.examId, "examId");
-  const studentId = assertObjectId(req.body.studentId, "studentId");
-
+export const upsertCertificateForFinalResult = async (
+  db,
+  examId,
+  studentId
+  // optional: ensureFutureProof
+) => {
   const [finalResult, exam, student] = await Promise.all([
     fetchFinalResult(db, examId, studentId),
     db.collection("exams").findOne({ _id: examId }),
@@ -101,10 +100,35 @@ export const generateCertificate = asyncHandler(async (req, res) => {
 
   const created = !certificateResult.lastErrorObject?.updatedExisting;
 
+  return { certificate: certificateResult.value, created };
+};
+
+/* =====================================================
+   ADMIN: CREATE CERTIFICATE (AFTER FINAL RESULT)
+===================================================== */
+export const generateCertificate = asyncHandler(async (req, res) => {
+  const db = await getDb();
+  const examId = assertObjectId(req.body.examId, "examId");
+  const studentId = assertObjectId(req.body.studentId, "studentId");
+  const { certificate, created } = await upsertCertificateForFinalResult(
+    db,
+    examId,
+    studentId
+  );
+
+  if (certificate?._id) {
+    await Notification.create({
+      user: studentId,
+      title: "Certificate Ready",
+      message: "Your certificate is ready for download.",
+      type: "certificate",
+    });
+  }
+
   res.status(created ? 201 : 200).json({
     success: true,
     created,
-    certificate: certificateResult.value,
+    certificate,
   });
 });
 

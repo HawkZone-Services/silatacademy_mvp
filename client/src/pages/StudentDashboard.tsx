@@ -2,9 +2,11 @@
 // Student Dashboard (FINAL VERSION)
 // ===============================
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import NotificationsBell from "@/components/player/NotificationsBell";
+import NotificationsList from "@/components/player/NotificationsList";
 
 import {
   Card,
@@ -24,6 +26,7 @@ const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
 export default function StudentDashboard() {
   const { toast } = useToast();
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const user =
     JSON.parse(localStorage.getItem("user") || "null") ||
@@ -40,28 +43,12 @@ export default function StudentDashboard() {
   const [certificates, setCertificates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // =======================
-  // AUTO-REFRESH CERTIFICATES
-  // =======================
-  useEffect(() => {
-    if (localStorage.getItem("refreshCertificates") === "1") {
-      fetchCertificates();
-      localStorage.removeItem("refreshCertificates");
-    }
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchCertificates();
-    }, 10000); // كل 10 ثواني تحديث الشهادات تلقائياً
-
-    return () => clearInterval(interval);
-  }, []);
-
   // ===============================
   // Fetch Results FIRST
   // ===============================
-  const fetchResults = async () => {
+  const fetchResults = useCallback(async () => {
+    if (!token) return [];
+
     try {
       const res = await fetch(`${API}/exams/my-attempts`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -69,81 +56,118 @@ export default function StudentDashboard() {
 
       const data = await res.json();
 
-      if (Array.isArray(data.attempts)) {
-        setResults(data.attempts);
-        console.log("Fetched results:", data.attempts);
-      }
+      const attempts = Array.isArray(data.attempts) ? data.attempts : [];
+      setResults(attempts);
+      return attempts;
     } catch (err) {
       console.error("Fetch results error:", err);
+      return [];
     }
-  };
+  }, [token]);
 
   // ===============================
   // Exam Registration Status
   // ===============================
-  const getExamStatus = async (examId: string) => {
-    try {
-      const res = await fetch(`${API}/exams/registration/status/${examId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  const getExamStatus = useCallback(
+    async (examId: string) => {
+      try {
+        const res = await fetch(`${API}/exams/registration/status/${examId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      const data = await res.json();
-      return data.status || "none";
-    } catch {
-      return "none";
-    }
-  };
+        const data = await res.json();
+        return data.status || "none";
+      } catch {
+        return "none";
+      }
+    },
+    [token]
+  );
 
   // ===============================
   // Fetch Available Exams
   // ===============================
-  const fetchAvailableExams = async () => {
-    try {
-      const res = await fetch(`${API}/exams/available/${beltLevel}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  const fetchAvailableExams = useCallback(
+    async (attemptsOverride?: any[]) => {
+      try {
+        if (!token) return;
 
-      const data = await res.json();
+        const attemptsList = Array.isArray(attemptsOverride)
+          ? attemptsOverride
+          : results;
+        const attemptByExam = new Map(
+          attemptsList.map((r) => [r.exam?._id || r.exam, r])
+        );
 
-      if (!Array.isArray(data.exams)) return;
+        const res = await fetch(`${API}/exams/available/${beltLevel}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      const examsWithStatus = await Promise.all(
-        data.exams.map(async (exam: any) => {
-          const status = await getExamStatus(exam._id);
+        const data = await res.json();
 
-          const passMark = exam.passMark ?? 0;
-          const maxTheoryScore = exam.maxTheoryScore ?? 40;
-          const passPercent =
-            maxTheoryScore > 0
-              ? Math.round((passMark / maxTheoryScore) * 100)
-              : passMark;
+        if (!Array.isArray(data.exams)) {
+          setAvailableExams([]);
+          return;
+        }
 
-          const attempt = results.find((r) => r.exam?._id === exam._id);
+        const examsWithStatus = await Promise.all(
+          data.exams.map(async (exam: any) => {
+            const status = await getExamStatus(exam._id);
+
+            const passMark = exam.passMark ?? 0;
+            const maxTheoryScore = exam.maxTheoryScore ?? 40;
+            const passPercent =
+              maxTheoryScore > 0
+                ? Math.round((passMark / maxTheoryScore) * 100)
+                : passMark;
+
+          const attempt = attemptByExam.get(exam._id);
           const attemptStatus = attempt
             ? attempt.submittedAt
               ? "completed"
               : "attempted"
             : "notAttempted";
 
-          return { ...exam, status, passPercent, attemptStatus };
+          return {
+            ...exam,
+            status,
+            passPercent,
+            attemptStatus,
+            attemptId: attempt?._id,
+            locked: Boolean(exam.locked),
+            lessonsCompleted: exam.lessonsCompleted,
+            lessonsRequired: exam.lessonsRequired,
+          };
         })
       );
 
-      const filtered = examsWithStatus.filter((exam) => {
-        const existing = results.find((r) => r.exam?._id === exam._id);
-        return !(existing && (existing.finalPassed || existing.finalTotalScore));
-      });
+        const filtered = examsWithStatus.filter((exam) => {
+          const att = attemptByExam.get(exam._id);
+          if (!att) return true;
+          if (att.submittedAt) return false;
+          if (
+            att.finalPassed !== undefined ||
+            att.finalTotalScore !== undefined
+          ) {
+            return false;
+          }
+          return true;
+        });
 
-      setAvailableExams(filtered);
-    } catch (err) {
-      console.error("Fetch available exams error:", err);
-    }
-  };
+        setAvailableExams(filtered);
+      } catch (err) {
+        console.error("Fetch available exams error:", err);
+      }
+    },
+    [beltLevel, getExamStatus, results, token]
+  );
 
   // ===============================
   // Fetch Certificates
   // ===============================
-  const fetchCertificates = async () => {
+  const fetchCertificates = useCallback(async () => {
+    if (!token) return [];
+
     try {
       const res = await fetch(`${API}/certificates/my`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -152,11 +176,86 @@ export default function StudentDashboard() {
       const data = await res.json();
       if (Array.isArray(data.certificates)) {
         setCertificates(data.certificates);
+        return data.certificates;
       }
+      setCertificates([]);
+      return [];
     } catch (err) {
       console.error("Certificate fetch error:", err);
+      return [];
+    }
+  }, [token]);
+
+  const downloadCertificate = async (
+    examId: string,
+    studentId?: string | null
+  ) => {
+    const resolvedStudentId = studentId || user?._id;
+    if (!examId || !resolvedStudentId || !token) return;
+
+    try {
+      const res = await fetch(
+        `${API}/certificates/pdf/${examId}/${resolvedStudentId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to download certificate");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `certificate-${examId}-${resolvedStudentId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        variant: "destructive",
+        title: "Download failed",
+        description: err?.message || "Could not download certificate.",
+      });
     }
   };
+
+  const refreshData = useCallback(async () => {
+    const attempts = await fetchResults();
+    await fetchAvailableExams(attempts);
+    await fetchCertificates();
+    setLoading(false);
+  }, [fetchAvailableExams, fetchCertificates, fetchResults]);
+
+  // ===============================
+  // Sync & refresh hooks
+  // ===============================
+  useEffect(() => {
+    if (!token) return;
+    refreshData();
+  }, [token, refreshData]);
+
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      refreshData();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [token, refreshData]);
+
+  useEffect(() => {
+    if (localStorage.getItem("refreshResults") === "1") {
+      refreshData();
+      localStorage.removeItem("refreshResults");
+    }
+    if (localStorage.getItem("refreshCertificates") === "1") {
+      refreshData();
+      localStorage.removeItem("refreshCertificates");
+    }
+  }, [refreshData]);
 
   // ===============================
   // Register for Exam
@@ -191,7 +290,7 @@ export default function StudentDashboard() {
         description: "Waiting for instructor approval.",
       });
 
-      fetchAvailableExams();
+      refreshData();
     } catch (err) {
       console.error("Register error:", err);
     }
@@ -200,14 +299,26 @@ export default function StudentDashboard() {
   // ===============================
   // Start Exam
   // ===============================
-  const handleStartExam = async (examId: string) => {
-    const already = results.find((r) => r.exam?._id === examId);
-    if (already) {
+  const handleStartExam = async (examId: string, attemptId?: string) => {
+    const existing = results.find((r) => r.exam?._id === examId);
+    const existingAttemptId = attemptId || existing?._id;
+
+    if (
+      existing &&
+      (existing.submittedAt ||
+        existing.finalPassed !== undefined ||
+        existing.finalTotalScore !== undefined)
+    ) {
       toast({
         variant: "destructive",
         title: "Exam Already Completed",
         description: "You cannot retake this exam.",
       });
+      return;
+    }
+
+    if (existing && existingAttemptId) {
+      window.location.href = `/exam/${examId}?attempt=${existingAttemptId}`;
       return;
     }
 
@@ -244,45 +355,19 @@ export default function StudentDashboard() {
   };
 
   // ===============================
-  // Page Load Logic (Correct Order)
-  // ===============================
-  useEffect(() => {
-    if (!token) return;
-
-    (async () => {
-      await fetchResults();
-      await fetchAvailableExams();
-      await fetchCertificates();
-      setLoading(false);
-    })();
-  }, [token]);
-
-  // ===============================
-  // Auto Refresh Every 20 Seconds
-  // ===============================
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchResults();
-      fetchAvailableExams();
-    }, 20000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // ===============================
-  // One-time refresh after exam submission
-  // ===============================
-  useEffect(() => {
-    if (localStorage.getItem("refreshResults") === "1") {
-      fetchResults();
-      fetchAvailableExams();
-      localStorage.removeItem("refreshResults");
-    }
-  }, []);
-
-  // ===============================
   // Stats
   // ===============================
+  const certificateByExam: Record<string, any> = certificates.reduce(
+    (acc, cert) => {
+      const examId = cert.exam?._id || cert.exam || cert.examId;
+      if (examId) {
+        acc[String(examId)] = cert;
+      }
+      return acc;
+    },
+    {}
+  );
+
   const stats = [
     {
       title: "Current Belt",
@@ -315,14 +400,23 @@ export default function StudentDashboard() {
       <Navbar />
 
       <div className="container px-4 py-8">
-        <div className="mb-8">
-          <h1 className="font-display text-4xl font-bold mb-2">
-            Welcome back, <span className="text-primary">{studentName}</span>
-          </h1>
-          <p className="text-muted-foreground">
-            Track your progress and continue your Silat journey
-          </p>
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <div>
+            <h1 className="font-display text-4xl font-bold mb-2">
+              Welcome back, <span className="text-primary">{studentName}</span>
+            </h1>
+            <p className="text-muted-foreground">
+              Track your progress and continue your Silat journey
+            </p>
+          </div>
+          <NotificationsBell onClick={() => setShowNotifications((v) => !v)} />
         </div>
+
+        {showNotifications && (
+          <div className="mb-6">
+            <NotificationsList />
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -386,10 +480,17 @@ export default function StudentDashboard() {
                       </thead>
                       <tbody>
                         {availableExams.map((exam) => {
-                          const attemptStatus = exam.attemptStatus || "notAttempted";
+                          const attemptStatus =
+                            exam.attemptStatus || "notAttempted";
+                          const attemptId = exam.attemptId;
                           const canStart =
                             exam.status === "approved" &&
-                            attemptStatus === "notAttempted";
+                            attemptStatus === "notAttempted" &&
+                            !exam.locked;
+                          const canResume =
+                            attemptStatus === "attempted" &&
+                            Boolean(attemptId) &&
+                            !exam.locked;
                           const alreadyDone = attemptStatus === "completed";
 
                           let actionLabel = "Register";
@@ -397,7 +498,11 @@ export default function StudentDashboard() {
                           let onClick: (() => void) | undefined = () =>
                             handleRegister(exam._id);
 
-                          if (exam.status === "pending") {
+                          if (exam.locked) {
+                            actionLabel = "Exam Locked";
+                            disabled = true;
+                            onClick = undefined;
+                          } else if (exam.status === "pending") {
                             actionLabel = "Pending approval";
                             disabled = true;
                             onClick = undefined;
@@ -405,10 +510,11 @@ export default function StudentDashboard() {
                             actionLabel = "Completed";
                             disabled = true;
                             onClick = undefined;
-                          } else if (canStart) {
-                            actionLabel = "Start Exam";
-                            onClick = () => handleStartExam(exam._id);
-                          } else if (exam.status === "approved") {
+                          } else if (canResume) {
+                            actionLabel = "Resume Exam";
+                            onClick = () =>
+                              handleStartExam(exam._id, attemptId);
+                          } else if (canStart || exam.status === "approved") {
                             actionLabel = "Start Exam";
                             onClick = () => handleStartExam(exam._id);
                           }
@@ -423,10 +529,14 @@ export default function StudentDashboard() {
                                 {exam.beltLevel}
                               </td>
                               <td className="px-3 py-2 capitalize">
-                                {exam.status}
+                                {exam.locked ? "locked" : exam.status}
                               </td>
                               <td className="px-3 py-2 capitalize">
-                                {attemptStatus}
+                                {exam.locked
+                                  ? `Locked (${exam.lessonsCompleted ?? 0}/${
+                                      exam.lessonsRequired ?? 0
+                                    } lessons)`
+                                  : attemptStatus}
                               </td>
                               <td className="px-3 py-2">
                                 <button
@@ -481,6 +591,9 @@ export default function StudentDashboard() {
                             Passed
                           </th>
                           <th className="px-3 py-2 text-sm font-semibold">
+                            Certificate
+                          </th>
+                          <th className="px-3 py-2 text-sm font-semibold">
                             Date
                           </th>
                         </tr>
@@ -513,37 +626,58 @@ export default function StudentDashboard() {
                             );
                           }
 
-                      const passed =
-                        typeof result.finalPassed === "boolean"
-                          ? result.finalPassed
-                          : result.passed;
-                      const hasFinal = typeof result.finalPassed === "boolean";
+                          const passed =
+                            typeof result.finalPassed === "boolean"
+                              ? result.finalPassed
+                              : result.passed;
+                          const hasFinal =
+                            typeof result.finalPassed === "boolean";
+                          const examId = result.exam?._id || result.exam;
+                          const cert = examId
+                            ? certificateByExam[String(examId)]
+                            : null;
 
-                      return (
-                        <tr
-                          key={result._id}
-                          className="border-t border-border/50 text-sm"
-                        >
-                          <td className="px-3 py-2">
-                            {result.exam?.title || "Exam"}
-                          </td>
-                          <td className="px-3 py-2">
-                            {result.theoryScore ?? 0}
-                          </td>
-                          <td className="px-3 py-2">
-                            {hasFinal ? practical : "Pending"}
-                          </td>
-                          <td className="px-3 py-2">
-                            {hasFinal ? total : "Pending"}
-                          </td>
-                          <td className="px-3 py-2">
-                            {hasFinal ? (passed ? "Yes" : "No") : "Pending"}
-                          </td>
-                          <td className="px-3 py-2">
-                            {result.submittedAt
-                              ? new Date(result.submittedAt).toLocaleString()
-                              : "-"}
-                          </td>
+                          return (
+                            <tr
+                              key={result._id}
+                              className="border-t border-border/50 text-sm"
+                            >
+                              <td className="px-3 py-2">
+                                {result.exam?.title || "Exam"}
+                              </td>
+                              <td className="px-3 py-2">
+                                {result.theoryScore ?? 0}
+                              </td>
+                              <td className="px-3 py-2">
+                                {hasFinal ? practical : "Pending"}
+                              </td>
+                              <td className="px-3 py-2">
+                                {hasFinal ? total : "Pending"}
+                              </td>
+                              <td className="px-3 py-2">
+                                {hasFinal ? (passed ? "Yes" : "No") : "Pending"}
+                              </td>
+                              <td className="px-3 py-2">
+                                {cert ? (
+                                  <button
+                                    className="px-3 py-1 bg-primary text-white rounded hover:bg-primary/90"
+                                    onClick={() =>
+                                      examId && downloadCertificate(examId, user?._id)
+                                    }
+                                  >
+                                    Download
+                                  </button>
+                                ) : (
+                                  <span className="text-muted-foreground">
+                                    Pending
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                {result.submittedAt
+                                  ? new Date(result.submittedAt).toLocaleString()
+                                  : "-"}
+                              </td>
                             </tr>
                           );
                         })}
@@ -592,35 +726,9 @@ export default function StudentDashboard() {
                             : "-";
                           const belt =
                             cert.exam?.beltLevel || cert.beltLevel || "-";
-
-                          const handleDownload = async () => {
-                            const examId =
-                              cert.exam?._id || cert.exam || cert.examId;
-                            const studentId =
-                              cert.student?._id || cert.student || user?._id;
-                            if (!examId || !studentId) return;
-
-                            try {
-                              const res = await fetch(
-                                `${API}/certificates/pdf/${examId}/${studentId}`,
-                                { headers: { Authorization: `Bearer ${token}` } }
-                              );
-                              if (!res.ok) {
-                                throw new Error("Failed to download certificate");
-                              }
-                              const blob = await res.blob();
-                              const url = window.URL.createObjectURL(blob);
-                              const link = document.createElement("a");
-                              link.href = url;
-                              link.download = `certificate-${examId}-${studentId}.pdf`;
-                              document.body.appendChild(link);
-                              link.click();
-                              link.remove();
-                              window.URL.revokeObjectURL(url);
-                            } catch (err) {
-                              console.error(err);
-                            }
-                          };
+                          const examId = cert.exam?._id || cert.exam || cert.examId;
+                          const studentId =
+                            cert.student?._id || cert.student || user?._id;
 
                           return (
                             <tr key={cert._id} className="border-t border-border/50">
@@ -630,7 +738,9 @@ export default function StudentDashboard() {
                               </td>
                               <td className="px-3 py-2 text-sm">
                                 <button
-                                  onClick={handleDownload}
+                                  onClick={() =>
+                                    examId && downloadCertificate(examId, studentId)
+                                  }
                                   className="px-3 py-1 bg-primary text-white rounded hover:bg-primary/90"
                                 >
                                   Download Certificate

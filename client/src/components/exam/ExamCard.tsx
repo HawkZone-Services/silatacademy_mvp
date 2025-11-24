@@ -21,6 +21,9 @@ interface ExamCardProps {
     type: string;
     status: "none" | "pending" | "approved" | "rejected";
     attemptStatus?: "completed" | "attempted" | "notAttempted";
+    locked?: boolean;
+    lessonsCompleted?: number;
+    lessonsRequired?: number;
   };
   onRegister: (examId: string) => void;
   onStart: (examId: string) => void;
@@ -28,6 +31,14 @@ interface ExamCardProps {
 
 export const ExamCard = ({ exam, onRegister, onStart }: ExamCardProps) => {
   const renderButton = () => {
+    if (exam.locked) {
+      return (
+        <Button className="w-full mt-4" disabled variant="secondary">
+          Exam Locked
+        </Button>
+      );
+    }
+
     if (exam.attemptStatus === "completed") {
       return (
         <Button className="w-full mt-4" disabled variant="secondary">

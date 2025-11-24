@@ -11,6 +11,7 @@ const AttemptAnswerSchema = new mongoose.Schema({
 const ExamAttemptSchema = new mongoose.Schema({
   exam: { type: mongoose.Schema.Types.ObjectId, ref: "Exam" },
   student: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  player: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
 
   startedAt: Date,
   submittedAt: Date,

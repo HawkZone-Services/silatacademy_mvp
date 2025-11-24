@@ -2,8 +2,11 @@ import asyncHandler from "express-async-handler";
 import Player from "../models/Player.js";
 import Attendance from "../models/Attendance.js";
 import User from "../models/User.js";
+import BeltHistory from "../models/BeltHistory.js";
+import Notification from "../models/Notification.js";
 import PDFDocument from "pdfkit";
 import { getDb } from "../utils/mongodb.js";
+import { assertObjectId, httpError } from "../utils/validation.js";
 
 export const listPlayers = asyncHandler(async (req, res) => {
   const db = await getDb();
@@ -131,4 +134,58 @@ export const addExamToPlayer = asyncHandler(async (req, res) => {
   await player.save();
 
   res.json({ success: true, player });
+});
+
+export const markPendingUpgrade = asyncHandler(async (req, res) => {
+  const { examId, attemptId } = req.body;
+  const playerId = assertObjectId(req.params.id, "playerId");
+
+  const player = await Player.findById(playerId);
+  if (!player) throw httpError(404, "Player not found");
+
+  const entry = await BeltHistory.create({
+    player: playerId,
+    user: player.user,
+    fromBelt: player.beltLevel,
+    toBelt: player.beltLevel,
+    status: "pending",
+    examId: examId ? assertObjectId(examId, "examId") : undefined,
+    attemptId: attemptId ? assertObjectId(attemptId, "attemptId") : undefined,
+    note: "Exam passed pending coach approval",
+  });
+
+  res.json({ success: true, pendingUpgrade: entry });
+});
+
+export const approveUpgrade = asyncHandler(async (req, res) => {
+  const { toBelt, note } = req.body;
+  const entryId = assertObjectId(req.params.historyId, "historyId");
+  const coachId = req.user?._id ? assertObjectId(req.user._id, "coachId") : null;
+
+  const history = await BeltHistory.findById(entryId);
+  if (!history) throw httpError(404, "Upgrade request not found");
+
+  const player = await Player.findById(history.player);
+  if (!player) throw httpError(404, "Player not found");
+
+  const newBelt = toBelt || player.beltLevel;
+
+  player.beltLevel = newBelt;
+  await player.save();
+
+  history.status = "approved";
+  history.toBelt = newBelt;
+  history.approvedAt = new Date();
+  if (coachId) history.approvedBy = coachId;
+  if (note) history.note = note;
+  await history.save();
+
+  await Notification.create({
+    user: player.user,
+    title: "Belt Upgraded",
+    message: `Your belt has been upgraded to ${newBelt}.`,
+    type: "belt",
+  });
+
+  res.json({ success: true, history, player });
 });

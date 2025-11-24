@@ -9,21 +9,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "lucide-react";
 
 interface AddLessonDialogProps {
   onLessonAdded?: () => void;
 }
+
+const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
 export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
   const [open, setOpen] = useState(false);
@@ -32,14 +26,13 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
 
   const [formData, setFormData] = useState({
     title: "",
-    lesson_type: "beginner",
-    description: "",
-    scheduled_date: "",
-    start_time: "",
-    end_time: "",
-    location: "",
-    max_capacity: "",
-    notes: "",
+    summary: "",
+    videoUrl: "",
+    content: "",
+    programId: "",
+    moduleId: "",
+    durationMinutes: "",
+    resources: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,23 +40,38 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.from("lessons").insert([
-        {
-          title: formData.title,
-          lesson_type: formData.lesson_type as any,
-          description: formData.description,
-          scheduled_date: formData.scheduled_date,
-          start_time: formData.start_time,
-          end_time: formData.end_time,
-          location: formData.location,
-          max_capacity: formData.max_capacity
-            ? parseInt(formData.max_capacity)
-            : null,
-          notes: formData.notes,
-        },
-      ]);
+      const token =
+        localStorage.getItem("token") || sessionStorage.getItem("token");
 
-      if (error) throw error;
+      const payload = {
+        title: formData.title,
+        summary: formData.summary,
+        videoUrl: formData.videoUrl,
+        content: formData.content,
+        programId: formData.programId || undefined,
+        moduleId: formData.moduleId || undefined,
+        durationMinutes: formData.durationMinutes
+          ? Number(formData.durationMinutes)
+          : undefined,
+        resources: formData.resources
+          ? formData.resources.split("\n").filter(Boolean)
+          : [],
+        quiz: [],
+      };
+
+      const res = await fetch(`${API}/lessons`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to add lesson");
+      }
 
       toast({
         title: "Success",
@@ -73,14 +81,13 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
       setOpen(false);
       setFormData({
         title: "",
-        lesson_type: "beginner",
-        description: "",
-        scheduled_date: "",
-        start_time: "",
-        end_time: "",
-        location: "",
-        max_capacity: "",
-        notes: "",
+        summary: "",
+        videoUrl: "",
+        content: "",
+        programId: "",
+        moduleId: "",
+        durationMinutes: "",
+        resources: "",
       });
       onLessonAdded?.();
     } catch (error: any) {
@@ -121,34 +128,22 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="lesson_type">Lesson Type *</Label>
-              <Select
-                value={formData.lesson_type}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, lesson_type: value })
+              <Label htmlFor="programId">Program Id</Label>
+              <Input
+                id="programId"
+                value={formData.programId}
+                onChange={(e) =>
+                  setFormData({ ...formData, programId: e.target.value })
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="beginner">Beginner</SelectItem>
-                  <SelectItem value="intermediate">Intermediate</SelectItem>
-                  <SelectItem value="advanced">Advanced</SelectItem>
-                  <SelectItem value="competition">Competition</SelectItem>
-                  <SelectItem value="seminar">Seminar</SelectItem>
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div>
-              <Label htmlFor="scheduled_date">Date *</Label>
+              <Label htmlFor="moduleId">Module Id</Label>
               <Input
-                id="scheduled_date"
-                type="date"
-                required
-                value={formData.scheduled_date}
+                id="moduleId"
+                value={formData.moduleId}
                 onChange={(e) =>
-                  setFormData({ ...formData, scheduled_date: e.target.value })
+                  setFormData({ ...formData, moduleId: e.target.value })
                 }
               />
             </div>
@@ -156,73 +151,57 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="start_time">Start Time *</Label>
+              <Label htmlFor="videoUrl">Video URL</Label>
               <Input
-                id="start_time"
-                type="time"
-                required
-                value={formData.start_time}
+                id="videoUrl"
+                value={formData.videoUrl}
                 onChange={(e) =>
-                  setFormData({ ...formData, start_time: e.target.value })
+                  setFormData({ ...formData, videoUrl: e.target.value })
                 }
               />
             </div>
             <div>
-              <Label htmlFor="end_time">End Time *</Label>
+              <Label htmlFor="durationMinutes">Duration (minutes)</Label>
               <Input
-                id="end_time"
-                type="time"
-                required
-                value={formData.end_time}
-                onChange={(e) =>
-                  setFormData({ ...formData, end_time: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="location">Location</Label>
-              <Input
-                id="location"
-                value={formData.location}
-                onChange={(e) =>
-                  setFormData({ ...formData, location: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="max_capacity">Max Capacity</Label>
-              <Input
-                id="max_capacity"
+                id="durationMinutes"
                 type="number"
-                value={formData.max_capacity}
+                value={formData.durationMinutes}
                 onChange={(e) =>
-                  setFormData({ ...formData, max_capacity: e.target.value })
+                  setFormData({ ...formData, durationMinutes: e.target.value })
                 }
               />
             </div>
           </div>
 
           <div>
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="summary">Summary</Label>
             <Textarea
-              id="description"
-              value={formData.description}
+              id="summary"
+              value={formData.summary}
               onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
+                setFormData({ ...formData, summary: e.target.value })
               }
             />
           </div>
 
           <div>
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="content">Content</Label>
             <Textarea
-              id="notes"
-              value={formData.notes}
+              id="content"
+              value={formData.content}
               onChange={(e) =>
-                setFormData({ ...formData, notes: e.target.value })
+                setFormData({ ...formData, content: e.target.value })
+              }
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="resources">Resources (one per line)</Label>
+            <Textarea
+              id="resources"
+              value={formData.resources}
+              onChange={(e) =>
+                setFormData({ ...formData, resources: e.target.value })
               }
             />
           </div>
