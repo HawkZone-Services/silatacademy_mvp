@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import certificateService from "@/services/certificateService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -15,9 +16,7 @@ export default function CurriculumGenerator() {
   const download = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/curriculum/${belt}/pdf`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await certificateService.getCurriculumPDF(belt);
       if (!res.ok) throw new Error("Failed to generate curriculum");
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);

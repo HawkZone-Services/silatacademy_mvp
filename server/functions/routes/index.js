@@ -1,36 +1,10 @@
 import express from "express";
-import adminRoutes from "./adminRoutes.js";
-import attendanceRoutes from "./attendanceRoutes.js";
 import authRoutes from "./authRoutes.js";
-import coachRoutes from "./coachRoutes.js";
-import eventRoutes from "./eventRoutes.js";
-import examRoutes from "./examRoutes.js";
-import libraryRoutes from "./libraryRoutes.js";
-import playerRoutes from "./playerRoutes.js";
-import programRoutes from "./programRoutes.js";
-import rankingRoutes from "./rankingRoutes.js";
-import userRoutes from "./userRoutes.js";
-import certificateRoutes from "./certificateRoutes.js";
-import lessonRoutes from "./lessonRoutes.js";
-import notificationRoutes from "./notificationRoutes.js";
-import curriculumRoutes from "./curriculumRoutes.js";
-import analyticsRoutes from "./analyticsRoutes.js";
+import v1Routes from "./v1/index.js";
+
 const router = express.Router();
 
-router.use("/admin", adminRoutes);
-router.use("/user", userRoutes);
 router.use("/auth", authRoutes);
-router.use("/coach", coachRoutes);
-router.use("/attendance", attendanceRoutes);
-router.use("/event", eventRoutes);
-router.use("/exams", examRoutes);
-router.use("/library", libraryRoutes);
-router.use("/player", playerRoutes);
-router.use("/program", programRoutes);
-router.use("/ranking", rankingRoutes);
-router.use("/certificates", certificateRoutes);
-router.use("/lessons", lessonRoutes);
-router.use("/notifications", notificationRoutes);
-router.use("/curriculum", curriculumRoutes);
-router.use("/analytics", analyticsRoutes);
+router.use("/v1", v1Routes);
+
 export default router;

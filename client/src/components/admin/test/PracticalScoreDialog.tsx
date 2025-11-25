@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import examService from "@/services/examService";
 
 interface Props {
   studentId: string;
@@ -54,23 +55,13 @@ export function PracticalScoreDialog({
     setLoading(true);
 
     try {
-      const res = await fetch(
-        "https://api-f3rwhuz64a-uc.a.run.app/api/exams/admin/practical/score",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            studentId,
-            examId,
-            ...Object.fromEntries(
-              Object.entries(scores).map(([k, v]) => [k, Number(v)])
-            ),
-          }),
-        }
-      );
+      const res = await examService.savePracticalScore({
+        studentId,
+        examId,
+        ...Object.fromEntries(
+          Object.entries(scores).map(([k, v]) => [k, Number(v)])
+        ),
+      });
 
       const data = await res.json();
 

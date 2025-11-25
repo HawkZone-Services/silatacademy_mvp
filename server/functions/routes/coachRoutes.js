@@ -15,8 +15,8 @@ import { protect } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/authMiddleware.js";
 const router = express.Router();
 
-router.get("/", listCoaches);
-router.get("/:id", getCoach);
+router.get("/", protect, checkRole("admin", "instructor"), listCoaches);
+router.get("/:id", protect, checkRole("admin", "instructor"), getCoach);
 router.post("/", protect, checkRole("admin"), createCoach);
 router.patch("/:id", protect, checkRole("admin"), updateCoach);
 

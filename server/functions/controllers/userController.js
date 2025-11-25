@@ -5,7 +5,7 @@ export const listUsers = asyncHandler(async (req, res) => {
   const { role } = req.query;
   const q = role ? { role } : {};
   const users = await User.find(q)
-    .select("-passwordHash")
+    .select("-password -passwordHash")
     .sort({ createdAt: -1 });
   res.json(users);
 });
@@ -15,7 +15,7 @@ export const updateRole = asyncHandler(async (req, res) => {
     req.params.id,
     { role: req.body.role },
     { new: true }
-  ).select("-passwordHash");
+  ).select("-password -passwordHash");
   if (!user) return res.status(404).json({ message: "User not found" });
   res.json(user);
 });

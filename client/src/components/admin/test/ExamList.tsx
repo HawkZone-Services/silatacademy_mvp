@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import examService from "@/services/examService";
 
 const EXAM_API = "https://api-f3rwhuz64a-uc.a.run.app/api/exams";
 
@@ -16,12 +17,7 @@ export function ExamList({ exams = [], onRefresh }: ExamListProps) {
   const publishExam = async (examId: string) => {
     if (!token) return;
 
-    await fetch(`${EXAM_API}/admin/${examId}/publish`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    await examService.publishExam(examId);
 
     onRefresh?.();
   };

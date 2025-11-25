@@ -21,6 +21,7 @@ const LessonProgressSchema = new mongoose.Schema(
 );
 
 LessonProgressSchema.index({ lesson: 1, user: 1 }, { unique: true });
+LessonProgressSchema.index({ user: 1, completed: 1 });
 
 const LessonProgress = mongoose.model("LessonProgress", LessonProgressSchema);
 

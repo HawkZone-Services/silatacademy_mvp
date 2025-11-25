@@ -3,6 +3,7 @@ import Quiz from "./Quiz";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import lessonService from "@/services/lessonService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -21,9 +22,7 @@ export default function LessonViewer({ lessonId, onCompleted }) {
       if (!lessonId || !token) return;
       setLoading(true);
       try {
-        const res = await fetch(`${API}/lessons/${lessonId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await lessonService.getLesson(lessonId);
         const data = await res.json();
         setLesson(data.lesson);
         setPosition(data.lesson?.progress?.positionSeconds || 0);
@@ -40,14 +39,7 @@ export default function LessonViewer({ lessonId, onCompleted }) {
     if (!lessonId || !token) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API}/lessons/${lessonId}/progress`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await lessonService.saveProgress(lessonId, payload);
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || "Could not save progress");

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus } from "lucide-react";
+import adminService from "@/services/adminService";
 
 interface AddPlayerDialogProps {
   onPlayerAdded?: () => void;
@@ -69,8 +70,7 @@ export const AddPlayerDialog = ({ onPlayerAdded }: AddPlayerDialogProps) => {
         throw new Error("Missing auth token. Please log in again.");
       }
 
-      const response = await fetch(`${API_BASE}/players`, {
-        method: "POST",
+      const response = await adminService.createPlayer({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,

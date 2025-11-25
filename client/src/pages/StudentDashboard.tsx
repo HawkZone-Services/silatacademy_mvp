@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 
 import { Calendar, Trophy, TrendingUp, Award } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import examService from "@/services/examService";
+import certificateService from "@/services/certificateService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -50,9 +52,7 @@ export default function StudentDashboard() {
     if (!token) return [];
 
     try {
-      const res = await fetch(`${API}/exams/my-attempts`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await examService.getMyAttempts();
 
       const data = await res.json();
 
@@ -71,9 +71,7 @@ export default function StudentDashboard() {
   const getExamStatus = useCallback(
     async (examId: string) => {
       try {
-        const res = await fetch(`${API}/exams/registration/status/${examId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await examService.getRegistrationStatus(examId);
 
         const data = await res.json();
         return data.status || "none";
@@ -99,9 +97,7 @@ export default function StudentDashboard() {
           attemptsList.map((r) => [r.exam?._id || r.exam, r])
         );
 
-        const res = await fetch(`${API}/exams/available/${beltLevel}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await examService.getAvailableExams(beltLevel);
 
         const data = await res.json();
 
@@ -169,9 +165,7 @@ export default function StudentDashboard() {
     if (!token) return [];
 
     try {
-      const res = await fetch(`${API}/certificates/my`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await certificateService.getMyCertificates();
 
       const data = await res.json();
       if (Array.isArray(data.certificates)) {
@@ -194,9 +188,9 @@ export default function StudentDashboard() {
     if (!examId || !resolvedStudentId || !token) return;
 
     try {
-      const res = await fetch(
-        `${API}/certificates/pdf/${examId}/${resolvedStudentId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const res = await certificateService.downloadPDF(
+        examId,
+        resolvedStudentId
       );
 
       if (!res.ok) {
@@ -262,16 +256,9 @@ export default function StudentDashboard() {
   // ===============================
   const handleRegister = async (examId: string) => {
     try {
-      const res = await fetch(`${API}/exams/register`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          examId,
-          playerId: user._id,
-        }),
+      const res = await examService.registerForExam({
+        examId,
+        playerId: user._id,
       });
 
       const data = await res.json();
@@ -323,14 +310,7 @@ export default function StudentDashboard() {
     }
 
     try {
-      const res = await fetch(`${API}/exams/attempt/start`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ examId }),
-      });
+      const res = await examService.startAttempt({ examId });
 
       const data = await res.json();
 

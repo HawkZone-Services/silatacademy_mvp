@@ -8,26 +8,32 @@ const AttemptAnswerSchema = new mongoose.Schema({
   score: Number,
 });
 
-const ExamAttemptSchema = new mongoose.Schema({
-  exam: { type: mongoose.Schema.Types.ObjectId, ref: "Exam" },
-  student: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  player: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
+const ExamAttemptSchema = new mongoose.Schema(
+  {
+    exam: { type: mongoose.Schema.Types.ObjectId, ref: "Exam" },
+    student: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    player: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
 
-  startedAt: Date,
-  submittedAt: Date,
+    startedAt: Date,
+    submittedAt: Date,
 
-  answers: [AttemptAnswerSchema],
+    answers: [AttemptAnswerSchema],
 
-  autoScore: { type: Number, default: 0 },
-  manualScore: { type: Number, default: 0 },
-  theoryScore: { type: Number, default: 0 },
+    autoScore: { type: Number, default: 0 },
+    manualScore: { type: Number, default: 0 },
+    theoryScore: { type: Number, default: 0 },
 
-  pass: { type: Boolean, default: false },
+    pass: { type: Boolean, default: false },
 
-  antiCheat: {
-    focusLosses: Number,
-    forcedSubmitReason: String,
+    antiCheat: {
+      focusLosses: Number,
+      forcedSubmitReason: String,
+    },
   },
-});
+  { collection: "examAttempts" }
+);
+
+ExamAttemptSchema.index({ student: 1, submittedAt: -1 });
+ExamAttemptSchema.index({ exam: 1, submittedAt: -1 });
 
 export default mongoose.model("ExamAttempt", ExamAttemptSchema);

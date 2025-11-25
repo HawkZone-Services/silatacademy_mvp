@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import certificateService from "@/services/certificateService";
 
 interface Props {
   studentId: string;
@@ -33,7 +34,7 @@ export function CertificateGenerator({
     if (!studentId || !examId) return;
 
     try {
-      const res = await fetch(
+      const res = await certificateService.checkCertificate(
         `${API}/certificates/check/${examId}/${studentId}`,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -60,13 +61,9 @@ export function CertificateGenerator({
 
     try {
       if (!certificateExists) {
-        const createRes = await fetch(`${API}/certificates/generate`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ examId, studentId }),
+        const createRes = await certificateService.generateCertificate({
+          examId,
+          studentId,
         });
         const createJson = await createRes.json();
         if (!createRes.ok || !createJson?.success) {

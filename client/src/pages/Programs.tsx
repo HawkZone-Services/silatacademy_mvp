@@ -3,7 +3,6 @@ import { Footer } from "@/components/Footer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CertificateGenerator } from "@/components/CertificateGenerator";
 import {
   GraduationCap,
   Sword,
@@ -300,23 +299,6 @@ const Programs = () => {
               </TabsContent>
             ))}
           </Tabs>
-        </div>
-      </section>
-
-      {/* Certificate Generator Section */}
-      <section className="py-16 bg-accent/20">
-        <div className="container px-4">
-          <div className="max-w-4xl mx-auto space-y-8">
-            <div className="text-center space-y-2">
-              <h2 className="font-display text-3xl font-bold">
-                Athletic <span className="text-secondary">Performance</span>
-              </h2>
-              <p className="text-muted-foreground">
-                Celebrate your achievements with an official digital certificate
-              </p>
-            </div>
-            <CertificateGenerator />
-          </div>
         </div>
       </section>
 

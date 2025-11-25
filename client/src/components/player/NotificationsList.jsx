@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import notificationService from "@/services/notificationService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -13,9 +14,7 @@ export default function NotificationsList() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/notifications`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await notificationService.getAll();
       const data = await res.json();
       if (Array.isArray(data.notifications)) {
         setItems(data.notifications);
@@ -32,10 +31,7 @@ export default function NotificationsList() {
 
   const markRead = async (id) => {
     try {
-      await fetch(`${API}/notifications/${id}/read`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await notificationService.markRead(id);
       setItems((prev) =>
         prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
       );

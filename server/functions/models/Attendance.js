@@ -16,6 +16,11 @@ const AttendanceSchema = new mongoose.Schema({
   },
   notes: String,
 });
+
+AttendanceSchema.index({ player: 1, sessionDate: -1 });
+AttendanceSchema.index({ coach: 1, sessionDate: -1 });
+AttendanceSchema.index({ status: 1 });
+
 const Attendance = mongoose.model("Attendance", AttendanceSchema);
 
 export default Attendance;

@@ -48,10 +48,15 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(
   cors({
-    origin: true, // allow all origins dynamically
-    credentials: true, // needed for cookies / sessions
+    origin: [
+      "http://localhost:5173", // local dev
+      "http://localhost:8080",
+      "http://192.168.1.2:8080",
+      "https://silatacademy.net", // production
+    ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
 // API Routes

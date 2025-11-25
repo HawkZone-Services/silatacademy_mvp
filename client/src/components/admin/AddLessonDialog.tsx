@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "lucide-react";
+import lessonService from "@/services/lessonService";
 
 interface AddLessonDialogProps {
   onLessonAdded?: () => void;
@@ -59,14 +60,7 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
         quiz: [],
       };
 
-      const res = await fetch(`${API}/lessons`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await lessonService.createLesson(payload);
 
       const data = await res.json();
       if (!res.ok || !data?.success) {

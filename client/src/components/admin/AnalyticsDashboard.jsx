@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import analyticsService from "@/services/analyticsService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -15,12 +16,11 @@ export default function AnalyticsDashboard() {
 
   const fetchAll = async () => {
     try {
-      const headers = { Authorization: `Bearer ${token}` };
       const [s, b, e, l] = await Promise.all([
-        fetch(`${API}/analytics/students`, { headers }),
-        fetch(`${API}/analytics/belt`, { headers }),
-        fetch(`${API}/analytics/exams`, { headers }),
-        fetch(`${API}/analytics/lessons`, { headers }),
+        analyticsService.getStudents(),
+        analyticsService.getBelts(),
+        analyticsService.getExams(),
+        analyticsService.getLessons(),
       ]);
       const [sj, bj, ej, lj] = await Promise.all([
         s.json(),

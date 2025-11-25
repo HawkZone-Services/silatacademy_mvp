@@ -70,7 +70,7 @@ const PlayerProfileSchema = new mongoose.Schema(
 
     trainingLogs: [TrainingLogSchema],
   },
-  { timestamps: true }
+  { timestamps: true, collection: "playerProfiles" }
 );
 
 const PlayerProfile = mongoose.model("PlayerProfile", PlayerProfileSchema);

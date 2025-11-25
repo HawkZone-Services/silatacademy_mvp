@@ -7,8 +7,19 @@ import {
   asNumber,
 } from "../utils/validation.js";
 import { upsertCertificateForFinalResult } from "./certificateController.js";
-import { getDb } from "../utils/mongodb.js";
 import Notification from "../models/Notification.js";
+import { getDb } from "../utils/mongodb.js";
+import Exam from "../models/Exam.js";
+import ExamAttempt from "../models/ExamAttempt.js";
+import FinalExamResult from "../models/FinalExamResult.js";
+import PracticalEvaluation from "../models/PracticalEvaluation.js";
+import ExamRegistration from "../models/ExamRegistration.js";
+import Certificate from "../models/Certificate.js";
+import User from "../models/User.js";
+import Player from "../models/Player.js";
+import Lesson from "../models/Lesson.js";
+import LessonProgress from "../models/LessonProgress.js";
+import Program from "../models/Program.js";
 
 const PRACTICAL_COMPONENT_MAX = 100;
 const PRACTICAL_COMPONENTS = [
@@ -55,18 +66,12 @@ const mapPracticalScores = (body = {}) => ({
   mental: asNumber(body.mental),
 });
 
-const findCompletedExamIdsForStudent = async (db, studentId) => {
+const findCompletedExamIdsForStudent = async (studentId) => {
   const [finalized, submittedAttempts] = await Promise.all([
-    db
-      .collection("finalExamResults")
-      .find({ student: studentId })
-      .project({ exam: 1 })
-      .toArray(),
-    db
-      .collection("examAttempts")
-      .find({ student: studentId, submittedAt: { $ne: null } })
-      .project({ exam: 1 })
-      .toArray(),
+    FinalExamResult.find({ student: studentId }).select("exam"),
+    ExamAttempt.find({ student: studentId, submittedAt: { $ne: null } }).select(
+      "exam"
+    ),
   ]);
 
   const ids = [...finalized, ...submittedAttempts]
@@ -85,53 +90,47 @@ const beltToProgramLevel = (belt) => {
   return null;
 };
 
-const lessonCompletionForBelt = async (db, userId, beltLevel) => {
+const lessonCompletionForBelt = async (userId, beltLevel) => {
   const level = beltToProgramLevel(beltLevel);
   if (!level) return { total: 0, completed: 0 };
 
-  const [totalLessons] = await db
-    .collection("lessons")
-    .aggregate([
-      {
-        $lookup: {
-          from: "programs",
-          localField: "program",
-          foreignField: "_id",
-          as: "program",
-        },
+  const [totalLessons] = await Lesson.aggregate([
+    {
+      $lookup: {
+        from: Program.collection.name,
+        localField: "program",
+        foreignField: "_id",
+        as: "program",
       },
-      { $unwind: { path: "$program", preserveNullAndEmptyArrays: true } },
-      { $match: { "program.level": level } },
-      { $count: "count" },
-    ])
-    .toArray();
+    },
+    { $unwind: { path: "$program", preserveNullAndEmptyArrays: true } },
+    { $match: { "program.level": level } },
+    { $count: "count" },
+  ]);
 
-  const [completedLessons] = await db
-    .collection("lessonprogresses")
-    .aggregate([
-      { $match: { user: userId, completed: true } },
-      {
-        $lookup: {
-          from: "lessons",
-          localField: "lesson",
-          foreignField: "_id",
-          as: "lesson",
-        },
+  const [completedLessons] = await LessonProgress.aggregate([
+    { $match: { user: userId, completed: true } },
+    {
+      $lookup: {
+        from: Lesson.collection.name,
+        localField: "lesson",
+        foreignField: "_id",
+        as: "lesson",
       },
-      { $unwind: { path: "$lesson", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "programs",
-          localField: "lesson.program",
-          foreignField: "_id",
-          as: "program",
-        },
+    },
+    { $unwind: { path: "$lesson", preserveNullAndEmptyArrays: true } },
+    {
+      $lookup: {
+        from: Program.collection.name,
+        localField: "lesson.program",
+        foreignField: "_id",
+        as: "program",
       },
-      { $unwind: { path: "$program", preserveNullAndEmptyArrays: true } },
-      { $match: { "program.level": level } },
-      { $count: "count" },
-    ])
-    .toArray();
+    },
+    { $unwind: { path: "$program", preserveNullAndEmptyArrays: true } },
+    { $match: { "program.level": level } },
+    { $count: "count" },
+  ]);
 
   return {
     total: totalLessons?.count || 0,
@@ -139,11 +138,11 @@ const lessonCompletionForBelt = async (db, userId, beltLevel) => {
   };
 };
 
-const withExamLocks = async (db, exams, userId) => {
+const withExamLocks = async (exams, userId) => {
   if (!userId) return exams;
   return Promise.all(
     exams.map(async (exam) => {
-      const status = await lessonCompletionForBelt(db, userId, exam.beltLevel);
+      const status = await lessonCompletionForBelt(userId, exam.beltLevel);
       const locked =
         status.total > 0 && status.completed < status.total ? true : false;
       return {
@@ -160,19 +159,12 @@ const withExamLocks = async (db, exams, userId) => {
    REGISTRATION STATUS (STUDENT)
 ===================================================== */
 export const getRegistrationStatus = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const examId = assertObjectId(req.params.examId, "examId");
   const studentId = assertObjectId(req.user?._id, "studentId");
 
   const [registration, finalResult] = await Promise.all([
-    db.collection("examRegistrations").findOne({
-      exam: examId,
-      player: studentId,
-    }),
-    db.collection("finalExamResults").findOne({
-      exam: examId,
-      student: studentId,
-    }),
+    ExamRegistration.findOne({ exam: examId, player: studentId }),
+    FinalExamResult.findOne({ exam: examId, student: studentId }),
   ]);
 
   res.json({
@@ -186,8 +178,6 @@ export const getRegistrationStatus = asyncHandler(async (req, res) => {
    CREATE EXAM (ADMIN)
 ===================================================== */
 export const createExam = asyncHandler(async (req, res) => {
-  const db = await getDb();
-
   const {
     title,
     beltLevel,
@@ -231,11 +221,11 @@ export const createExam = asyncHandler(async (req, res) => {
     updatedAt: new Date(),
   };
 
-  const result = await db.collection("exams").insertOne(exam);
+  const result = await Exam.create(exam);
 
   res.status(201).json({
     success: true,
-    exam: { ...exam, _id: result.insertedId },
+    exam: result,
   });
 });
 
@@ -243,12 +233,11 @@ export const createExam = asyncHandler(async (req, res) => {
    LIST EXAMS
 ===================================================== */
 export const listExams = asyncHandler(async (req, res) => {
-  const db = await getDb();
   let filter = {};
 
   if (req.user?.role === "student") {
     const studentId = assertObjectId(req.user._id, "studentId");
-    const excludedIds = await findCompletedExamIdsForStudent(db, studentId);
+    const excludedIds = await findCompletedExamIdsForStudent(studentId);
 
     filter = {
       status: "published",
@@ -256,15 +245,11 @@ export const listExams = asyncHandler(async (req, res) => {
     };
   }
 
-  const exams = await db
-    .collection("exams")
-    .find(filter)
-    .sort({ createdAt: -1 })
-    .toArray();
+  const exams = await Exam.find(filter).sort({ createdAt: -1 });
 
   const enriched =
     req.user?.role === "student"
-      ? await withExamLocks(db, exams, studentId)
+      ? await withExamLocks(exams, req.user._id)
       : exams;
 
   res.json({ success: true, exams: enriched });
@@ -274,7 +259,6 @@ export const listExams = asyncHandler(async (req, res) => {
    GET SINGLE EXAM
 ===================================================== */
 export const getExam = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const examId = assertObjectId(req.params.id, "id");
 
   const filter = { _id: examId };
@@ -282,7 +266,7 @@ export const getExam = asyncHandler(async (req, res) => {
     filter.status = "published";
   }
 
-  const exam = await db.collection("exams").findOne(filter);
+  const exam = await Exam.findOne(filter);
 
   if (!exam) throw httpError(404, "Exam not found");
 
@@ -293,14 +277,11 @@ export const getExam = asyncHandler(async (req, res) => {
    UPDATE EXAM
 ===================================================== */
 export const updateExam = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const examId = assertObjectId(req.params.id, "id");
 
   const payload = { ...req.body, updatedAt: new Date() };
 
-  const result = await db
-    .collection("exams")
-    .updateOne({ _id: examId }, { $set: payload });
+  const result = await Exam.updateOne({ _id: examId }, { $set: payload });
 
   if (!result.matchedCount) throw httpError(404, "Exam not found");
 
@@ -311,15 +292,12 @@ export const updateExam = asyncHandler(async (req, res) => {
    PUBLISH EXAM
 ===================================================== */
 export const publishExam = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const examId = assertObjectId(req.params.examId, "examId");
 
-  const result = await db
-    .collection("exams")
-    .updateOne(
-      { _id: examId },
-      { $set: { status: "published", updatedAt: new Date() } }
-    );
+  const result = await Exam.updateOne(
+    { _id: examId },
+    { $set: { status: "published", updatedAt: new Date() } }
+  );
 
   if (!result.matchedCount) throw httpError(404, "Exam not found");
 
@@ -330,23 +308,18 @@ export const publishExam = asyncHandler(async (req, res) => {
    GET EXAMS BY BELT
 ===================================================== */
 export const getExamsByBeltLevel = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const beltLevel = req.params.beltLevel;
   const studentId = assertObjectId(req.user?._id, "studentId");
 
-  const excludedIds = await findCompletedExamIdsForStudent(db, studentId);
+  const excludedIds = await findCompletedExamIdsForStudent(studentId);
 
-  const exams = await db
-    .collection("exams")
-    .find({
-      beltLevel,
-      status: "published",
-      ...(excludedIds.length ? { _id: { $nin: excludedIds } } : {}),
-    })
-    .sort({ createdAt: -1 })
-    .toArray();
+  const exams = await Exam.find({
+    beltLevel,
+    status: "published",
+    ...(excludedIds.length ? { _id: { $nin: excludedIds } } : {}),
+  }).sort({ createdAt: -1 });
 
-  const enriched = await withExamLocks(db, exams, studentId);
+  const enriched = await withExamLocks(exams, studentId);
 
   res.json({ success: true, exams: enriched });
 });
@@ -355,20 +328,16 @@ export const getExamsByBeltLevel = asyncHandler(async (req, res) => {
    REGISTER FOR EXAM
 ===================================================== */
 export const ExamRegisteration = asyncHandler(async (req, res) => {
-  const db = await getDb();
-
   const examObjectId = assertObjectId(req.body.examId, "examId");
   const studentId = assertObjectId(
     req.user?._id || req.body.playerId,
     "studentId"
   );
 
-  const exam = await db
-    .collection("exams")
-    .findOne({ _id: examObjectId, status: "published" });
+  const exam = await Exam.findOne({ _id: examObjectId, status: "published" });
   if (!exam) throw httpError(404, "Exam not found or not published");
 
-  const finalResult = await db.collection("finalExamResults").findOne({
+  const finalResult = await FinalExamResult.findOne({
     exam: examObjectId,
     student: studentId,
   });
@@ -376,21 +345,21 @@ export const ExamRegisteration = asyncHandler(async (req, res) => {
     throw httpError(409, "Exam already finalized for this student");
   }
 
-  const registration = await db.collection("examRegistrations").findOneAndUpdate(
+  const registration = await ExamRegistration.findOneAndUpdate(
     { exam: examObjectId, player: studentId },
     {
       $set: { updatedAt: new Date() },
       $setOnInsert: { status: "pending", createdAt: new Date() },
     },
-    { upsert: true, returnDocument: "after" }
+    { new: true, upsert: true, rawResult: true }
   );
 
   const alreadyRegistered = registration?.lastErrorObject?.updatedExisting;
   const regDoc =
     registration.value ||
-    (await db.collection("examRegistrations").findOne({
-      _id: registration.lastErrorObject?.upsertedId,
-    }));
+    (await ExamRegistration.findById(
+      registration.lastErrorObject?.upsertedId
+    ));
 
   res.status(alreadyRegistered ? 200 : 201).json({
     success: true,
@@ -404,12 +373,9 @@ export const ExamRegisteration = asyncHandler(async (req, res) => {
    LIST SUBMISSIONS (ADMIN)
 ===================================================== */
 export const listSubmissions = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const examObjId = assertObjectId(req.params.examId, "examId");
 
-  const submissions = await db
-    .collection("examAttempts")
-    .aggregate([
+  const submissions = await ExamAttempt.aggregate([
       {
         $match: {
           exam: examObjId,
@@ -418,7 +384,7 @@ export const listSubmissions = asyncHandler(async (req, res) => {
       },
       {
         $lookup: {
-          from: "users",
+          from: User.collection.name,
           localField: "student",
           foreignField: "_id",
           as: "studentDoc",
@@ -432,7 +398,7 @@ export const listSubmissions = asyncHandler(async (req, res) => {
       },
       {
         $lookup: {
-          from: "exams",
+          from: Exam.collection.name,
           localField: "exam",
           foreignField: "_id",
           as: "examDoc",
@@ -446,7 +412,7 @@ export const listSubmissions = asyncHandler(async (req, res) => {
       },
       {
         $lookup: {
-          from: "finalExamResults",
+          from: FinalExamResult.collection.name,
           let: { examId: "$exam", studentId: "$student" },
           pipeline: [
             {
@@ -473,7 +439,7 @@ export const listSubmissions = asyncHandler(async (req, res) => {
       },
       {
         $lookup: {
-          from: "practicalEvaluations",
+          from: PracticalEvaluation.collection.name,
           let: { examId: "$exam", studentId: "$student" },
           pipeline: [
             {
@@ -533,8 +499,7 @@ export const listSubmissions = asyncHandler(async (req, res) => {
         },
       },
       { $sort: { submittedAt: -1 } },
-    ])
-    .toArray();
+    ]);
 
   res.json({ success: true, submissions });
 });

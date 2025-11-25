@@ -24,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 
 import { AddPlayerDialog } from "@/components/admin/AddPlayerDialog";
 import { AddLessonDialog } from "@/components/admin/AddLessonDialog";
-import { AttendanceTracker } from "@/components/admin/AttendanceTracker";
 
 import { RegistrationList } from "@/components/admin/test/RegistrationList";
 import { CreateExamDialog } from "@/components/admin/test/CreateExamDialog";
@@ -46,14 +45,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import adminService from "@/services/adminService";
+import examService from "@/services/examService";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-
-  // UPDATED API ROUTES
-  const ADMIN_API = "https://api-f3rwhuz64a-uc.a.run.app/api/admin";
-  const EXAM_API = "https://api-f3rwhuz64a-uc.a.run.app/api/exams";
 
   const token =
     localStorage.getItem("token") || sessionStorage.getItem("token");
@@ -110,23 +107,19 @@ export default function Dashboard() {
     setLoading(true);
 
     try {
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const statsRes = await fetch(`${ADMIN_API}/dashboard`, { headers });
+      const statsRes = await adminService.getDashboard();
       const statsJson = (await safeJSON(statsRes)) || {};
 
-      const playersRes = await fetch(`${ADMIN_API}/players`, { headers });
+      const playersRes = await adminService.getPlayers();
       const playersJson = (await safeJSON(playersRes)) || [];
 
-      const lessonsRes = await fetch(`${ADMIN_API}/lessons`, { headers });
+      const lessonsRes = await adminService.getLessons();
       const lessonsJson =
         (await safeJSON(lessonsRes))?.lessons ||
         (await safeJSON(lessonsRes)) ||
         [];
 
-      const attendanceRes = await fetch(`${ADMIN_API}/attendance/today`, {
-        headers,
-      });
+      const attendanceRes = await adminService.getAttendanceToday();
       const attendanceJson = (await safeJSON(attendanceRes)) || [];
 
       setStats({
@@ -151,9 +144,7 @@ export default function Dashboard() {
   // ==========================================
   const fetchExams = async () => {
     try {
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const res = await fetch(`${EXAM_API}`, { headers });
+      const res = await examService.getAllExams();
       const data = await safeJSON(res);
 
       const list = data?.exams || [];
@@ -177,14 +168,7 @@ export default function Dashboard() {
         return;
       }
 
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const res = await fetch(
-        `${EXAM_API}/admin/registrations/${selectedExam}`,
-        {
-          headers,
-        }
-      );
+      const res = await examService.getAdminRegistrations(selectedExam);
       const data = await safeJSON(res);
 
       setRegistrations(
@@ -203,11 +187,7 @@ export default function Dashboard() {
         return;
       }
 
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const res = await fetch(`${EXAM_API}/admin/submissions/${selectedExam}`, {
-        headers,
-      });
+      const res = await examService.getAdminSubmissions(selectedExam);
 
       const data = await safeJSON(res);
 
@@ -237,23 +217,13 @@ export default function Dashboard() {
   // Approve / Reject registration
   // ==========================================
   const approveFn = async (regId: string) => {
-    const headers = { Authorization: `Bearer ${token}` };
-
-    await fetch(`${EXAM_API}/admin/registration/${regId}/approve`, {
-      method: "PATCH",
-      headers,
-    });
+    await examService.approveRegistration(regId);
 
     fetchRegistrations();
   };
 
   const rejectFn = async (regId: string) => {
-    const headers = { Authorization: `Bearer ${token}` };
-
-    await fetch(`${EXAM_API}/admin/registration/${regId}/reject`, {
-      method: "PATCH",
-      headers,
-    });
+    await examService.rejectRegistration(regId);
 
     fetchRegistrations();
   };
@@ -276,14 +246,7 @@ export default function Dashboard() {
 
   const publishExamAdmin = async (examId: string) => {
     try {
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      };
-      await fetch(`${EXAM_API}/admin/${examId}/publish`, {
-        method: "PATCH",
-        headers,
-      });
+      await examService.publishExam(examId);
       fetchExams();
     } catch (err) {
       console.error("Publish exam error:", err);
@@ -375,7 +338,6 @@ export default function Dashboard() {
             <TabsTrigger value="players">Players</TabsTrigger>
             <TabsTrigger value="testing">Testing</TabsTrigger>
             <TabsTrigger value="lessons">Lessons</TabsTrigger>
-            <TabsTrigger value="attendance">Attendance</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
@@ -467,15 +429,27 @@ export default function Dashboard() {
                 <table className="w-full text-left">
                   <thead className="bg-muted">
                     <tr>
-                      <th className="px-3 py-2 text-sm font-semibold">Exam Title</th>
-                      <th className="px-3 py-2 text-sm font-semibold">Belt Level</th>
-                      <th className="px-3 py-2 text-sm font-semibold">Exam Date</th>
+                      <th className="px-3 py-2 text-sm font-semibold">
+                        Exam Title
+                      </th>
+                      <th className="px-3 py-2 text-sm font-semibold">
+                        Belt Level
+                      </th>
+                      <th className="px-3 py-2 text-sm font-semibold">
+                        Exam Date
+                      </th>
                       <th className="px-3 py-2 text-sm font-semibold">
                         Registrations
                       </th>
-                      <th className="px-3 py-2 text-sm font-semibold">Submissions</th>
-                      <th className="px-3 py-2 text-sm font-semibold">Status</th>
-                      <th className="px-3 py-2 text-sm font-semibold">Actions</th>
+                      <th className="px-3 py-2 text-sm font-semibold">
+                        Submissions
+                      </th>
+                      <th className="px-3 py-2 text-sm font-semibold">
+                        Status
+                      </th>
+                      <th className="px-3 py-2 text-sm font-semibold">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -571,11 +545,14 @@ export default function Dashboard() {
                     (s: any) => s.exam?.toString() === exam._id
                   );
                   const activeRegistrations = registrations.filter(
-                    (r: any) => !r.finalPassed && r.exam?.toString() === exam._id
+                    (r: any) =>
+                      !r.finalPassed && r.exam?.toString() === exam._id
                   );
                   const selectedSubmission = examPendingSubs.find((s: any) => {
                     const studentId =
-                      typeof s.student === "object" ? s.student?._id : s.student;
+                      typeof s.student === "object"
+                        ? s.student?._id
+                        : s.student;
                     const examId =
                       typeof s.exam === "object" ? s.exam?._id : s.exam;
                     return (
@@ -585,12 +562,17 @@ export default function Dashboard() {
                   });
 
                   return (
-                    <AccordionItem key={exam._id} value={exam._id} className="border">
+                    <AccordionItem
+                      key={exam._id}
+                      value={exam._id}
+                      className="border"
+                    >
                       <AccordionTrigger className="px-4 py-2 text-left">
                         <div>
                           <p className="font-semibold">{exam.title}</p>
                           <p className="text-xs text-muted-foreground">
-                            {exam.beltLevel || "-"} • {exam.status || "unpublished"}
+                            {exam.beltLevel || "-"} •{" "}
+                            {exam.status || "unpublished"}
                           </p>
                         </div>
                       </AccordionTrigger>
@@ -601,7 +583,7 @@ export default function Dashboard() {
                             <h3 className="text-lg font-semibold">
                               Exam Registrations
                             </h3>
-                              <Select
+                            <Select
                               value={selectedExam}
                               onValueChange={(val) => {
                                 setSelectedExam(val);
@@ -632,7 +614,9 @@ export default function Dashboard() {
                         {/* Submissions (all) */}
                         <section className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold">Exam Submissions</h3>
+                            <h3 className="text-lg font-semibold">
+                              Exam Submissions
+                            </h3>
                             <p className="text-sm text-muted-foreground">
                               Select a submission to score and finalize.
                             </p>
@@ -711,13 +695,17 @@ export default function Dashboard() {
                                 <tbody>
                                   {examFinalizedSubs.map((s: any) => {
                                     const issueDate = s.finalizedAt
-                                      ? new Date(s.finalizedAt).toLocaleDateString()
+                                      ? new Date(
+                                          s.finalizedAt
+                                        ).toLocaleDateString()
                                       : "-";
                                     const belt = s.exam?.beltLevel || "-";
 
                                     const handlePrint = () => {
                                       const examId =
-                                        typeof s.exam === "object" ? s.exam?._id : s.exam;
+                                        typeof s.exam === "object"
+                                          ? s.exam?._id
+                                          : s.exam;
                                       const studentId =
                                         typeof s.student === "object"
                                           ? s.student?._id
@@ -738,8 +726,12 @@ export default function Dashboard() {
                                         <td className="px-3 py-2">
                                           {s.student?.name || "Student"}
                                         </td>
-                                        <td className="px-3 py-2 capitalize">{belt}</td>
-                                        <td className="px-3 py-2">{issueDate}</td>
+                                        <td className="px-3 py-2 capitalize">
+                                          {belt}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {issueDate}
+                                        </td>
                                         <td className="px-3 py-2">
                                           <button
                                             onClick={handlePrint}
@@ -801,11 +793,6 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* ATTENDANCE */}
-          <TabsContent value="attendance">
-            <AttendanceTracker />
           </TabsContent>
 
           {/* ANALYTICS */}

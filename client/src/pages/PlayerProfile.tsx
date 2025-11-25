@@ -11,6 +11,7 @@ import { PlayerAttendance } from "@/components/player/PlayerAttendance";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { toast } from "sonner";
+import adminService from "@/services/adminService";
 
 const API_BASE = "https://api-f3rwhuz64a-uc.a.run.app/api/admin";
 
@@ -69,9 +70,7 @@ const PlayerProfile = () => {
   // Fetch the player from the API
   const fetchPlayer = async () => {
     try {
-      const res = await fetch(`${API_BASE}/players/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await adminService.getPlayerById(id as string);
 
       if (res.status === 404) {
         setPlayer(null);

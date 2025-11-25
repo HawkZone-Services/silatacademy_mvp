@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import lessonService from "@/services/lessonService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -32,21 +33,12 @@ export default function LessonEditor({ lesson, onSaved }) {
     if (!lesson?._id || saving) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API}/lessons/${lesson._id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...form,
-          resources: form.resources
-            ? form.resources.split("\n").filter(Boolean)
-            : [],
-          durationMinutes: form.durationMinutes
-            ? Number(form.durationMinutes)
-            : undefined,
-        }),
+      const res = await lessonService.updateLesson(lesson._id, {
+        ...form,
+        resources: form.resources ? form.resources.split("\n").filter(Boolean) : [],
+        durationMinutes: form.durationMinutes
+          ? Number(form.durationMinutes)
+          : undefined,
       });
       const data = await res.json();
       if (!res.ok || !data?.success) {

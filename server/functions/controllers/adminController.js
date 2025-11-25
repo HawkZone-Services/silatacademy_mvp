@@ -125,7 +125,7 @@ export const adminCreatePlayerProfile = asyncHandler(async (req, res) => {
       name,
       email: email || null,
       nationalId,
-      password: hashPassword,
+      passwordHash: hashPassword,
       role,
       phone,
       avatarUrl: avatar || "",

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import lessonService from "@/services/lessonService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -15,9 +16,7 @@ export default function LessonList({ onSelect }) {
   useEffect(() => {
     const fetchLessons = async () => {
       try {
-        const res = await fetch(`${API}/lessons`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await lessonService.getLessons();
         const data = await res.json();
         if (Array.isArray(data.lessons)) {
           setLessons(data.lessons);

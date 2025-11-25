@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import coachService from "@/services/coachService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -18,9 +19,7 @@ export default function Approvals() {
   const fetchPending = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/coach/belt-upgrades/pending`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await coachService.getPendingUpgrades();
       const data = await res.json();
       if (Array.isArray(data.pending)) setPending(data.pending);
     } catch (err) {
@@ -36,14 +35,7 @@ export default function Approvals() {
 
   const approve = async (id, toBelt) => {
     try {
-      const res = await fetch(`${API}/coach/belt-upgrades/${id}/approve`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ toBelt }),
-      });
+    const res = await coachService.approveUpgrade(id, { toBelt });
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.message || "Approve failed");
       toast({ title: "Upgrade approved" });

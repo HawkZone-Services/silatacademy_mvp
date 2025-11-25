@@ -1,53 +1,44 @@
 import asyncHandler from "express-async-handler";
 import Player from "../models/Player.js";
+import PlayerProfile from "../models/Profile.js";
 import Attendance from "../models/Attendance.js";
 import User from "../models/User.js";
 import BeltHistory from "../models/BeltHistory.js";
 import Notification from "../models/Notification.js";
 import PDFDocument from "pdfkit";
-import { getDb } from "../utils/mongodb.js";
 import { assertObjectId, httpError } from "../utils/validation.js";
+import { Types } from "mongoose";
 
 export const listPlayers = asyncHandler(async (req, res) => {
-  const db = await getDb();
-
-  const players = await db
-    .collection("playerProfiles")
-    .aggregate([
-      {
-        $lookup: {
-          from: "users",
-          localField: "user",
-          foreignField: "_id",
-          as: "user",
-        },
+  const players = await PlayerProfile.aggregate([
+    {
+      $lookup: {
+        from: User.collection.name,
+        localField: "user",
+        foreignField: "_id",
+        as: "user",
       },
-      { $unwind: "$user" },
-    ])
-    .toArray();
+    },
+    { $unwind: "$user" },
+  ]);
 
   res.status(200).json(players);
 });
 
 export const getPlayer = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const { id } = req.params;
-
-  const player = await db
-    .collection("playerProfiles")
-    .aggregate([
-      { $match: { _id: new ObjectId(id) } },
-      {
-        $lookup: {
-          from: "users",
-          localField: "user",
-          foreignField: "_id",
-          as: "user",
-        },
+  const player = await PlayerProfile.aggregate([
+    { $match: { _id: new Types.ObjectId(id) } },
+    {
+      $lookup: {
+        from: User.collection.name,
+        localField: "user",
+        foreignField: "_id",
+        as: "user",
       },
-      { $unwind: "$user" },
-    ])
-    .toArray();
+    },
+    { $unwind: "$user" },
+  ]);
 
   if (!player.length)
     return res.status(404).json({ message: "Player not found" });

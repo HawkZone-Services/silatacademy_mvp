@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
+import examService from "@/services/examService";
 
 interface Props {
   studentId: string;
@@ -35,14 +36,7 @@ export function FinalizeResultButton({
 
     try {
       // 1) FINALIZE EXAM RESULT
-      const res = await fetch(`${API}/exams/admin/finalize`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ examId, studentId }),
-      });
+      const res = await examService.finalizeExam({ examId, studentId });
 
       const data = await res.json();
 

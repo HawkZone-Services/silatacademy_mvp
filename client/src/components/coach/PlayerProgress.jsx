@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import coachService from "@/services/coachService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -19,12 +20,8 @@ export default function PlayerProgress() {
     setLoading(true);
     try {
       const [lessonRes, attemptRes] = await Promise.all([
-        fetch(`${API}/coach/players/${playerId}/lessons`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API}/coach/players/${playerId}/exams`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        coachService.getPlayerLessons(playerId),
+        coachService.getPlayerExams(playerId),
       ]);
 
       const lessonsData = await lessonRes.json();

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import coachService from "@/services/coachService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -23,13 +24,11 @@ export default function CoachDashboard() {
     if (!playerId || !title) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API}/coach/tasks`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ playerId, title, description, dueDate }),
+      const res = await coachService.assignTask({
+        playerId,
+        title,
+        description,
+        dueDate,
       });
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.message || "Task failed");

@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
+import examService from "@/services/examService";
 
 const EXAM_API = "https://api-f3rwhuz64a-uc.a.run.app/api/exams";
 
@@ -124,14 +125,7 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
     };
 
     try {
-      const res = await fetch(`${EXAM_API}/admin`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await examService.createExamAdmin(payload);
 
       const data = await res.json();
       if (!res.ok || !data?.success) {

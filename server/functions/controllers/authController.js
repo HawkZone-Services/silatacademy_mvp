@@ -55,7 +55,7 @@ export const regUser = asyncHandler(async (req, res) => {
     const newUser = {
       name,
       email: normalizedEmail,
-      password: hashPassword,
+      passwordHash: hashPassword,
       role,
       nationalId: nationalId || null,
       phone: phone || null,
@@ -143,7 +143,7 @@ export const login = asyncHandler(async (req, res) => {
   if (!user) return res.status(404).json({ message: "User not found" });
 
   // Compare password
-  const match = await bcrypt.compare(password, user.password);
+  const match = await bcrypt.compare(password, user.passwordHash || user.password);
   if (!match)
     return res.status(401).json({ message: "Invalid username or password" });
 

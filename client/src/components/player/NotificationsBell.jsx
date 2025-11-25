@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
+import notificationService from "@/services/notificationService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -10,9 +11,7 @@ export default function NotificationsBell({ onClick }) {
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch(`${API}/notifications`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await notificationService.getAll();
       const data = await res.json();
       if (Array.isArray(data.notifications)) {
         const count = data.notifications.filter((n) => !n.isRead).length;

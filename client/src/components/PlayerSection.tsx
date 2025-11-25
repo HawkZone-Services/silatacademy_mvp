@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { PlayerCard } from "./PlayerCard";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
+import playerService from "@/services/playerService";
 
 const API_BASE = "https://api-f3rwhuz64a-uc.a.run.app/api/player";
 
@@ -42,11 +43,7 @@ export const PlayersSection = () => {
       const token =
         localStorage.getItem("token") || sessionStorage.getItem("token");
 
-      const res = await fetch(`${API_BASE}/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await playerService.getAllPlayers();
 
       const data = await res.json();
 

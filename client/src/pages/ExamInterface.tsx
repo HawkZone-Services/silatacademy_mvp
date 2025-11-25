@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import examService from "@/services/examService";
 
 const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
 
@@ -39,9 +40,7 @@ export default function ExamInterface() {
 
   const fetchExam = async () => {
     try {
-      const res = await fetch(`${API}/exams/${examId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await examService.getExam(examId as string);
       const data = await res.json();
       setExam(data.exam);
     } catch (err) {
@@ -51,9 +50,7 @@ export default function ExamInterface() {
 
   const fetchAttempt = async () => {
     try {
-      const res = await fetch(`${API}/exams/my-attempts`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await examService.getMyAttempts();
 
       const data = await res.json();
       const found = data.attempts.find((a: any) => a._id === attemptId);
@@ -121,18 +118,11 @@ export default function ExamInterface() {
     }));
 
     try {
-      const res = await fetch(`${API}/exams/attempt/submit`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          attemptId,
-          answers: formattedAnswers,
-          focusLosses,
-          forcedSubmitReason: null,
-        }),
+      const res = await examService.submitAttempt({
+        attemptId,
+        answers: formattedAnswers,
+        focusLosses,
+        forcedSubmitReason: null,
       });
 
       const data = await res.json();
