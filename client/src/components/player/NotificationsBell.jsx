@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import notificationService from "@/services/notificationService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function NotificationsBell({ onClick }) {
   const [unread, setUnread] = useState(0);
   const token =

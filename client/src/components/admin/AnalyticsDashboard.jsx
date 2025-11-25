@@ -3,8 +3,6 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import analyticsService from "@/services/analyticsService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function AnalyticsDashboard() {
   const [students, setStudents] = useState([]);
   const [belts, setBelts] = useState([]);

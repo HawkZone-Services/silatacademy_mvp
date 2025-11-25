@@ -4,8 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import playerService from "@/services/playerService";
 
-const API_BASE = "https://api-f3rwhuz64a-uc.a.run.app/api/player";
-
 const normalizePlayer = (p: any) => {
   return {
     id: p._id,
@@ -40,9 +38,6 @@ export const PlayersSection = () => {
 
   const fetchPlayers = async () => {
     try {
-      const token =
-        localStorage.getItem("token") || sessionStorage.getItem("token");
-
       const res = await playerService.getAllPlayers();
 
       const data = await res.json();

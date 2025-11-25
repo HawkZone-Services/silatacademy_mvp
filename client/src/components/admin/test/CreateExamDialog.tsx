@@ -18,8 +18,6 @@ import {
 import { Card } from "@/components/ui/card";
 import examService from "@/services/examService";
 
-const EXAM_API = "https://api-f3rwhuz64a-uc.a.run.app/api/exams";
-
 export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);

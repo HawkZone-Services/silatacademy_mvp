@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, LogIn } from "lucide-react";
-import { apiClient } from "@/utils/apiClient"; // ← إضافة مهمة جداً
+import authService from "@/services/authService";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -74,13 +74,14 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const data = await apiClient("auth/login", {
-        method: "POST",
-        body: {
-          username: formData.username.trim(),
-          password: formData.password,
-        },
+      const res = await authService.login({
+        username: formData.username.trim(),
+        password: formData.password,
       });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.message || "Login failed");
+      }
       // Token check
       const token = data.token || data.user?.token;
       if (!token) {

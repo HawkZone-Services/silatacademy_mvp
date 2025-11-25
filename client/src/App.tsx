@@ -24,6 +24,7 @@ import InstructorDashboard from "./pages/InstructorDashboard";
 import Dashboard from "./pages/Dashboard";
 import Certificates from "./pages/Certificates";
 import TestDashboard from "./pages/TestDashboard";
+import ApiPlayground from "./pages/ApiPlayground";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/silat-history" element={<SilatHistory />} />
             <Route path="/events" element={<Events />} />
             <Route path="/test-api" element={<TestDashboard />} />
+            <Route path="/api-playground" element={<ApiPlayground />} />
 
             {/* Protected Routes */}
 

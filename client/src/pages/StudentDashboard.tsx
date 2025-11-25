@@ -24,8 +24,6 @@ import { useToast } from "@/hooks/use-toast";
 import examService from "@/services/examService";
 import certificateService from "@/services/certificateService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function StudentDashboard() {
   const { toast } = useToast();
   const [showNotifications, setShowNotifications] = useState(false);

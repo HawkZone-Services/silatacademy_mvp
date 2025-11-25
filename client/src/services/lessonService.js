@@ -1,12 +1,13 @@
 import apiClient from "@/lib/apiClient";
 
 const lessonService = {
-  getByBelt: () => apiClient.get("/lessons/by-belt"),
-  getProgress: () => apiClient.get("/lessons/progress"),
-  markCompleted: (lessonId) =>
-    apiClient.post("/lessons/complete", { body: { lessonId } }),
-  submitQuiz: (lessonId, answers) =>
-    apiClient.post("/lessons/quiz", { body: { lessonId, answers } }),
+  getLessons: (params = "") =>
+    apiClient.get(`/lessons${params ? `?${params}` : ""}`),
+  getLesson: (id) => apiClient.get(`/lessons/${id}`),
+  createLesson: (body) => apiClient.post("/lessons", { body }),
+  updateLesson: (id, body) => apiClient.patch(`/lessons/${id}`, { body }),
+  saveProgress: (id, body) =>
+    apiClient.post(`/lessons/${id}/progress`, { body }),
 };
 
 export default lessonService;

@@ -3,8 +3,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import examService from "@/services/examService";
 
-const EXAM_API = "https://api-f3rwhuz64a-uc.a.run.app/api/exams";
-
 interface ExamListProps {
   exams: any[];
   onRefresh: () => void;

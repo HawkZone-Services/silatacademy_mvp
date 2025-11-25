@@ -5,8 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import coachService from "@/services/coachService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function Approvals() {
   const { toast } = useToast();
   const [pending, setPending] = useState([]);

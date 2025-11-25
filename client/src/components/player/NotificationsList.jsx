@@ -3,8 +3,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import notificationService from "@/services/notificationService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function NotificationsList() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);

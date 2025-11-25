@@ -8,8 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import examService from "@/services/examService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function ExamInterface() {
   const { toast } = useToast();
   const navigate = useNavigate();

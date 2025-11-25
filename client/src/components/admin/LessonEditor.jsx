@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import lessonService from "@/services/lessonService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function LessonEditor({ lesson, onSaved }) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);

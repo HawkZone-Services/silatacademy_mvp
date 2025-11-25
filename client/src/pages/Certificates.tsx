@@ -1,9 +1,10 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { API_BASE_URL } from "@/lib/apiClient";
 
 const Certificates = () => {
   const openServerCertificates = () => {
-    window.location.href = "/api/v1/player/certificates/my";
+    window.location.href = `${API_BASE_URL}/certificates/my`;
   };
 
   return (

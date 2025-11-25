@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/accordion";
 import adminService from "@/services/adminService";
 import examService from "@/services/examService";
+import { API_BASE_URL } from "@/lib/apiClient";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -242,7 +243,6 @@ export default function Dashboard() {
 
   const finalizedSubmissions = submissions.filter((s: any) => s?.finalPassed);
   const pendingSubmissions = submissions.filter((s: any) => !s?.finalPassed);
-  const CERT_API = "https://api-f3rwhuz64a-uc.a.run.app/api/certificates";
 
   const publishExamAdmin = async (examId: string) => {
     try {
@@ -712,7 +712,7 @@ export default function Dashboard() {
                                           : s.student;
                                       if (examId && studentId) {
                                         window.open(
-                                          `${CERT_API}/admin/pdf/${examId}/${studentId}`,
+                                          `${API_BASE_URL}/certificates/admin/pdf/${examId}/${studentId}`,
                                           "_blank"
                                         );
                                       }

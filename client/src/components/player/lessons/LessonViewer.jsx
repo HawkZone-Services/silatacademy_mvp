@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import lessonService from "@/services/lessonService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function LessonViewer({ lessonId, onCompleted }) {
   const [lesson, setLesson] = useState(null);
   const [loading, setLoading] = useState(true);

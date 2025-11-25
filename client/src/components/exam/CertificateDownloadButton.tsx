@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { API_BASE_URL } from "@/lib/apiClient";
 
 interface Props {
   examId: string;
@@ -7,7 +8,7 @@ interface Props {
 
 export function CertificateDownloadButton({ examId, studentId }: Props) {
   const download = () => {
-    const url = `https://api-f3rwhuz64a-uc.a.run.app/api/certificates/admin/pdf/${examId}/${studentId}`;
+    const url = `${API_BASE_URL}/certificates/admin/pdf/${examId}/${studentId}`;
     window.open(url, "_blank");
   };
 

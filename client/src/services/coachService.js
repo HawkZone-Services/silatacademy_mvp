@@ -1,14 +1,17 @@
 import apiClient from "@/lib/apiClient";
 
 const coachService = {
-  getPlayers: () => apiClient.get("/coach/players"),
-  getApprovals: () => apiClient.get("/coach/approvals"),
-  approveBelt: (playerId, examId) =>
-    apiClient.post("/coach/approve", { body: { playerId, examId } }),
-  recordAttendance: (playerId, date, status) =>
-    apiClient.post("/coach/attendance", {
-      body: { playerId, date, status },
-    }),
+  listCoaches: () => apiClient.get("/coach"),
+  getPendingUpgrades: () => apiClient.get("/coach/belt-upgrades/pending"),
+  approveUpgrade: (id, body) =>
+    apiClient.patch(`/coach/belt-upgrades/${id}/approve`, { body }),
+  assignTask: (body) => apiClient.post("/coach/tasks", { body }),
+  getPlayerLessons: (playerId) =>
+    apiClient.get(`/coach/players/${playerId}/lessons`),
+  getPlayerExams: (playerId) =>
+    apiClient.get(`/coach/players/${playerId}/exams`),
+  getPlayerTasks: (playerId) =>
+    apiClient.get(`/coach/players/${playerId}/tasks`),
 };
 
 export default coachService;

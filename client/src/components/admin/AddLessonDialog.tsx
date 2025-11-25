@@ -18,8 +18,6 @@ interface AddLessonDialogProps {
   onLessonAdded?: () => void;
 }
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -41,9 +39,6 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
     setLoading(true);
 
     try {
-      const token =
-        localStorage.getItem("token") || sessionStorage.getItem("token");
-
       const payload = {
         title: formData.title,
         summary: formData.summary,

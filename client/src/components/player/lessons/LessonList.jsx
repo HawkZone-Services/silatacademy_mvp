@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import lessonService from "@/services/lessonService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function LessonList({ onSelect }) {
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);

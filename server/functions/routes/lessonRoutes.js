@@ -10,12 +10,7 @@ import { protect, checkRole } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.get(
-  "/",
-  protect,
-  checkRole("student", "admin", "instructor"),
-  listLessons
-);
+router.get("/", listLessons);
 
 router.get(
   "/:id",
@@ -24,19 +19,9 @@ router.get(
   getLesson
 );
 
-router.post(
-  "/",
-  protect,
-  checkRole("admin", "instructor"),
-  createLesson
-);
+router.post("/", protect, checkRole("admin", "instructor"), createLesson);
 
-router.patch(
-  "/:id",
-  protect,
-  checkRole("admin", "instructor"),
-  updateLesson
-);
+router.patch("/:id", protect, checkRole("admin", "instructor"), updateLesson);
 
 router.post(
   "/:id/progress",

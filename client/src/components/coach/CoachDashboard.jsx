@@ -7,8 +7,6 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import coachService from "@/services/coachService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function CoachDashboard() {
   const { toast } = useToast();
   const [playerId, setPlayerId] = useState("");

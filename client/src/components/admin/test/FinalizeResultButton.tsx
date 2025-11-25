@@ -24,11 +24,6 @@ export function FinalizeResultButton({
     setDone(Boolean(finalPassed));
   }, [finalPassed]);
 
-  const token =
-    localStorage.getItem("token") || sessionStorage.getItem("token");
-
-  const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
   const finalize = async () => {
     if (!studentId || !examId || loading || done) return;
 

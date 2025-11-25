@@ -4,8 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import coachService from "@/services/coachService";
 
-const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
 export default function PlayerProgress() {
   const [playerId, setPlayerId] = useState("");
   const [lessons, setLessons] = useState([]);

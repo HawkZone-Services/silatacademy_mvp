@@ -13,8 +13,6 @@ import { Footer } from "@/components/Footer";
 import { toast } from "sonner";
 import adminService from "@/services/adminService";
 
-const API_BASE = "https://api-f3rwhuz64a-uc.a.run.app/api/admin";
-
 const normalizePlayer = (p: any) => {
   return {
     id: p._id,

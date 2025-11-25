@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import certificateService from "@/services/certificateService";
+import { API_BASE_URL } from "@/lib/apiClient";
 
 interface Props {
   studentId: string;
@@ -22,11 +23,6 @@ export function CertificateGenerator({
   const [loading, setLoading] = useState(false);
   const [certificateExists, setCertificateExists] = useState(false);
 
-  const token =
-    localStorage.getItem("token") || sessionStorage.getItem("token");
-
-  const API = "https://api-f3rwhuz64a-uc.a.run.app/api";
-
   // ============================
   // CHECK CERT STATUS
   // ============================
@@ -35,10 +31,8 @@ export function CertificateGenerator({
 
     try {
       const res = await certificateService.checkCertificate(
-        `${API}/certificates/check/${examId}/${studentId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        examId,
+        studentId
       );
 
       const data = await res.json();
@@ -73,7 +67,7 @@ export function CertificateGenerator({
       }
 
       window.open(
-        `${API}/certificates/admin/pdf/${examId}/${studentId}`,
+        `${API_BASE_URL}/certificates/admin/pdf/${examId}/${studentId}`,
         "_blank"
       );
     } catch (err) {
