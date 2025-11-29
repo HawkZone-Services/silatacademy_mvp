@@ -2,32 +2,32 @@ import mongoose from "mongoose";
 
 const LessonSchema = new mongoose.Schema(
   {
+    module: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Module",
+      required: true,
+    },
+    program: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Program",
+      required: true,
+    },
+
+    // Lesson content
     title: { type: String, required: true, trim: true },
-    summary: String,
-    videoUrl: String,
-    content: String,
-    technicalContent: String,
-    medicalContent: String,
-    psychologyContent: String,
-    resources: [String],
-    durationMinutes: Number,
-    order: Number,
+    summary: { type: String },
+    videoUrl: { type: String },
+    content: { type: String },
+    durationMinutes: { type: Number },
+    resources: [{ type: String }],
 
-    quiz: [
-      {
-        prompt: { type: String, required: true },
-        options: [{ type: String }],
-        correctIndex: { type: Number, default: 0 },
-        explanation: String,
-      },
-    ],
+    quiz: { type: Array, default: [] },
 
-    module: { type: mongoose.Schema.Types.ObjectId, ref: "Module" },
-    program: { type: mongoose.Schema.Types.ObjectId, ref: "Program" },
+    isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
-const Lesson = mongoose.model("Lesson", LessonSchema);
+LessonSchema.index({ module: 1, title: 1 }, { unique: true });
 
-export default Lesson;
+export default mongoose.model("Lesson", LessonSchema);

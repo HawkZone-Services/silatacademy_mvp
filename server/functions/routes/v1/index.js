@@ -12,6 +12,7 @@ import notificationRoutes from "../notificationRoutes.js";
 import eventRoutes from "../eventRoutes.js";
 import libraryRoutes from "../libraryRoutes.js";
 import curriculumRoutes from "../curriculumRoutes.js";
+import moduleRoutes from "../moduleRoutes.js";
 
 const router = express.Router();
 
@@ -23,6 +24,7 @@ router.use("/lessons", lessonRoutes);
 router.use("/certificates", certificateRoutes);
 router.use("/attendance", attendanceRoutes);
 router.use("/programs", programRoutes);
+router.use("/modules", moduleRoutes);
 router.use("/ranking", rankingRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/events", eventRoutes);

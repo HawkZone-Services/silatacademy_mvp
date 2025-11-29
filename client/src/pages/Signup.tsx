@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, UserPlus } from "lucide-react";
+import authService from "@/services/authService";
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ const Signup = () => {
     phone: "",
     dateOfBirth: "",
     role: "student",
+    nationalId: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -79,21 +81,55 @@ const Signup = () => {
 
     setLoading(true);
 
-    // Mock signup - in production, this would call your auth API
-    setTimeout(() => {
-      localStorage.setItem("isAuthenticated", "true");
-      localStorage.setItem("userEmail", formData.email);
-      localStorage.setItem("userName", formData.fullName);
-      localStorage.setItem("userRole", formData.role);
+    try {
+      const res = await authService.register({
+        name: formData.fullName,
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        role: formData.role,
+        nationalId: formData.nationalId || null,
+        phone: formData.phone || null,
+        profile: {
+          firstName: formData.fullName.split(" ")[0],
+          lastName: formData.fullName.split(" ").slice(1).join(" "),
+          avatar: "",
+          address: {},
+          bio: "",
+        },
+      });
 
+      console.log("Signup response:", res);
+
+      if (!res.success) {
+        toast({
+          title: "Signup Failed",
+          description: res.message || "Unable to create account.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Optional auto-login OR redirect after signup
       toast({
         title: "Account Created Successfully!",
-        description: "Welcome to our Silat Academy community.",
+        description: "Your account has been created. Please log in.",
       });
 
       setLoading(false);
-      navigate("/");
-    }, 1500);
+
+      navigate("/login");
+    } catch (error: any) {
+      console.error("Signup error:", error);
+
+      toast({
+        title: "Server Error",
+        description: error.message || "Unable to connect to server.",
+        variant: "destructive",
+      });
+
+      setLoading(false);
+    }
   };
 
   const handleChange = (field: string, value: string) => {

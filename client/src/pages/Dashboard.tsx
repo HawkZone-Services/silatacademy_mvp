@@ -16,7 +16,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-import { Users, Calendar, CheckSquare, TrendingUp } from "lucide-react";
+import {
+  Users,
+  Calendar,
+  CheckSquare,
+  TrendingUp,
+  Clock,
+  Target,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,20 +52,66 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+
 import adminService from "@/services/adminService";
 import examService from "@/services/examService";
+import programService from "@/services/programService";
+import moduleService from "@/services/moduleService";
 import { API_BASE_URL } from "@/lib/apiClient";
+
+import { AddProgramDialog } from "@/components/admin/AddProgramDialog";
+import { AddModuleDialog } from "@/components/admin/AddModuleDialog";
+import { EditModuleDialog } from "@/components/admin/EditModuleDialog";
+import { EditProgramDialog } from "@/components/admin/EditProgramDialog";
+// components/ui/table.tsx
+import * as React from "react";
+
+export const Table = ({ ...props }) => (
+  <table className="w-full text-sm text-left" {...props} />
+);
+
+export const TableHeader = ({ ...props }) => (
+  <thead className="bg-muted" {...props} />
+);
+
+export const TableBody = ({ ...props }) => <tbody {...props} />;
+
+export const TableRow = ({ ...props }) => (
+  <tr className="border-t border-border/50" {...props} />
+);
+
+export const TableHead = ({ ...props }) => (
+  <th className="px-3 py-2 font-semibold text-sm" {...props} />
+);
+
+export const TableCell = ({ ...props }) => (
+  <td className="px-3 py-2 align-top" {...props} />
+);
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
 
+  // ==========================================
+  // AUTH
+  // ==========================================
   const token =
     localStorage.getItem("token") || sessionStorage.getItem("token");
 
+  const checkAuth = () => {
+    const savedUser =
+      JSON.parse(localStorage.getItem("user") || "null") ||
+      JSON.parse(sessionStorage.getItem("user") || "null");
+
+    if (!token || !savedUser) {
+      navigate("/login");
+    }
+  };
+
   // ==========================================
-  // Dashboard State
+  // GLOBAL STATE
   // ==========================================
+  const [loading, setLoading] = useState(true);
+
   const [stats, setStats] = useState({
     totalPlayers: 0,
     activePlayers: 0,
@@ -72,26 +125,23 @@ export default function Dashboard() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [exams, setExams] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [openExamId, setOpenExamId] = useState("");
 
+  const [openExamId, setOpenExamId] = useState("");
   const [selectedStudent, setSelectedStudent] = useState("");
   const [selectedExam, setSelectedExam] = useState("");
 
-  // ==========================================
-  // AUTH
-  // ==========================================
-  const checkAuth = () => {
-    const savedUser =
-      JSON.parse(localStorage.getItem("user") || "null") ||
-      JSON.parse(sessionStorage.getItem("user") || "null");
+  // PROGRAMS / MODULES
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [modules, setModules] = useState<any[]>([]);
 
-    if (!token || !savedUser) {
-      navigate("/login");
-    }
-  };
+  const [editProgramOpen, setEditProgramOpen] = useState(false);
+  const [editProgram, setEditProgram] = useState<any | null>(null);
+
+  const [editModuleOpen, setEditModuleOpen] = useState(false);
+  const [editModule, setEditModule] = useState<any | null>(null);
 
   // ==========================================
-  // JSON PARSER
+  // JSON PARSER (لـ adminService / examService اللي بيرجع Response)
   // ==========================================
   const safeJSON = async (res: Response) => {
     try {
@@ -102,7 +152,7 @@ export default function Dashboard() {
   };
 
   // ==========================================
-  // Fetch dashboard data
+  // DASHBOARD FETCHERS
   // ==========================================
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -140,9 +190,6 @@ export default function Dashboard() {
     }
   };
 
-  // ==========================================
-  // Fetch Exams (Admin)
-  // ==========================================
   const fetchExams = async () => {
     try {
       const res = await examService.getAllExams();
@@ -159,9 +206,6 @@ export default function Dashboard() {
     }
   };
 
-  // ==========================================
-  // Fetch registrations (ADMIN) for selectedExam
-  // ==========================================
   const fetchRegistrations = async () => {
     try {
       if (!selectedExam) {
@@ -189,7 +233,6 @@ export default function Dashboard() {
       }
 
       const res = await examService.getAdminSubmissions(selectedExam);
-
       const data = await safeJSON(res);
 
       setSubmissions(Array.isArray(data?.submissions) ? data.submissions : []);
@@ -199,38 +242,102 @@ export default function Dashboard() {
     }
   };
 
+  const fetchPrograms = async () => {
+    try {
+      const res = await programService.getPrograms();
+      if (res?.success) {
+        setPrograms(res.programs || []);
+      } else {
+        setPrograms([]);
+      }
+    } catch (error) {
+      console.error("Fetch programs error:", error);
+      setPrograms([]);
+    }
+  };
+
+  const fetchModules = async () => {
+    try {
+      const res = await moduleService.getModules();
+      if (res?.success) {
+        setModules(res.modules || []);
+      } else {
+        setModules([]);
+      }
+    } catch (error) {
+      console.error("Fetch modules error:", error);
+      setModules([]);
+    }
+  };
+
   // ==========================================
-  // RUN ON LOAD
+  // REGISTRATION ACTIONS
+  // ==========================================
+  const approveFn = async (regId: string) => {
+    await examService.approveRegistration(regId);
+    fetchRegistrations();
+  };
+
+  const rejectFn = async (regId: string) => {
+    await examService.rejectRegistration(regId);
+    fetchRegistrations();
+  };
+
+  const publishExamAdmin = async (examId: string) => {
+    try {
+      await examService.publishExam(examId);
+      fetchExams();
+    } catch (err) {
+      console.error("Publish exam error:", err);
+    }
+  };
+
+  // ==========================================
+  // PROGRAMS / MODULES ACTIONS
+  // ==========================================
+  const handleEditProgram = (program: any) => {
+    setEditProgram(program);
+    setEditProgramOpen(true);
+  };
+
+  const handleDeleteProgram = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this program?")) return;
+    await programService.deleteProgram(id);
+    fetchPrograms();
+  };
+
+  const handleEditModule = (module: any) => {
+    setEditModule(module);
+    setEditModuleOpen(true);
+  };
+
+  const handleDeleteModule = async (id: string) => {
+    if (!confirm("Delete module?")) return;
+    await moduleService.deleteModule(id);
+    fetchModules();
+  };
+
+  // ==========================================
+  // EFFECTS
   // ==========================================
   useEffect(() => {
     checkAuth();
     fetchDashboardData();
     fetchExams();
+    fetchPrograms();
+    fetchModules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
     fetchRegistrations();
     fetchSubmissions();
     setSelectedStudent("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExam]);
 
   // ==========================================
-  // Approve / Reject registration
-  // ==========================================
-  const approveFn = async (regId: string) => {
-    await examService.approveRegistration(regId);
-
-    fetchRegistrations();
-  };
-
-  const rejectFn = async (regId: string) => {
-    await examService.rejectRegistration(regId);
-
-    fetchRegistrations();
-  };
-
-  // ==========================================
-  // PLAYER FILTER
+  // DERIVED DATA
   // ==========================================
   const filteredPlayers = players.filter((player: any) => {
     const q = searchQuery.toLowerCase();
@@ -242,18 +349,6 @@ export default function Dashboard() {
   });
 
   const finalizedSubmissions = submissions.filter((s: any) => s?.finalPassed);
-  const pendingSubmissions = submissions.filter((s: any) => !s?.finalPassed);
-
-  const publishExamAdmin = async (examId: string) => {
-    try {
-      await examService.publishExam(examId);
-      fetchExams();
-    } catch (err) {
-      console.error("Publish exam error:", err);
-    }
-  };
-  const finalized = submissions.filter((s: any) => s.finalPassed);
-  const pending = submissions.filter((s: any) => !s.finalPassed);
 
   // ==========================================
   // UI RENDER
@@ -267,7 +362,7 @@ export default function Dashboard() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Academy Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage players, lessons, attendance & exams
+            Manage players, lessons, attendance, programs & exams
           </p>
         </div>
 
@@ -338,6 +433,8 @@ export default function Dashboard() {
             <TabsTrigger value="players">Players</TabsTrigger>
             <TabsTrigger value="testing">Testing</TabsTrigger>
             <TabsTrigger value="lessons">Lessons</TabsTrigger>
+            <TabsTrigger value="programs">Programs</TabsTrigger>
+            <TabsTrigger value="modules">Modules</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
@@ -370,14 +467,12 @@ export default function Dashboard() {
                     >
                       <div>
                         <h4 className="font-semibold">{player.name}</h4>
-
                         <p className="text-sm">{player.email}</p>
 
                         <div className="flex gap-2 mt-2">
                           <Badge variant="outline" className="capitalize">
                             {player.beltLevel || "white"}
                           </Badge>
-
                           <Badge variant="secondary">
                             {player.status || "active"}
                           </Badge>
@@ -577,7 +672,7 @@ export default function Dashboard() {
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-4 py-4 space-y-6">
-                        {/* Registration Management (pending only) */}
+                        {/* Registration Management */}
                         <section className="space-y-3">
                           <div className="flex items-center justify-between">
                             <h3 className="text-lg font-semibold">
@@ -611,7 +706,7 @@ export default function Dashboard() {
                           />
                         </section>
 
-                        {/* Submissions (all) */}
+                        {/* Submissions */}
                         <section className="space-y-3">
                           <div className="flex items-center justify-between">
                             <h3 className="text-lg font-semibold">
@@ -645,18 +740,14 @@ export default function Dashboard() {
                                 practicalRecorded={
                                   selectedSubmission.practicalRecorded
                                 }
-                                onSaved={() => {
-                                  fetchSubmissions();
-                                }}
+                                onSaved={fetchSubmissions}
                               />
 
                               <FinalizeResultButton
                                 studentId={selectedStudent}
                                 examId={selectedExam}
                                 finalPassed={selectedSubmission.finalPassed}
-                                onFinalized={() => {
-                                  fetchSubmissions();
-                                }}
+                                onFinalized={fetchSubmissions}
                               />
 
                               <CertificateGenerator
@@ -668,7 +759,7 @@ export default function Dashboard() {
                           </section>
                         )}
 
-                        {/* Finalized Certificates for this exam */}
+                        {/* Finalized Certificates */}
                         {examFinalizedSubs.length > 0 && (
                           <section className="space-y-2">
                             <h3 className="text-lg font-semibold">
@@ -762,35 +853,202 @@ export default function Dashboard() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Lesson Schedule</CardTitle>
-                    <CardDescription>Manage training sessions</CardDescription>
+                    <CardTitle>Lessons</CardTitle>
+                    <CardDescription>
+                      Manage all scheduled lessons
+                    </CardDescription>
                   </div>
                   <AddLessonDialog onLessonAdded={fetchDashboardData} />
                 </div>
               </CardHeader>
 
               <CardContent>
-                <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                  {Array.isArray(lessons) &&
-                    lessons.map((lesson: any) => (
-                      <div
-                        key={lesson._id}
-                        className="p-4 bg-accent/10 rounded-lg"
-                      >
-                        <h4 className="font-semibold">{lesson.title}</h4>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {lesson.date
-                            ? new Date(lesson.date).toLocaleDateString()
-                            : "N/A"}{" "}
-                          • {lesson.start_time || "??"} -{" "}
-                          {lesson.end_time || "??"}
-                        </p>
-                        <Badge variant="outline" className="mt-2 capitalize">
-                          {lesson.type || "general"}
-                        </Badge>
-                      </div>
-                    ))}
+                <div className="overflow-x-auto border border-border/40 rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Type</TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {lessons.map((lesson: any) => (
+                        <TableRow key={lesson._id}>
+                          <TableCell>{lesson.title}</TableCell>
+                          <TableCell>
+                            {lesson.date
+                              ? new Date(lesson.date).toLocaleDateString()
+                              : "N/A"}
+                          </TableCell>
+                          <TableCell>
+                            {lesson.start_time || "??"} -{" "}
+                            {lesson.end_time || "??"}
+                          </TableCell>
+                          <TableCell className="capitalize">
+                            {lesson.type || "general"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* PROGRAMS MANAGEMENT */}
+          <TabsContent value="programs">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Programs</CardTitle>
+                    <CardDescription>
+                      Training program structure
+                    </CardDescription>
+                  </div>
+                  <AddProgramDialog onProgramAdded={fetchPrograms} />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="overflow-x-auto border border-border/40 rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Duration</TableHead>
+                        <TableHead>Audience</TableHead>
+                        <TableHead>Schedule</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {programs.map((program: any) => (
+                        <TableRow key={program._id}>
+                          <TableCell className="font-medium">
+                            {program.title}
+                          </TableCell>
+                          <TableCell>{program.description}</TableCell>
+                          <TableCell>{program.duration}</TableCell>
+                          <TableCell>{program.targetAudience}</TableCell>
+                          <TableCell>{program.classSchedule}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditProgram(program)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDeleteProgram(program._id)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {editProgram && (
+                  <EditProgramDialog
+                    open={editProgramOpen}
+                    setOpen={setEditProgramOpen}
+                    program={editProgram}
+                    onUpdated={fetchPrograms}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* MODULES MANAGEMENT */}
+          <TabsContent value="modules">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Modules</CardTitle>
+                    <CardDescription>
+                      Learning modules inside programs
+                    </CardDescription>
+                  </div>
+                  <AddModuleDialog onModuleAdded={fetchModules} />
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <div className="overflow-x-auto border border-border/40 rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Module</TableHead>
+                        <TableHead>Program</TableHead>
+                        <TableHead>Topics</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+
+                    <TableBody>
+                      {modules.map((m: any) => (
+                        <TableRow key={m._id}>
+                          <TableCell className="font-medium">
+                            {m.title}
+                          </TableCell>
+                          <TableCell>
+                            {m.program?.title || m.programTitle}
+                          </TableCell>
+                          <TableCell>
+                            <ul className="list-disc ml-4 space-y-1">
+                              {m.topics?.map((t: string, i: number) => (
+                                <li key={i}>{t}</li>
+                              ))}
+                            </ul>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditModule(m)}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => handleDeleteModule(m._id)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {editModule && (
+                  <EditModuleDialog
+                    open={editModuleOpen}
+                    setOpen={setEditModuleOpen}
+                    moduleData={editModule}
+                    onUpdated={fetchModules}
+                  />
+                )}
               </CardContent>
             </Card>
           </TabsContent>

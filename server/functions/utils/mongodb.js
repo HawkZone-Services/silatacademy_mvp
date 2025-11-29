@@ -4,13 +4,14 @@ import { defineSecret } from "firebase-functions/params";
 const MONGO_URI = defineSecret("MONGO_URI");
 
 const getMongoUri = async () =>
-  typeof MONGO_URI === "string" ? MONGO_URI : await MONGO_URI.value();
+  process.env.MONGO_URI ||
+  (typeof MONGO_URI === "string" ? MONGO_URI : await MONGO_URI.value());
 
 let cachedClient = null;
 
 export async function getDb(dbName = "silatacademy") {
   const uri = await getMongoUri();
-  if (!uri) throw new Error("❌ MONGO_URI is not defined");
+  if (!uri) throw new Error("MONGO_URI is not defined");
 
   if (!cachedClient) {
     const client = new MongoClient(uri, {

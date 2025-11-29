@@ -115,8 +115,6 @@ const PlayerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-PlayerSchema.index({ user: 1 }, { unique: true });
-
 PlayerSchema.pre("validate", function (next) {
   const level = (this.beltLevel || "white").toLowerCase();
   this.beltLevel = level;

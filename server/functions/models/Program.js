@@ -1,29 +1,21 @@
 import mongoose from "mongoose";
-const ProgramSchema = new mongoose.Schema({
-  level: {
-    type: String,
-    enum: ["beginner", "intermediate", "advanced"],
-    required: true,
+
+const ProgramSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, trim: true }, // Beginner, Intermediate, Advanced
+    level: { type: String }, // optional label
+    duration: { type: String }, // “3–6 months”
+    description: { type: String },
+    targetAudience: { type: String },
+    classSchedule: { type: String },
+
+    // From mock data
+    learningOutcomes: [{ type: String }],
+
+    isActive: { type: Boolean, default: true },
+    order: { type: Number, default: 0 },
   },
-  description: String,
-  moduleRefs: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Module",
-    },
-  ],
-  modules: [
-    {
-      title: String,
-      objectives: [String],
-      anatomyFocus: [String],
-      repetitionGoal: String,
-      commonMistakes: [String],
-    },
-  ],
-  syllabusUrl: String,
-});
+  { timestamps: true }
+);
 
-const Program = mongoose.model("Program", ProgramSchema);
-
-export default Program;
+export default mongoose.model("Program", ProgramSchema);

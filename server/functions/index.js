@@ -1,4 +1,5 @@
-import * as functions from "firebase-functions/v2";
+import { onRequest } from "firebase-functions/v2/https";
+import * as logger from "firebase-functions/logger";
 import express from "express";
 import passport from "passport";
 import cookieSession from "cookie-session";
@@ -7,31 +8,47 @@ import compression from "compression";
 import morgan from "morgan";
 import cors from "cors";
 import dotenv from "dotenv";
+
 import router from "./routes/index.js";
-import { getDb } from "./utils/mongodb.js";
-import { get } from "mongoose";
+import { connectDB } from "./utils/db-lazy.js"; // ✨ النسخة الجديدة
 import { errorHandler, notFound } from "./middlewares/errorMiddleware.js";
 
 dotenv.config();
+
 const app = express();
 
-//Middlewaars
-//زيادة حد البيانات المرسلة
+// =============
+//  Lazy DB Init
+// =============
+app.use(async (req, res, next) => {
+  try {
+    await connectDB(); // ❗ يربط الـ DB فقط عند الطلب وليس قبل ذلك
+    next();
+  } catch (err) {
+    logger.error("DB Init Error", err);
+    res.status(500).json({ message: "Database connection failed" });
+  }
+});
+
+// =======
+// Middlewares
+// =======
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
-// أمان وتحسين الأداء
 app.use(helmet());
 app.use(compression());
 app.use(morgan("combined"));
 
-// إعداد الكوكيز سيشن
+// =======
+// SESSION
+// =======
 app.use(
   cookieSession({
     name: "session",
-    keys: [process.env.SESSION_SECRET],
-    maxAge: 24 * 60 * 60 * 1000, // 24 ساعة
-    secure: process.env.NODE_ENV === "production",
+    keys: [process.env.SESSION_SECRET || "fallback"],
+    maxAge: 24 * 60 * 60 * 1000,
+    secure: false, // emulator only
     httpOnly: true,
     sameSite: "lax",
   })
@@ -39,47 +56,48 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// CORS مع دعم النطاقات الديناميكية
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) =>
-      origin.trim().replace(/\/$/, "")
-    )
-  : [];
-
+// =======
+// CORS
+// =======
 app.use(
   cors({
     origin: [
-      "http://localhost:5173", // local dev
+      "http://localhost:5173",
       "http://localhost:8080",
       "http://192.168.1.2:8080",
-      "https://silatacademy.net", // production
+      "https://silatacademy.net",
     ],
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-// API Routes
+
+// =======
+// ROUTES
+// =======
 app.use("/api", router);
 
-// Health Check Route
+// Health check
 app.get("/api/health", (req, res) => {
-  res.status(200).json({ status: "ok", message: "API is running smoothly" });
+  res.json({ status: "ok", message: "API running" });
 });
 
-// Error Handling Middleware
+// =======
+// ERROR HANDLERS
+// =======
 app.use(notFound);
 app.use(errorHandler);
 
-// تصدير كـ Firebase Function مع تخصيص الموارد والأسرار
-export const api = functions.https.onRequest(
+// =======
+// EXPORT FUNCTION
+// =======
+export const api = onRequest(
   {
     secrets: ["MONGO_URI", "JWT_SECRET"],
-    cpu: 1, // 1 CPU
-    memory: "512MiB", // 512 MB RAM
-    maxInstances: 3, // Optional: limit max instances
-    timeoutSeconds: 60, // Optional: timeout
-    ingressSettings: "ALLOW_ALL", // Optional: network ingress
+    timeoutSeconds: 60,
+    memory: "512MiB",
+    cpu: 1,
+    maxInstances: 5,
   },
   app
 );

@@ -16,7 +16,7 @@ import { checkRole } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.get("/", protect, listPlayers);
+router.get("/", listPlayers);
 router.get("/:id", protect, checkRole("admin", "instructor"), getPlayer);
 //router.post("/", protect, checkRole("admin", "instructor"), createPlayer);
 router.patch("/:id", protect, checkRole("admin", "instructor"), updatePlayer);

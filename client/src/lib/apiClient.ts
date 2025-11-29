@@ -5,28 +5,44 @@ export const API_BASE_URL =
     : "https://api-f3rwhuz64a-uc.a.run.app/api/v1");
 
 type ApiClientOptions = RequestInit & {
-  body?: BodyInit | Record<string, unknown> | null;
+  body?: any;
 };
 
-const isJsonLike = (body: unknown): body is Record<string, unknown> =>
-  body !== null &&
+const isJson = (body: any) =>
+  body &&
   typeof body === "object" &&
   !(body instanceof FormData) &&
   !(body instanceof Blob) &&
-  !(body instanceof ArrayBuffer) &&
   !(body instanceof URLSearchParams);
 
-const buildBody = (body: ApiClientOptions["body"]) => {
-  if (body === undefined || body === null) return undefined;
-  if (isJsonLike(body)) return JSON.stringify(body);
-  return body as BodyInit;
+const buildBody = (body: any) => {
+  if (!body) return undefined;
+  return isJson(body) ? JSON.stringify(body) : body;
 };
 
+// Normalize URL
 const resolveUrl = (endpoint: string) => {
-  if (/^https?:\/\//i.test(endpoint)) return endpoint;
-  const base = API_BASE_URL.replace(/\/$/, "");
-  const path = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-  return `${base}${path}`;
+  if (/^https?:\/\//.test(endpoint)) return endpoint;
+  return `${API_BASE_URL}${
+    endpoint.startsWith("/") ? endpoint : `/${endpoint}`
+  }`;
+};
+
+// Normalize fetch response (this is the magic)
+const normalizeResponse = async (response: Response) => {
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch (_) {
+    data = null;
+  }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    ...data, // success, message, programs, etc.
+  };
 };
 
 const request = (
@@ -51,32 +67,25 @@ const request = (
 
   if (method !== "GET" && method !== "HEAD") {
     const preparedBody = buildBody(options.body);
-    if (
-      preparedBody &&
-      !(preparedBody instanceof FormData) &&
-      !(preparedBody instanceof Blob) &&
-      !(preparedBody instanceof ArrayBuffer) &&
-      !(preparedBody instanceof URLSearchParams)
-    ) {
-      headers["Content-Type"] = headers["Content-Type"] || "application/json";
-    }
     config.body = preparedBody;
-  } else {
-    delete (config as any).body;
+
+    if (preparedBody && isJson(options.body)) {
+      headers["Content-Type"] = "application/json";
+    }
   }
 
-  return fetch(resolveUrl(endpoint), config);
+  return fetch(resolveUrl(endpoint), config).then(normalizeResponse);
 };
 
 const apiClient = {
   get: (endpoint: string, options?: ApiClientOptions) =>
     request("GET", endpoint, options),
-  post: (endpoint: string, options?: ApiClientOptions) =>
-    request("POST", endpoint, options),
-  put: (endpoint: string, options?: ApiClientOptions) =>
-    request("PUT", endpoint, options),
-  patch: (endpoint: string, options?: ApiClientOptions) =>
-    request("PATCH", endpoint, options),
+  post: (endpoint: string, body?: any, options?: ApiClientOptions) =>
+    request("POST", endpoint, { ...options, body }),
+  put: (endpoint: string, body?: any, options?: ApiClientOptions) =>
+    request("PUT", endpoint, { ...options, body }),
+  patch: (endpoint: string, body?: any, options?: ApiClientOptions) =>
+    request("PATCH", endpoint, { ...options, body }),
   delete: (endpoint: string, options?: ApiClientOptions) =>
     request("DELETE", endpoint, options),
 };

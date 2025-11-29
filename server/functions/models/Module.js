@@ -2,19 +2,21 @@ import mongoose from "mongoose";
 
 const ModuleSchema = new mongoose.Schema(
   {
-    program: { type: mongoose.Schema.Types.ObjectId, ref: "Program" },
+    program: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Program",
+      required: true,
+    },
+    title: { type: String, required: true, trim: true }, // Example: "Month 1-2: Foundations"
+    topics: [{ type: String }], // Example: ["Basic stances", “Footwork…”]
 
-    title: { type: String, required: true, trim: true },
-    objectives: [String],
-    anatomyFocus: [String],
-    repetitionGoal: String,
-    commonMistakes: [String],
-
-    lessons: [{ type: mongoose.Schema.Types.ObjectId, ref: "Lesson" }],
+    order: { type: Number, default: 0 },
+    isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
-const Module = mongoose.model("Module", ModuleSchema);
+// Prevent duplicate modules inside same program by name
+ModuleSchema.index({ program: 1, title: 1 }, { unique: true });
 
-export default Module;
+export default mongoose.model("Module", ModuleSchema);

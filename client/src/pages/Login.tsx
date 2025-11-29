@@ -78,16 +78,26 @@ const Login = () => {
         username: formData.username.trim(),
         password: formData.password,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.message || "Login failed");
+
+      console.log("Login response:", res);
+
+      if (!res.success) {
+        toast({
+          title: "Login Failed",
+          description: res.message || "Invalid username or password.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
       }
-      // Token check
-      const token = data.token || data.user?.token;
-      if (!token) {
+
+      const token = res.data?.token;
+      const user = res.data?.user;
+
+      if (!token || !user) {
         toast({
           title: "Error",
-          description: "Token missing in server response!",
+          description: "Invalid server response: token or user missing.",
           variant: "destructive",
         });
         setLoading(false);
@@ -97,33 +107,24 @@ const Login = () => {
       // Save session
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem("token", token);
-      storage.setItem("user", JSON.stringify(data.user));
+      storage.setItem("user", JSON.stringify(user));
 
       toast({
         title: "Login Successful!",
-        description: `Welcome back, ${data.user?.name || "User"}!`,
+        description: `Welcome back, ${user.name}!`,
       });
 
-      setLoading(false);
-
-      const role = data.user?.role;
-      if (!role) {
-        toast({
-          title: "Error",
-          description: "Role missing in server response!",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-      redirectByRole(role);
-    } catch (error) {
+      // redirect
+      redirectByRole(user.role);
+    } catch (error: any) {
       console.error("Login error:", error);
+
       toast({
-        title: "Server Error",
-        description: "Unable to connect to server.",
+        title: "Login Error",
+        description: error.message || "Unable to reach server.",
         variant: "destructive",
       });
+    } finally {
       setLoading(false);
     }
   };
