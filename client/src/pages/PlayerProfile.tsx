@@ -11,7 +11,7 @@ import { PlayerAttendance } from "@/components/player/PlayerAttendance";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { toast } from "sonner";
-import adminService from "@/services/adminService";
+import playerService from "@/services/playerService";
 
 const normalizePlayer = (p: any) => {
   return {
@@ -68,16 +68,22 @@ const PlayerProfile = () => {
   // Fetch the player from the API
   const fetchPlayer = async () => {
     try {
-      const res = await adminService.getPlayerById(id as string);
+      const res = await playerService.getPlayer(id as string);
 
-      if (res.status === 404) {
+      console.log("Raw player response:", res);
+
+      const payload = res.data || res.raw || {};
+      const playerPayload = payload.player || payload;
+
+      // لو الـ backend رجع 404 من داخل JSON
+      if (!res.success || !playerPayload) {
         setPlayer(null);
-        setLoading(false);
         return;
       }
 
-      const data = await res.json();
-      setPlayer(normalizePlayer(data));
+      // الآن res.player هو الـ data الحقيقي
+      const normalized = normalizePlayer(playerPayload);
+      setPlayer(normalized);
     } catch (error) {
       console.error("Player fetch error:", error);
       setPlayer(null);

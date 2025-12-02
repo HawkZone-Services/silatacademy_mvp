@@ -2,20 +2,44 @@ import mongoose from "mongoose";
 
 const ProgramSchema = new mongoose.Schema(
   {
-    title: { type: String, required: true, trim: true }, // Beginner, Intermediate, Advanced
-    level: { type: String }, // optional label
-    duration: { type: String }, // “3–6 months”
-    description: { type: String },
-    targetAudience: { type: String },
-    classSchedule: { type: String },
+    level: {
+      type: String,
+      enum: ["beginner", "intermediate", "advanced"],
+      required: true,
+    },
 
-    // From mock data
-    learningOutcomes: [{ type: String }],
+    // 🔹 مطابقة للـ Programs.tsx
+    title: { type: String, required: true, trim: true },
+    description: String,
+    duration: String, // "3–6 months"
+    targetAudience: String, // "New students..."
+    classSchedule: String, // "2x weekly..."
+    learningOutcomes: [String], // array of strings
 
-    isActive: { type: Boolean, default: true },
-    order: { type: Number, default: 0 },
+    // 🔹 نحافظ على التركيب القديم برضه
+    moduleRefs: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Module",
+      },
+    ],
+    modules: [
+      {
+        title: String,
+        objectives: [String],
+        anatomyFocus: [String],
+        repetitionGoal: String,
+        commonMistakes: [String],
+        // عشان تبقى قريبة من الـ mock Topics
+        topics: [String],
+      },
+    ],
+
+    syllabusUrl: String,
   },
   { timestamps: true }
 );
 
-export default mongoose.model("Program", ProgramSchema);
+const Program = mongoose.model("Program", ProgramSchema);
+
+export default Program;

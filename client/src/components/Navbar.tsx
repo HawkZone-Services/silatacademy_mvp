@@ -21,35 +21,63 @@ const navLinks = [
 export const Navbar = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState("");
+  const [user, setUser] = useState<any>(null);
+  const [token, setToken] = useState<string | null>(null);
 
+  // Load user + token on mount
   useEffect(() => {
-    const storedUser =
-      JSON.parse(
-        localStorage.getItem("user") || sessionStorage.getItem("user")
-      ) || null;
+    const storedUser = JSON.parse(
+      localStorage.getItem("user") || sessionStorage.getItem("user") || "null"
+    );
 
     const storedToken =
       localStorage.getItem("token") || sessionStorage.getItem("token");
 
-    if (storedToken && storedUser) {
+    if (storedUser && storedToken) {
       setIsAuthenticated(true);
+      setUser(storedUser);
+      setToken(storedToken);
       setUserName(storedUser.name || "");
     } else {
       setIsAuthenticated(false);
+      setUser(null);
+      setToken(null);
       setUserName("");
     }
   }, []);
 
+  // Role-based navigation
+  const handleNavigate = () => {
+    if (!token || !user) return;
+
+    switch (user.role) {
+      case "admin":
+        navigate("/admin-dashboard");
+        break;
+      case "instructor":
+        navigate("/instructor-dashboard");
+        break;
+      case "student":
+        navigate("/student-dashboard");
+        break;
+      default:
+        navigate("/");
+    }
+  };
+
+  // Logout
   const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
-    localStorage.removeItem("userEmail");
-    localStorage.removeItem("userName");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("rememberMe");
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("token");
 
     setIsAuthenticated(false);
+    setUser(null);
+    setToken(null);
     setUserName("");
 
     toast({
@@ -104,12 +132,18 @@ export const Navbar = () => {
           {/* Auth Section */}
           <div className="hidden md:flex items-center gap-3">
             <LanguageToggle />
+
             {isAuthenticated ? (
               <>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 border border-secondary/20">
+                <div
+                  onClick={handleNavigate}
+                  role="button"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 border border-secondary/20"
+                >
                   <User className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium">{userName}</span>
                 </div>
+
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
@@ -138,11 +172,13 @@ export const Navbar = () => {
                 <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>
+
             <SheetContent side="right" className="w-[300px] bg-card">
               <div className="flex flex-col gap-4 mt-8">
                 <div className="pb-4 border-b border-border/40">
                   <LanguageToggle />
                 </div>
+
                 {navLinks.map((link) =>
                   link.isRoute ? (
                     <Link
@@ -162,12 +198,14 @@ export const Navbar = () => {
                     </a>
                   )
                 )}
+
                 {isAuthenticated ? (
                   <>
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 border border-secondary/20 mt-4">
                       <User className="h-4 w-4 text-primary" />
                       <span className="text-sm font-medium">{userName}</span>
                     </div>
+
                     <Button variant="ghost" onClick={handleLogout}>
                       <LogOut className="h-4 w-4 mr-2" />
                       Logout

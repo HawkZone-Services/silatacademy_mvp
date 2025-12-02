@@ -14,4 +14,6 @@ const ExamRegistrationSchema = new mongoose.Schema(
   { collection: "examRegistrations" }
 );
 
+ExamRegistrationSchema.index({ exam: 1, player: 1 }, { unique: true });
+
 export default mongoose.model("ExamRegistration", ExamRegistrationSchema);

@@ -1,8 +1,8 @@
-import apiClient from "@/lib/apiClient";
+import apiClient from "@/shared/api/apiClient";
 
 const notificationService = {
   getAll: () => apiClient.get("/notifications"),
-  create: (body) => apiClient.post("/notifications", { body }),
+  create: (body) => apiClient.post("/notifications", body),
   markRead: (id) => apiClient.post(`/notifications/${id}/read`),
 };
 

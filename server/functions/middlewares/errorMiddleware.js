@@ -6,19 +6,22 @@ export const notFound = (req, res, next) => {
 
 export const errorHandler = (err, req, res, next) => {
   const statusCode = err.statusCode || 500;
-  const payload = {
-    success: false,
+  const error = {
     message: err.message || "Internal server error",
+    code: err.code || statusCode,
   };
 
   if (err.details) {
-    payload.details = err.details;
+    error.details = err.details;
   }
 
   if (process.env.NODE_ENV !== "production") {
     // Provide stack only during development
-    payload.stack = err.stack;
+    error.stack = err.stack;
   }
 
-  res.status(statusCode).json(payload);
+  res.status(statusCode).json({
+    success: false,
+    error,
+  });
 };

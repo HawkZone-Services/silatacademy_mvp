@@ -1,4 +1,4 @@
-import apiClient from "@/lib/apiClient";
+import apiClient from "@/shared/api/apiClient";
 
 const authService = {
   login: (body) => apiClient.post("/auth/login", body),

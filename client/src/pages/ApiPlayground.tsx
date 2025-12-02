@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import authService from "@/services/authService";
 import adminService from "@/services/adminService";
@@ -21,7 +27,7 @@ import { API_BASE_URL } from "@/lib/apiClient";
 
 type Action = {
   label: string;
-  run: () => Promise<Response>;
+  run: () => Promise<any>;
 };
 
 const useActions = (): Record<string, Action[]> => {
@@ -29,30 +35,54 @@ const useActions = (): Record<string, Action[]> => {
     JSON.parse(localStorage.getItem("user") || "null") ||
     JSON.parse(sessionStorage.getItem("user") || "null");
 
-  const defaultEmail = user?.email || "admin@example.com";
-  const defaultPassword = "Pass12345!";
+  const defaultEmail = user?.nationalId || "29310210103471";
+  const defaultAdminEmail = user?.nationalId || "29310210103471";
+  const defaultCoachEmail = user?.nationalId || "29310210103472";
+  const defaultStudentEmail = user?.nationalId || "29310210103473";
+  const defaultPassword = "123456789";
   const playerId = user?._id || "";
 
   return useMemo(
     () => ({
       auth: [
         {
-          label: "Login (email/password)",
+          label: "Login (admin)",
           run: () =>
             authService.login({
-              username: defaultEmail,
+              username: defaultAdminEmail,
+              password: defaultPassword,
+            }),
+        },
+        {
+          label: "Login (Coach)",
+          run: () =>
+            authService.login({
+              username: defaultCoachEmail,
+              password: defaultPassword,
+            }),
+        },
+        {
+          label: "Login (Student)",
+          run: () =>
+            authService.login({
+              username: defaultStudentEmail,
               password: defaultPassword,
             }),
         },
       ],
+
       admin: [
         { label: "Dashboard", run: () => adminService.getDashboard() },
         { label: "Players", run: () => adminService.getPlayers() },
         { label: "Lessons", run: () => adminService.getLessons() },
+        { label: "Attendance", run: () => adminService.getAttendanceToday() },
         { label: "Reports Export", run: () => adminService.getReportsExport() },
       ],
       player: [
+        { label: "Me", run: () => playerService.getMe() },
+        { label: "My Full Profile", run: () => playerService.getFullProfile() },
         { label: "List Players", run: () => playerService.list() },
+
         playerId
           ? {
               label: "Player Attendance",
@@ -64,12 +94,18 @@ const useActions = (): Record<string, Action[]> => {
             },
       ],
       coach: [
-        { label: "Pending Upgrades", run: () => coachService.getPendingUpgrades() },
+        {
+          label: "Pending Upgrades",
+          run: () => coachService.getPendingUpgrades(),
+        },
         { label: "List Coaches", run: () => coachService.listCoaches() },
       ],
       exams: [
         { label: "All Exams (admin)", run: () => examService.getAllExams() },
-        { label: "Available Exams (white)", run: () => examService.getAvailableExams("white") },
+        {
+          label: "Available Exams (white)",
+          run: () => examService.getAvailableExams("white"),
+        },
         { label: "My Attempts", run: () => examService.getMyAttempts() },
       ],
       lessons: [
@@ -81,9 +117,7 @@ const useActions = (): Record<string, Action[]> => {
       library: [
         { label: "List Library Items", run: () => libraryService.list() },
       ],
-      events: [
-        { label: "List Events", run: () => eventService.list() },
-      ],
+      events: [{ label: "List Events", run: () => eventService.list() }],
       notifications: [
         { label: "My Notifications", run: () => notificationService.getAll() },
       ],
@@ -91,10 +125,16 @@ const useActions = (): Record<string, Action[]> => {
         { label: "Ranking List", run: () => rankingService.getRanking() },
       ],
       curriculum: [
-        { label: "Curriculum PDF (white)", run: () => curriculumService.getPdf("white") },
+        {
+          label: "Curriculum PDF (white)",
+          run: () => curriculumService.getPdf("white"),
+        },
       ],
       certificates: [
-        { label: "My Certificates", run: () => certificateService.getMyCertificates() },
+        {
+          label: "My Certificates",
+          run: () => certificateService.getMyCertificates(),
+        },
       ],
       attendance: [
         { label: "Attendance Stats", run: () => attendanceService.getStats() },
@@ -116,20 +156,7 @@ const ApiPlayground = () => {
     setResult("Running...");
     try {
       const res = await action.run();
-      const text = await res.text();
-      let parsed: any = null;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = text;
-      }
-      setResult(
-        JSON.stringify(
-          { status: res.status, ok: res.ok, body: parsed },
-          null,
-          2
-        )
-      );
+      setResult(JSON.stringify(res, null, 2));
     } catch (err: any) {
       setResult(`Error: ${err?.message || err}`);
     } finally {
@@ -141,7 +168,7 @@ const ApiPlayground = () => {
 
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="max-w-4xl mx-auto space-y-4">
+      <div className=" mx-auto space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>API Playground</CardTitle>
@@ -191,7 +218,7 @@ const ApiPlayground = () => {
               <Textarea
                 value={result}
                 readOnly
-                className="font-mono text-xs min-h-[240px]"
+                className="font-mono text-xs min-h-[500px]"
               />
             </div>
           </CardContent>

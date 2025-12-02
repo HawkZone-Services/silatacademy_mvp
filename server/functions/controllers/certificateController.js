@@ -1,273 +1,249 @@
 import asyncHandler from "express-async-handler";
+import Certificate from "../models/Certificate.js";
+import User from "../models/User.js";
+import Lesson from "../models/Lesson.js";
+import Module from "../models/Module.js";
+import Program from "../models/Program.js";
+import Exam from "../models/Exam.js";
+import { httpError } from "../utils/validation.js";
 import PDFDocument from "pdfkit";
-import { getDb } from "../utils/mongodb.js";
-import { assertObjectId, httpError, asNumber } from "../utils/validation.js";
-import Notification from "../models/Notification.js";
 
-const buildCertificateProjection = () => ({
-  _id: 1,
-  beltLevel: 1,
-  pdfUrl: 1,
-  passed: 1,
-  totalScore: {
-    $ifNull: ["$totalScore", { $ifNull: ["$scores.total", 0] }],
-  },
-  issuedAt: { $ifNull: ["$issuedAt", "$createdAt"] },
-  exam: {
-    _id: "$examDoc._id",
-    title: "$examDoc.title",
-    beltLevel: "$examDoc.beltLevel",
-    maxTheoryScore: "$examDoc.maxTheoryScore",
-  },
-  student: {
-    _id: "$student._id",
-    name: "$student.name",
-    email: "$student.email",
-    beltLevel: "$student.beltLevel",
-  },
-});
-
-const mapScoresFromFinal = (finalResult) => ({
-  morality: asNumber(finalResult?.practicalScores?.morality),
-  method: asNumber(finalResult?.methodTotal),
-  technique: asNumber(finalResult?.practicalScores?.technique),
-  physical: asNumber(finalResult?.practicalScores?.physical),
-  mental: asNumber(finalResult?.practicalScores?.mental),
-  total: asNumber(finalResult?.totalScore),
-});
-
-const fetchFinalResult = async (db, examId, studentId) => {
-  const [finalResult] = await db
-    .collection("finalExamResults")
-    .find({ exam: examId, student: studentId })
-    .sort({ finalizedAt: -1, date: -1, _id: -1 })
-    .limit(1)
-    .toArray();
-
-  return finalResult || null;
-};
-
-export const upsertCertificateForFinalResult = async (
-  db,
+const issue = async ({
+  userId,
+  type,
+  title,
+  description,
+  issuedBy,
   examId,
-  studentId
-  // optional: ensureFutureProof
-) => {
-  const [finalResult, exam, student] = await Promise.all([
-    fetchFinalResult(db, examId, studentId),
-    db.collection("exams").findOne({ _id: examId }),
-    db.collection("users").findOne(
-      { _id: studentId },
-      { projection: { password: 0 } }
-    ),
-  ]);
-
-  if (!exam) throw httpError(404, "Exam not found");
-  if (!student) throw httpError(404, "Student not found");
-  if (!finalResult) {
-    throw httpError(
-      400,
-      "Finalize the exam result before generating a certificate."
-    );
-  }
-
-  const scores = mapScoresFromFinal(finalResult);
-
-  const certificateResult = await db.collection("certificates").findOneAndUpdate(
-    { exam: examId, student: studentId },
-    {
-      $set: {
-        updatedAt: new Date(),
-      },
-      $setOnInsert: {
-        exam: examId,
-        student: studentId,
-        scores,
-        totalScore: scores.total,
-        passed: Boolean(finalResult.passed),
-        beltLevel: exam.beltLevel || student.beltLevel || "white",
-        pdfUrl: null,
-        issuedAt: new Date(),
-        createdAt: new Date(),
-        metadata: {
-          examTitle: exam.title,
-          studentName: student.name,
-        },
-      },
-    },
-    { upsert: true, returnDocument: "after" }
-  );
-
-  const created = !certificateResult.lastErrorObject?.updatedExisting;
-
-  return { certificate: certificateResult.value, created };
+  lessonId,
+  moduleId,
+  programId,
+  meta = {},
+}) => {
+  return await Certificate.create({
+    user: userId,
+    type,
+    title,
+    description,
+    issuedBy,
+    examId,
+    lessonId,
+    moduleId,
+    programId,
+    meta,
+    issuedAt: new Date(),
+  });
 };
 
-/* =====================================================
-   ADMIN: CREATE CERTIFICATE (AFTER FINAL RESULT)
-===================================================== */
-export const generateCertificate = asyncHandler(async (req, res) => {
-  const db = await getDb();
-  const examId = assertObjectId(req.body.examId, "examId");
-  const studentId = assertObjectId(req.body.studentId, "studentId");
-  const { certificate, created } = await upsertCertificateForFinalResult(
-    db,
-    examId,
-    studentId
-  );
+export const issueLessonCertificate = asyncHandler(async (req, res) => {
+  const { lessonId, studentId } = req.params;
 
-  if (certificate?._id) {
-    await Notification.create({
+  const lesson = await Lesson.findById(lessonId);
+  if (!lesson) throw httpError(404, "Lesson not found");
+
+  const cert = await issue({
+    userId: studentId,
+    issuedBy: req.user._id,
+    type: "completion",
+    title: `Lesson Completion: ${lesson.title}`,
+    description: "Successfully completed lesson requirements",
+    lessonId,
+  });
+
+  res.json({ success: true, data: { certificate: cert } });
+});
+
+export const issueModuleCertificate = asyncHandler(async (req, res) => {
+  const { moduleId, studentId } = req.params;
+
+  const module = await Module.findById(moduleId);
+  if (!module) throw httpError(404, "Module not found");
+
+  const cert = await issue({
+    userId: studentId,
+    issuedBy: req.user._id,
+    type: "module",
+    title: `Module Certificate: ${module.title}`,
+    description: "Completed all module lessons",
+    moduleId,
+  });
+
+  res.json({ success: true, data: { certificate: cert } });
+});
+
+export const issueProgramCertificate = asyncHandler(async (req, res) => {
+  const { programId, studentId } = req.params;
+
+  const program = await Program.findById(programId);
+  if (!program) throw httpError(404, "Program not found");
+
+  const cert = await issue({
+    userId: studentId,
+    issuedBy: req.user._id,
+    type: "program",
+    title: `${program.title} Certificate`,
+    description: "Completed the full training program",
+    programId,
+  });
+
+  res.json({ success: true, data: { certificate: cert } });
+});
+
+export const issuePerformanceCertificate = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+
+  const cert = await issue({
+    userId: studentId,
+    issuedBy: req.user._id,
+    type: "performance",
+    title: "Performance Evaluation",
+    description: "Admin-issued performance evaluation certificate",
+  });
+
+  res.json({ success: true, data: { certificate: cert } });
+});
+
+export const issueAttendanceCertificate = asyncHandler(async (req, res) => {
+  const { lessonId, studentId } = req.params;
+
+  const lesson = await Lesson.findById(lessonId);
+  if (!lesson) throw httpError(404, "Lesson not found");
+
+  const cert = await issue({
+    userId: studentId,
+    issuedBy: req.user._id,
+    type: "attendance",
+    title: `Attendance Certificate: ${lesson.title}`,
+    description: "Attended class successfully",
+    lessonId,
+  });
+
+  res.json({ success: true, data: { certificate: cert } });
+});
+
+export const issueManualCertificate = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+
+  const cert = await issue({
+    userId: studentId,
+    issuedBy: req.user._id,
+    type: "manual",
+    title: "Manual Certification",
+    description: "Manually issued certificate by admin",
+  });
+
+  res.json({ success: true, data: { certificate: cert } });
+});
+
+export const issueExamCertificate = asyncHandler(async (req, res) => {
+  const { examId, studentId } = req.params;
+
+  const exam = await Exam.findById(examId);
+  if (!exam) throw httpError(404, "Exam not found");
+
+  const cert = await issue({
+    userId: studentId,
+    issuedBy: req.user._id,
+    type: "exam",
+    title: `${exam.title} - Official Exam Certificate`,
+    description: "Successfully passed official exam requirements",
+    examId,
+  });
+
+  res.json({ success: true, data: { certificate: cert } });
+});
+
+export const overrideExamCertificate = asyncHandler(async (req, res) => {
+  const { examId, studentId } = req.params;
+
+  const exam = await Exam.findById(examId);
+  if (!exam) throw httpError(404, "Exam not found");
+
+  const cert = await issue({
+    userId: studentId,
+    issuedBy: req.user._id,
+    type: "manual",
+    title: `${exam.title} - Certificate (Override)`,
+    description: "Issued manually by admin regardless of exam status",
+    examId,
+    meta: { override: true },
+  });
+
+  res.json({ success: true, data: { certificate: cert } });
+});
+
+export const getMyCertificates = asyncHandler(async (req, res) => {
+  const certs = await Certificate.find({ user: req.user._id }).sort({
+    createdAt: -1,
+  });
+  res.json({ success: true, data: { certificates: certs } });
+});
+
+export const adminListCertificates = asyncHandler(async (req, res) => {
+  const certs = await Certificate.find()
+    .populate("user", "name email")
+    .populate("examId", "title")
+    .populate("lessonId", "title")
+    .populate("moduleId", "title")
+    .populate("programId", "title")
+    .sort({ createdAt: -1 });
+
+  res.json({ success: true, data: { certificates: certs } });
+});
+
+export const downloadCertificatePdf = asyncHandler(async (req, res) => {
+  try {
+    const { examId, studentId } = req.params;
+    const cert = await Certificate.findOne({
+      examId,
       user: studentId,
-      title: "Certificate Ready",
-      message: "Your certificate is ready for download.",
-      type: "certificate",
+    })
+      .populate("user", "name email")
+      .populate("examId", "title beltLevel");
+
+    if (!cert) throw httpError(404, "Certificate not found");
+
+    const student = cert.user || (await User.findById(studentId));
+    const exam = cert.examId || (await Exam.findById(examId));
+    const issueDate = cert.issuedAt || cert.createdAt || new Date();
+    const serial = cert._id?.toString();
+
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+
+    res
+      .status(200)
+      .setHeader("Content-Type", "application/pdf")
+      .setHeader(
+        "Content-Disposition",
+        `attachment; filename=\"certificate-${serial}.pdf\"`
+      );
+
+    doc.pipe(res);
+    doc.fontSize(20).text("Certificate of Achievement", { align: "center" });
+    doc.moveDown();
+    doc.fontSize(14).text(`Student: ${student?.name || "Student"}`);
+    doc.text(`Exam: ${exam?.title || "Exam"}`);
+    doc.text(`Belt: ${exam?.beltLevel || cert.meta?.beltLevel || "N/A"}`);
+    doc.text(`Issued: ${new Date(issueDate).toLocaleDateString()}`);
+    doc.text(`Certificate ID: ${serial}`);
+    doc.moveDown();
+    doc
+      .fontSize(12)
+      .text(
+        "This certifies that the student has successfully completed the assessment requirements.",
+        { align: "left" }
+      );
+    doc.end();
+  } catch (err) {
+    console.error("Certificate PDF error:", err);
+    const status = err.statusCode || 500;
+    res.status(status).json({
+      success: false,
+      error: {
+        message: err.message || "Failed to generate certificate PDF",
+        code: err.code || status,
+        ...(err.details ? { details: err.details } : {}),
+      },
     });
   }
-
-  res.status(created ? 201 : 200).json({
-    success: true,
-    created,
-    certificate,
-  });
-});
-
-/* =====================================================
-   COACH/ADMIN: CHECK CERTIFICATE EXISTS
-===================================================== */
-export const checkCertificateExists = asyncHandler(async (req, res) => {
-  const db = await getDb();
-  const examId = assertObjectId(req.params.examId, "examId");
-  const studentId = assertObjectId(req.params.studentId, "studentId");
-
-  const cert = await db.collection("certificates").findOne({
-    exam: examId,
-    student: studentId,
-  });
-
-  res.json({
-    success: true,
-    exists: Boolean(cert),
-    certificateId: cert?._id,
-  });
-});
-
-/* =====================================================
-   STUDENT: MY CERTIFICATES
-===================================================== */
-export const getMyCertificates = asyncHandler(async (req, res) => {
-  const db = await getDb();
-  const studentId = assertObjectId(req.user._id, "studentId");
-
-  const certificates = await db
-    .collection("certificates")
-    .aggregate([
-      { $match: { student: studentId } },
-      {
-        $lookup: {
-          from: "users",
-          localField: "student",
-          foreignField: "_id",
-          as: "student",
-        },
-      },
-      { $unwind: { path: "$student", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "exams",
-          localField: "exam",
-          foreignField: "_id",
-          as: "examDoc",
-        },
-      },
-      { $unwind: { path: "$examDoc", preserveNullAndEmptyArrays: true } },
-      { $project: buildCertificateProjection() },
-      { $sort: { issuedAt: -1 } },
-    ])
-    .toArray();
-
-  res.json({ success: true, certificates });
-});
-
-/* =====================================================
-   GENERATE/DOWNLOAD CERTIFICATE PDF
-===================================================== */
-export const generateCertificatePDF = asyncHandler(async (req, res) => {
-  const db = await getDb();
-  const examId = assertObjectId(req.params.examId, "examId");
-  const studentId = assertObjectId(req.params.studentId, "studentId");
-
-  if (
-    req.user?.role === "student" &&
-    req.user._id?.toString() !== studentId.toString()
-  ) {
-    throw httpError(403, "You can only access your own certificates.");
-  }
-
-  const [certificate] = await db
-    .collection("certificates")
-    .aggregate([
-      { $match: { exam: examId, student: studentId } },
-      {
-        $lookup: {
-          from: "users",
-          localField: "student",
-          foreignField: "_id",
-          as: "student",
-        },
-      },
-      { $unwind: { path: "$student", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "exams",
-          localField: "exam",
-          foreignField: "_id",
-          as: "exam",
-        },
-      },
-      { $unwind: { path: "$exam", preserveNullAndEmptyArrays: true } },
-    ])
-    .toArray();
-
-  if (!certificate) {
-    throw httpError(404, "Certificate not found");
-  }
-
-  const studentName = certificate.student?.name || "Student";
-  const examTitle = certificate.exam?.title || "Exam";
-  const beltLevel =
-    certificate.beltLevel || certificate.exam?.beltLevel || "N/A";
-  const totalScore =
-    certificate.totalScore ??
-    certificate.scores?.total ??
-    certificate.scores?.method ??
-    0;
-  const issuedAt = certificate.issuedAt || certificate.createdAt || new Date();
-
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader(
-    "Content-Disposition",
-    `inline; filename="certificate-${studentName}.pdf"`
-  );
-
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  doc.pipe(res);
-
-  doc.fontSize(22).text("Silat Academy", { align: "center" }).moveDown(0.5);
-  doc.fontSize(18).text("Certificate of Achievement", { align: "center" });
-  doc.moveDown(1.5);
-
-  doc.fontSize(12).text(`Awarded to: ${studentName}`);
-  doc.moveDown(0.5);
-  doc.text(`Exam: ${examTitle}`);
-  doc.text(`Belt Level: ${beltLevel}`);
-  doc.text(`Total Score: ${totalScore}`);
-  doc.text(`Issued On: ${new Date(issuedAt).toDateString()}`);
-  doc.moveDown(1);
-  doc.text(
-    "Congratulations on successfully completing the Silat assessment. Keep training and improving!",
-    { align: "left" }
-  );
-
-  doc.end();
 });

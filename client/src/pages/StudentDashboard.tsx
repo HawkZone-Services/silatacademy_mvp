@@ -1,12 +1,10 @@
-// ===============================
-// Student Dashboard (FINAL VERSION)
-// ===============================
-
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import NotificationsBell from "@/components/player/NotificationsBell";
-import NotificationsList from "@/components/player/NotificationsList";
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import {
   Card,
@@ -16,726 +14,954 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
-import { Calendar, Trophy, TrendingUp, Award } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import {
+  Calendar,
+  Trophy,
+  TrendingUp,
+  Award,
+  Clock,
+  BookOpen,
+  ClipboardList,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
+
+import playerService from "@/services/playerService";
+import attendanceService from "@/services/attendanceService";
+import lessonService from "@/services/lessonService";
 import examService from "@/services/examService";
 import certificateService from "@/services/certificateService";
 
+// ======================
+// Types (مرنة لو الـ API مختلف شويه)
+// ======================
+type BeltLevel = "white" | "yellow" | "blue" | "brown" | "red" | "black";
+
+interface StudentInfo {
+  _id: string;
+  name: string;
+  beltLevel?: BeltLevel;
+  beltLabel?: string;
+  beltColor?: string;
+  stats?: {
+    power?: number;
+    flexibility?: number;
+    endurance?: number;
+    speed?: number;
+  };
+}
+
+interface AttendanceSummary {
+  totalSessions: number;
+  attendedSessions: number;
+  absentSessions: number;
+  attendanceRate: number; // 0–100
+  lastSessionDate?: string;
+}
+
+interface LessonItem {
+  _id: string;
+  title: string;
+  beltLevel?: BeltLevel;
+  programLevel?: "beginner" | "intermediate" | "advanced";
+  completed?: boolean;
+  locked?: boolean;
+  lockedReason?: string | null;
+  isEligible?: boolean;
+  reasonIfNotEligible?: string | null;
+}
+
+interface ExamItem {
+  _id: string;
+  title: string;
+  beltLevel: BeltLevel;
+  status: string; // published / draft / ...
+  locked?: boolean;
+  isEligible?: boolean;
+  lockedReason?: string | null;
+  reasonIfNotEligible?: string | null;
+  lessonsRequired?: number;
+  lessonsCompleted?: number;
+}
+
+interface AttemptItem {
+  _id: string;
+  exam: {
+    _id: string;
+    title: string;
+    beltLevel: BeltLevel;
+    maxTheoryScore?: number;
+  };
+  theoryScore?: number;
+  finalTotalScore?: number;
+  finalPassed?: boolean;
+  submittedAt?: string;
+  finalizedAt?: string;
+}
+
+interface CertificateItem {
+  _id: string;
+  title?: string;
+  beltLevel?: BeltLevel;
+  type?: string;
+  issuedAt?: string;
+}
+
+// ======================
+// Helper: belt UI
+// ======================
+const beltLabel = (belt?: BeltLevel) => {
+  if (!belt) return "Unranked";
+  return `${belt.charAt(0).toUpperCase()}${belt.slice(1)} Belt`;
+};
+
+const beltColorClass = (belt?: BeltLevel) => {
+  switch (belt) {
+    case "white":
+      return "bg-white text-black border";
+    case "yellow":
+      return "bg-yellow-400 text-black";
+    case "blue":
+      return "bg-blue-500 text-white";
+    case "brown":
+      return "bg-amber-800 text-white";
+    case "red":
+      return "bg-red-500 text-white";
+    case "black":
+      return "bg-black text-white";
+    default:
+      return "bg-muted text-foreground";
+  }
+};
+
 export default function StudentDashboard() {
-  const { toast } = useToast();
-  const [showNotifications, setShowNotifications] = useState(false);
+  const navigate = useNavigate();
 
-  const user =
-    JSON.parse(localStorage.getItem("user") || "null") ||
-    JSON.parse(sessionStorage.getItem("user") || "null");
-
+  // ============ AUTH ============
   const token =
     localStorage.getItem("token") || sessionStorage.getItem("token");
 
-  const studentName = user?.name || "Student";
-  const beltLevel = user?.beltLevel || "white";
+  const [student, setStudent] = useState<StudentInfo | null>(null);
+  const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
+  const [lessons, setLessons] = useState<LessonItem[]>([]);
+  const [exams, setExams] = useState<ExamItem[]>([]);
+  const [attempts, setAttempts] = useState<AttemptItem[]>([]);
+  const [certificates, setCertificates] = useState<CertificateItem[]>([]);
 
-  const [availableExams, setAvailableExams] = useState<any[]>([]);
-  const [results, setResults] = useState<any[]>([]);
-  const [certificates, setCertificates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+  const [results, setResults] = useState<any[]>([]);
+
+  const beltLevel = student?.beltLevel || "white";
+  
+
+  // أي تحكم بسيط في تبويب الاختبارات
+  const [selectedExamTab, setSelectedExamTab] = useState<
+    "available" | "history"
+  >("available");
+
+  // ======================
+  // Check auth on mount
+  // ======================
+  const checkAuth = () => {
+    const savedUser =
+      JSON.parse(localStorage.getItem("user") || "null") ||
+      JSON.parse(sessionStorage.getItem("user") || "null");
+
+    if (!token || !savedUser) {
+      navigate("/login");
+    }
+  };
 
   // ===============================
-  // Fetch Results FIRST
+  // Fetch Attempts / Results
   // ===============================
   const fetchResults = useCallback(async () => {
     if (!token) return [];
 
     try {
-      const res = await examService.getMyAttempts();
+      const res: any = await examService.getMyAttempts();
+      const attempts = Array.isArray(res?.data?.attempts)
+        ? res.data.attempts
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
 
-      const data = await res.json();
-
-      const attempts = Array.isArray(data.attempts) ? data.attempts : [];
       setResults(attempts);
       return attempts;
     } catch (err) {
       console.error("Fetch results error:", err);
+      setResults([]);
       return [];
     }
   }, [token]);
 
-  // ===============================
-  // Exam Registration Status
-  // ===============================
-  const getExamStatus = useCallback(
-    async (examId: string) => {
-      try {
-        const res = await examService.getRegistrationStatus(examId);
-
-        const data = await res.json();
-        return data.status || "none";
-      } catch {
-        return "none";
-      }
-    },
-    [token]
-  );
-
-  // ===============================
-  // Fetch Available Exams
-  // ===============================
-  const fetchAvailableExams = useCallback(
-    async (attemptsOverride?: any[]) => {
-      try {
-        if (!token) return;
-
-        const attemptsList = Array.isArray(attemptsOverride)
-          ? attemptsOverride
-          : results;
-        const attemptByExam = new Map(
-          attemptsList.map((r) => [r.exam?._id || r.exam, r])
-        );
-
-        const res = await examService.getAvailableExams(beltLevel);
-
-        const data = await res.json();
-
-        if (!Array.isArray(data.exams)) {
-          setAvailableExams([]);
-          return;
-        }
-
-        const examsWithStatus = await Promise.all(
-          data.exams.map(async (exam: any) => {
-            const status = await getExamStatus(exam._id);
-
-            const passMark = exam.passMark ?? 0;
-            const maxTheoryScore = exam.maxTheoryScore ?? 40;
-            const passPercent =
-              maxTheoryScore > 0
-                ? Math.round((passMark / maxTheoryScore) * 100)
-                : passMark;
-
-          const attempt = attemptByExam.get(exam._id);
-          const attemptStatus = attempt
-            ? attempt.submittedAt
-              ? "completed"
-              : "attempted"
-            : "notAttempted";
-
-          return {
-            ...exam,
-            status,
-            passPercent,
-            attemptStatus,
-            attemptId: attempt?._id,
-            locked: Boolean(exam.locked),
-            lessonsCompleted: exam.lessonsCompleted,
-            lessonsRequired: exam.lessonsRequired,
-          };
-        })
-      );
-
-        const filtered = examsWithStatus.filter((exam) => {
-          const att = attemptByExam.get(exam._id);
-          if (!att) return true;
-          if (att.submittedAt) return false;
-          if (
-            att.finalPassed !== undefined ||
-            att.finalTotalScore !== undefined
-          ) {
-            return false;
-          }
-          return true;
+  // ======================
+  // Fetchers (using apiClient normalized responses)
+  // ======================
+  const fetchStudent = async () => {
+    const res: any = await playerService.getMe();
+    if (res?.success) {
+      const payload = res.data || res.raw || {};
+      const data = payload.player || payload.user || payload;
+      if (data?._id) {
+        setStudent({
+          _id: data._id,
+          name: data.name,
+          beltLevel: data.beltLevel,
+          beltLabel: data.beltLabel,
+          beltColor: data.beltColor,
+          stats: data.stats || {},
         });
-
-        setAvailableExams(filtered);
-      } catch (err) {
-        console.error("Fetch available exams error:", err);
       }
-    },
-    [beltLevel, getExamStatus, results, token]
-  );
-
-  // ===============================
-  // Fetch Certificates
-  // ===============================
-  const fetchCertificates = useCallback(async () => {
-    if (!token) return [];
-
+    }
+  };
+  const fetchAttendanceRecords = async () => {
     try {
-      const res = await certificateService.getMyCertificates();
+      const res = await attendanceService.getMyAttendance();
+      const logs = Array.isArray(res?.data?.attendance)
+        ? res.data.attendance
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
+      setAttendanceRecords(logs);
+    } catch (error) {
+      console.error("Attendance logs fetch error:", error);
+    }
+  };
+  const fetchAttendance = async () => {
+    try {
+      const res: any = await attendanceService.getMySummary();
+      if (res?.success === false) return;
 
-      const data = await res.json();
-      if (Array.isArray(data.certificates)) {
-        setCertificates(data.certificates);
-        return data.certificates;
+      const summary = res.data?.summary || res.data || res.raw || {};
+      setAttendance({
+        totalSessions: summary.totalSessions || 0,
+        attendedSessions: summary.attendedSessions || 0,
+        absentSessions: summary.absentSessions || 0,
+        attendanceRate: summary.attendanceRate || 0,
+        lastSessionDate: summary.lastSessionDate,
+      });
+    } catch (error) {
+      console.error("Attendance fetch error:", error);
+    }
+  };
+
+  const fetchLessons = async () => {
+    try {
+      const res: any = await lessonService.getMyLessons();
+      if (res?.success === false) {
+        setLessons([]);
+        return;
       }
+      const list = Array.isArray(res?.data?.lessons)
+        ? res.data.lessons
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
+      setLessons(list);
+    } catch (error) {
+      console.error("Lessons fetch error:", error);
+      setLessons([]);
+    }
+  };
+
+  const fetchExams = async () => {
+    try {
+      const res: any = await examService.getAvailableExams(beltLevel);
+      if (res?.success === false) {
+        setExams([]);
+        return;
+      }
+      const list = Array.isArray(res?.data?.exams)
+        ? res.data.exams
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
+      setExams(list);
+    } catch (error) {
+      console.error("Exams fetch error:", error);
+      setExams([]);
+    }
+  };
+
+  const fetchAttempts = async () => {
+    try {
+      const res: any = await examService.getMyAttempts();
+      if (res?.success === false) {
+        setAttempts([]);
+        return;
+      }
+      const list = Array.isArray(res?.data?.attempts)
+        ? res.data.attempts
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
+      setAttempts(list);
+    } catch (error) {
+      console.error("Attempts fetch error:", error);
+      setAttempts([]);
+    }
+  };
+
+  const fetchCertificates = async () => {
+    try {
+      const res: any = await certificateService.myCertificates();
+      if (res?.success === false) {
+        setCertificates([]);
+        return;
+      }
+      const list = Array.isArray(res?.data?.certificates)
+        ? res.data.certificates
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
+      setCertificates(list);
+    } catch (error) {
+      console.error("Certificates fetch error:", error);
       setCertificates([]);
-      return [];
-    } catch (err) {
-      console.error("Certificate fetch error:", err);
-      return [];
     }
+  };
+
+  // ======================
+  // Start / Continue Exam
+  // ======================
+  const canAccessExam = (exam: ExamItem) => {
+    if (exam.locked || exam.isEligible === false) return false;
+    return true;
+  };
+
+  const handleStartExam = async (exam: ExamItem) => {
+    if (!canAccessExam(exam)) return;
+
+    try {
+      const res: any = await examService.startAttempt(exam._id);
+      if (res?.success === false) {
+        const reason =
+          res?.error?.details?.reason ||
+          (Array.isArray(res?.error?.details)
+            ? res.error.details[0]?.msg || res.error.details[0]
+            : res?.error?.details) ||
+          res?.error?.message ||
+          res?.message;
+        alert(reason || "Unable to start exam");
+        return;
+      }
+      const attemptId =
+        res.data?.attemptId ||
+        res.data?.attempt?._id ||
+        res.attemptId ||
+        res.data?.data?.attemptId;
+      if (attemptId) {
+        navigate(`/student/exams/${exam._id}?attempt=${attemptId}`);
+      }
+    } catch (error) {
+      console.error("Start exam error:", error);
+      alert("Unable to start exam");
+    }
+  };
+
+  // ======================
+  // Effects
+  // ======================
+  useEffect(() => {
+    checkAuth();
+
+    const loadAll = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchStudent(),
+        fetchAttendance(),
+        fetchLessons(),
+        fetchExams(),
+        fetchAttempts(),
+        fetchCertificates(),
+      ]);
+      setLoading(false);
+    };
+
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  const downloadCertificate = async (
-    examId: string,
-    studentId?: string | null
-  ) => {
-    const resolvedStudentId = studentId || user?._id;
-    if (!examId || !resolvedStudentId || !token) return;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-lg">Loading your dashboard...</div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
-    try {
-      const res = await certificateService.downloadPDF(
-        examId,
-        resolvedStudentId
-      );
-
-      if (!res.ok) {
-        throw new Error("Failed to download certificate");
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `certificate-${examId}-${resolvedStudentId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: any) {
-      console.error(err);
-      toast({
-        variant: "destructive",
-        title: "Download failed",
-        description: err?.message || "Could not download certificate.",
-      });
-    }
-  };
-
-  const refreshData = useCallback(async () => {
-    const attempts = await fetchResults();
-    await fetchAvailableExams(attempts);
-    await fetchCertificates();
-    setLoading(false);
-  }, [fetchAvailableExams, fetchCertificates, fetchResults]);
-
-  // ===============================
-  // Sync & refresh hooks
-  // ===============================
-  useEffect(() => {
-    if (!token) return;
-    refreshData();
-  }, [token, refreshData]);
-
-  useEffect(() => {
-    if (!token) return;
-    const interval = setInterval(() => {
-      refreshData();
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [token, refreshData]);
-
-  useEffect(() => {
-    if (localStorage.getItem("refreshResults") === "1") {
-      refreshData();
-      localStorage.removeItem("refreshResults");
-    }
-    if (localStorage.getItem("refreshCertificates") === "1") {
-      refreshData();
-      localStorage.removeItem("refreshCertificates");
-    }
-  }, [refreshData]);
-
-  // ===============================
-  // Register for Exam
-  // ===============================
-  const handleRegister = async (examId: string) => {
-    try {
-      const res = await examService.registerForExam({
-        examId,
-        playerId: user._id,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        toast({
-          variant: "destructive",
-          title: "Registration Failed",
-          description: data.message || "Unable to register.",
-        });
-        return;
-      }
-
-      toast({
-        title: "Registration Sent",
-        description: "Waiting for instructor approval.",
-      });
-
-      refreshData();
-    } catch (err) {
-      console.error("Register error:", err);
-    }
-  };
-
-  // ===============================
-  // Start Exam
-  // ===============================
-  const handleStartExam = async (examId: string, attemptId?: string) => {
-    const existing = results.find((r) => r.exam?._id === examId);
-    const existingAttemptId = attemptId || existing?._id;
-
-    if (
-      existing &&
-      (existing.submittedAt ||
-        existing.finalPassed !== undefined ||
-        existing.finalTotalScore !== undefined)
-    ) {
-      toast({
-        variant: "destructive",
-        title: "Exam Already Completed",
-        description: "You cannot retake this exam.",
-      });
-      return;
-    }
-
-    if (existing && existingAttemptId) {
-      window.location.href = `/exam/${examId}?attempt=${existingAttemptId}`;
-      return;
-    }
-
-    try {
-      const res = await examService.startAttempt({ examId });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast({
-          variant: "destructive",
-          title: "Could not start exam",
-          description: data.message || "Error",
-        });
-        return;
-      }
-
-      toast({
-        title: "Exam Started",
-        description: "Redirecting...",
-      });
-
-      window.location.href = `/exam/${examId}?attempt=${data.attemptId}`;
-    } catch (err) {
-      console.error("Start exam error:", err);
-    }
-  };
-
-  // ===============================
-  // Stats
-  // ===============================
-  const certificateByExam: Record<string, any> = certificates.reduce(
-    (acc, cert) => {
-      const examId = cert.exam?._id || cert.exam || cert.examId;
-      if (examId) {
-        acc[String(examId)] = cert;
-      }
-      return acc;
-    },
-    {}
-  );
-
-  const stats = [
-    {
-      title: "Current Belt",
-      value: beltLevel.toUpperCase() + " Belt",
-      icon: Award,
-      color: "text-secondary",
-    },
-    {
-      title: "Exams Passed",
-      value: results.filter((r) => r.finalPassed ?? r.passed).length.toString(),
-      icon: Trophy,
-      color: "text-primary",
-    },
-    {
-      title: "Attempts",
-      value: results.length.toString(),
-      icon: TrendingUp,
-      color: "text-secondary",
-    },
-    {
-      title: "Next Test",
-      value: "Coming Soon",
-      icon: Calendar,
-      color: "text-primary",
-    },
-  ];
+  const attendanceRate = attendance?.attendanceRate ?? 0;
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="container px-4 py-8">
-        <div className="mb-8 flex items-center justify-between gap-4">
+      <main className="container mx-auto px-4 py-10 mt-16 space-y-8">
+        {/* =======================
+            Header / Overview
+        ======================== */}
+        <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="font-display text-4xl font-bold mb-2">
-              Welcome back, <span className="text-primary">{studentName}</span>
+            <h1 className="text-3xl sm:text-4xl font-bold flex items-center gap-3">
+              Welcome back,
+              <span className="text-secondary">
+                {student?.name || "Student"}
+              </span>
             </h1>
-            <p className="text-muted-foreground">
-              Track your progress and continue your Silat journey
+            <p className="text-muted-foreground mt-2">
+              Track your training, attendance, lessons, and exams in one place.
             </p>
           </div>
-          <NotificationsBell onClick={() => setShowNotifications((v) => !v)} />
-        </div>
 
-        {showNotifications && (
-          <div className="mb-6">
-            <NotificationsList />
+          <div className="flex flex-col items-start sm:items-end gap-2">
+            <Badge
+              className={`px-4 py-2 text-sm font-semibold ${beltColorClass(
+                student?.beltLevel
+              )}`}
+            >
+              {beltLabel(student?.beltLevel)}
+            </Badge>
+            {attendance && (
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Attendance: {attendanceRate.toFixed(0)}%
+              </div>
+            )}
           </div>
-        )}
+        </section>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {stats.map((stat, index) => {
-            const Icon = stat.icon;
-            return (
-              <Card key={index}>
-                <CardHeader className="pb-2">
-                  <CardDescription className="flex items-center gap-2">
-                    <Icon className={`h-4 w-4 ${stat.color}`} />
-                    {stat.title}
+        {/* =======================
+            Stats Cards
+        ======================== */}
+        <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                Attendance Rate
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold">
+                  {attendanceRate.toFixed(0)}%
+                </span>
+              </div>
+              <Progress value={attendanceRate} className="mt-3" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                Lessons Completed
+              </CardTitle>
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {lessons.length ? (
+                <>
+                  <div className="text-2xl font-bold">
+                    {lessons.filter((l) => l.completed).length} /{" "}
+                    {lessons.length}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Across your current belt level
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No lessons assigned yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                Available Exams
+              </CardTitle>
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{exams.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Exams open for registration / attempts
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                Certificates
+              </CardTitle>
+              <Award className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{certificates.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Completed programs, exams, and milestones
+              </p>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* =======================
+            TABS
+        ======================== */}
+        <Tabs defaultValue="learning" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="learning">Learning Path</TabsTrigger>
+            <TabsTrigger value="exams">Exams & Results</TabsTrigger>
+            <TabsTrigger value="certificates">Certificates</TabsTrigger>
+            <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          </TabsList>
+
+          {/* ========== LEARNING PATH ========== */}
+          <TabsContent value="learning" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Lessons & Quizzes</CardTitle>
+                <CardDescription>
+                  Complete your lessons and their quizzes before attempting belt
+                  exams.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {lessons.length === 0 && (
+                  <p className="text-muted-foreground text-sm">
+                    No lessons assigned yet.
+                  </p>
+                )}
+
+                {lessons.map((lesson) => (
+                  <div
+                    key={lesson._id}
+                    className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-accent/10"
+                  >
+                    <div>
+                      <h3 className="font-semibold flex items-center gap-2">
+                        {lesson.title}
+                        {lesson.completed && (
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1 text-xs"
+                          >
+                            <CheckCircle2 className="h-3 w-3" /> Completed
+                          </Badge>
+                        )}
+                        {lesson.locked && !lesson.completed && (
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1 text-xs"
+                          >
+                            <AlertCircle className="h-3 w-3" /> Locked
+                          </Badge>
+                        )}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {lesson.programLevel
+                          ? `${lesson.programLevel.toUpperCase()} level`
+                          : "General training lesson"}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={lesson.locked}
+                        onClick={() => navigate(`/lesson/${lesson._id}`)}
+                      >
+                        View Lesson
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={lesson.locked}
+                        onClick={() => navigate(`/lesson/${lesson._id}/quiz`)}
+                      >
+                        Take Quiz
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ========== EXAMS & RESULTS ========== */}
+          <TabsContent value="exams" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <ClipboardList className="h-5 w-5" />
+                Exams & Results
+              </h2>
+              <div className="flex gap-2 text-sm">
+                <Button
+                  variant={
+                    selectedExamTab === "available" ? "default" : "outline"
+                  }
+                  size="sm"
+                  onClick={() => setSelectedExamTab("available")}
+                >
+                  Available Exams
+                </Button>
+                <Button
+                  variant={
+                    selectedExamTab === "history" ? "default" : "outline"
+                  }
+                  size="sm"
+                  onClick={() => setSelectedExamTab("history")}
+                >
+                  My Attempts
+                </Button>
+              </div>
+            </div>
+
+            {selectedExamTab === "available" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Available Exams</CardTitle>
+                  <CardDescription>
+                    Exams you can register for or start, based on your
+                    attendance and lesson completion.
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-3xl font-bold">{stat.value}</p>
+                <CardContent className="space-y-3">
+                  {exams.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No available exams at the moment.
+                    </p>
+                  )}
+
+                  {exams.map((exam) => {
+                    const locked = exam.locked || exam.isEligible === false;
+                    const reason =
+                      exam.reasonIfNotEligible || exam.lockedReason || null;
+                    const progressText =
+                      typeof exam.lessonsRequired === "number"
+                        ? `${exam.lessonsCompleted || 0}/${
+                            exam.lessonsRequired
+                          } lessons completed`
+                        : null;
+
+                    return (
+                      <div
+                        key={exam._id}
+                        className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-accent/10"
+                      >
+                        <div>
+                          <h3 className="font-semibold flex items-center gap-2">
+                            {exam.title}
+                            <Badge
+                              variant="outline"
+                              className="capitalize text-xs"
+                            >
+                              {exam.beltLevel || "belt"}
+                            </Badge>
+                            {locked && (
+                              <Badge
+                                variant="outline"
+                                className="flex items-center gap-1 text-xs"
+                              >
+                                <AlertCircle className="h-3 w-3" /> Locked
+                              </Badge>
+                            )}
+                          </h3>
+                          {progressText && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {progressText}
+                            </p>
+                          )}
+                          {reason && (
+                            <p className="text-xs text-red-600 mt-1">
+                              {reason}
+                            </p>
+                          )}
+                        </div>
+
+                        <Button
+                          size="sm"
+                          disabled={locked}
+                          onClick={() => handleStartExam(exam)}
+                        >
+                          {locked ? "Locked" : "Start Exam"}
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
+            )}
 
-        {/* Tabs */}
-        <Tabs defaultValue="exams" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
-            <TabsTrigger value="exams">Available Exams</TabsTrigger>
-            <TabsTrigger value="results">My Results</TabsTrigger>
-            <TabsTrigger value="certs">Certificates</TabsTrigger>
-          </TabsList>
-          {/* AVAILABLE EXAMS */}
-          <TabsContent value="exams">
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Exams</CardTitle>
-                <CardDescription>Start your belt exams</CardDescription>
-              </CardHeader>
+            {selectedExamTab === "history" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>My Attempts & Results</CardTitle>
+                  <CardDescription>
+                    Track your theory scores, practical evaluation, and final
+                    results.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {attempts.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      You haven&apos;t taken any exams yet.
+                    </p>
+                  )}
 
-              <CardContent>
-                {availableExams.length === 0 ? (
-                  <p className="text-muted-foreground">No exams available.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border border-border/50">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Exam Title
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Belt Level
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Status
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Attempt Status
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Action
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {availableExams.map((exam) => {
-                          const attemptStatus =
-                            exam.attemptStatus || "notAttempted";
-                          const attemptId = exam.attemptId;
-                          const canStart =
-                            exam.status === "approved" &&
-                            attemptStatus === "notAttempted" &&
-                            !exam.locked;
-                          const canResume =
-                            attemptStatus === "attempted" &&
-                            Boolean(attemptId) &&
-                            !exam.locked;
-                          const alreadyDone = attemptStatus === "completed";
+                  {attempts.map((att) => {
+                    const exam = att.exam || {};
+                    const statusLabel = att.finalPassed
+                      ? "Passed"
+                      : att.finalPassed === false
+                      ? "Failed"
+                      : att.submittedAt
+                      ? "Waiting for practical"
+                      : "In progress";
 
-                          let actionLabel = "Register";
-                          let disabled = false;
-                          let onClick: (() => void) | undefined = () =>
-                            handleRegister(exam._id);
-
-                          if (exam.locked) {
-                            actionLabel = "Exam Locked";
-                            disabled = true;
-                            onClick = undefined;
-                          } else if (exam.status === "pending") {
-                            actionLabel = "Pending approval";
-                            disabled = true;
-                            onClick = undefined;
-                          } else if (alreadyDone) {
-                            actionLabel = "Completed";
-                            disabled = true;
-                            onClick = undefined;
-                          } else if (canResume) {
-                            actionLabel = "Resume Exam";
-                            onClick = () =>
-                              handleStartExam(exam._id, attemptId);
-                          } else if (canStart || exam.status === "approved") {
-                            actionLabel = "Start Exam";
-                            onClick = () => handleStartExam(exam._id);
-                          }
-
-                          return (
-                            <tr
-                              key={exam._id}
-                              className="border-t border-border/50 text-sm"
+                    return (
+                      <div
+                        key={att._id}
+                        className="p-3 rounded-lg border border-border/50 bg-accent/10 flex items-center justify-between"
+                      >
+                        <div>
+                          <h3 className="font-semibold flex items-center gap-2">
+                            {exam.title}
+                            <Badge
+                              variant="outline"
+                              className="capitalize text-xs"
                             >
-                              <td className="px-3 py-2">{exam.title}</td>
-                              <td className="px-3 py-2 capitalize">
-                                {exam.beltLevel}
-                              </td>
-                              <td className="px-3 py-2 capitalize">
-                                {exam.locked ? "locked" : exam.status}
-                              </td>
-                              <td className="px-3 py-2 capitalize">
-                                {exam.locked
-                                  ? `Locked (${exam.lessonsCompleted ?? 0}/${
-                                      exam.lessonsRequired ?? 0
-                                    } lessons)`
-                                  : attemptStatus}
-                              </td>
-                              <td className="px-3 py-2">
-                                <button
-                                  className={`px-3 py-1 rounded text-white ${
-                                    disabled
-                                      ? "bg-gray-400 cursor-not-allowed"
-                                      : "bg-primary hover:bg-primary/90"
-                                  }`}
-                                  disabled={disabled}
-                                  onClick={onClick}
-                                >
-                                  {actionLabel}
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          {/* RESULTS */}
-          <TabsContent value="results">
-            <Card>
-              <CardHeader>
-                <CardTitle>Exam Results</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {results.length === 0 ? (
-                  <p className="text-muted-foreground">No results yet.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border border-border/50">
-                      <thead className="bg-muted">
-                        <tr>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Exam Title
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Theory
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Practical
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Total
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Passed
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Certificate
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Date
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {results.map((result) => {
-                          const practicalScores =
-                            result.finalPracticalScores || result.practicalScores;
-                          let practical =
-                            (practicalScores?.morality || 0) +
-                              (practicalScores?.practicalMethod || 0) +
-                              (practicalScores?.technique || 0) +
-                              (practicalScores?.physical || 0) +
-                              (practicalScores?.mental || 0) || 0;
+                              {exam.beltLevel || "belt"}
+                            </Badge>
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Theory: {att.theoryScore ?? 0} /{" "}
+                            {exam.maxTheoryScore ?? "?"} • Final:{" "}
+                            {att.finalTotalScore ?? "-"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Status: {statusLabel}
+                          </p>
+                        </div>
 
-                          const total =
-                            result.finalTotalScore ??
-                            practical +
-                              (typeof result.theoryScore === "number"
-                                ? result.theoryScore
-                                : 0);
-                          if (
-                            (!practical || practical === 0) &&
-                            typeof total === "number" &&
-                            typeof result.theoryScore === "number"
-                          ) {
-                            practical = Math.max(
-                              0,
-                              total - (result.theoryScore || 0)
-                            );
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                            navigate(`/student/exams/${exam._id}?attempt=${att._id}`)
                           }
-
-                          const passed =
-                            typeof result.finalPassed === "boolean"
-                              ? result.finalPassed
-                              : result.passed;
-                          const hasFinal =
-                            typeof result.finalPassed === "boolean";
-                          const examId = result.exam?._id || result.exam;
-                          const cert = examId
-                            ? certificateByExam[String(examId)]
-                            : null;
-
-                          return (
-                            <tr
-                              key={result._id}
-                              className="border-t border-border/50 text-sm"
-                            >
-                              <td className="px-3 py-2">
-                                {result.exam?.title || "Exam"}
-                              </td>
-                              <td className="px-3 py-2">
-                                {result.theoryScore ?? 0}
-                              </td>
-                              <td className="px-3 py-2">
-                                {hasFinal ? practical : "Pending"}
-                              </td>
-                              <td className="px-3 py-2">
-                                {hasFinal ? total : "Pending"}
-                              </td>
-                              <td className="px-3 py-2">
-                                {hasFinal ? (passed ? "Yes" : "No") : "Pending"}
-                              </td>
-                              <td className="px-3 py-2">
-                                {cert ? (
-                                  <button
-                                    className="px-3 py-1 bg-primary text-white rounded hover:bg-primary/90"
-                                    onClick={() =>
-                                      examId && downloadCertificate(examId, user?._id)
-                                    }
-                                  >
-                                    Download
-                                  </button>
-                                ) : (
-                                  <span className="text-muted-foreground">
-                                    Pending
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2">
-                                {result.submittedAt
-                                  ? new Date(result.submittedAt).toLocaleString()
-                                  : "-"}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                          >
+                            View Details
+                          </Button>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
-          {/* CERTIFICATES */}
-          <TabsContent value="certs">
+
+          {/* ========== CERTIFICATES ========== */}
+          <TabsContent value="certificates" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>My Certificates</CardTitle>
                 <CardDescription>
-                  View, verify & download your Silat certificates
+                  Official certificates for completed exams, programs, and
+                  special achievements.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 max-h-[500px] overflow-y-auto">
+                {certificates.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    You don&apos;t have any certificates yet.
+                  </p>
+                )}
+
+                {certificates.map((cert) => (
+                  <div
+                    key={cert._id}
+                    className="p-3 rounded-lg border border-border/50 bg-accent/10 flex items-center justify-between"
+                  >
+                    <div>
+                      <h3 className="font-semibold flex items-center gap-2">
+                        {cert.title || "Certificate"}
+                        {cert.type && (
+                          <Badge variant="outline" className="text-xs">
+                            {cert.type}
+                          </Badge>
+                        )}
+                        {cert.beltLevel && (
+                          <Badge
+                            variant="outline"
+                            className="capitalize text-xs"
+                          >
+                            {cert.beltLevel}
+                          </Badge>
+                        )}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Issued at:{" "}
+                        {cert.issuedAt
+                          ? new Date(cert.issuedAt).toLocaleDateString()
+                          : "-"}
+                      </p>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/certificate/${cert._id}`)}
+                    >
+                      View / Download
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ========== ATTENDANCE (FULL INTEGRATION) ========== */}
+          <TabsContent value="attendance">
+            <Card>
+              <CardHeader>
+                <CardTitle>Attendance Details</CardTitle>
+                <CardDescription>
+                  Your session attendance, trends, and daily logs.
                 </CardDescription>
               </CardHeader>
 
-              <CardContent>
-                {certificates.length === 0 ? (
-                  <p className="text-muted-foreground">
-                    No certificates available yet.
-                  </p>
+              <CardContent className="space-y-6">
+                {/* ====================
+          SUMMARY SECTION
+      ===================== */}
+                {attendance ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                      <div className="p-3 border rounded-lg bg-accent/10">
+                        <p className="text-xs text-muted-foreground">
+                          Total Sessions
+                        </p>
+                        <p className="text-xl font-semibold">
+                          {attendance.totalSessions}
+                        </p>
+                      </div>
+
+                      <div className="p-3 border rounded-lg bg-accent/10">
+                        <p className="text-xs text-muted-foreground">
+                          Attended
+                        </p>
+                        <p className="text-xl font-semibold">
+                          {attendance.attendedSessions}
+                        </p>
+                      </div>
+
+                      <div className="p-3 border rounded-lg bg-accent/10">
+                        <p className="text-xs text-muted-foreground">Absent</p>
+                        <p className="text-xl font-semibold">
+                          {attendance.absentSessions}
+                        </p>
+                      </div>
+
+                      <div className="p-3 border rounded-lg bg-accent/10">
+                        <p className="text-xs text-muted-foreground">
+                          Last Session
+                        </p>
+                        <p className="text-sm font-medium">
+                          {attendance.lastSessionDate
+                            ? new Date(
+                                attendance.lastSessionDate
+                              ).toLocaleDateString()
+                            : "-"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">
+                        Attendance Rate
+                      </p>
+                      <Progress value={attendance.attendanceRate} />
+                    </div>
+                  </>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border border-border/50">
-                      <thead className="bg-muted">
+                  <p>No attendance summary yet.</p>
+                )}
+
+                {/* ====================
+          DAILY RECORDS TABLE
+      ===================== */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-muted px-4 py-2 font-semibold text-sm">
+                    Attendance Records
+                  </div>
+
+                  {attendanceRecords.length === 0 ? (
+                    <div className="p-4 text-muted-foreground text-sm">
+                      No attendance records found.
+                    </div>
+                  ) : (
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-accent/10">
                         <tr>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Issue Date
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Belt Level
-                          </th>
-                          <th className="px-3 py-2 text-sm font-semibold">
-                            Download
-                          </th>
+                          <th className="px-3 py-2">Date</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2">Coach</th>
+                          <th className="px-3 py-2">Notes</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {certificates.map((cert) => {
-                          const issueDate = cert.issuedAt
-                            ? new Date(cert.issuedAt).toLocaleDateString()
-                            : "-";
-                          const belt =
-                            cert.exam?.beltLevel || cert.beltLevel || "-";
-                          const examId = cert.exam?._id || cert.exam || cert.examId;
-                          const studentId =
-                            cert.student?._id || cert.student || user?._id;
 
-                          return (
-                            <tr key={cert._id} className="border-t border-border/50">
-                              <td className="px-3 py-2 text-sm">{issueDate}</td>
-                              <td className="px-3 py-2 text-sm capitalize">
-                                {belt}
-                              </td>
-                              <td className="px-3 py-2 text-sm">
-                                <button
-                                  onClick={() =>
-                                    examId && downloadCertificate(examId, studentId)
-                                  }
-                                  className="px-3 py-1 bg-primary text-white rounded hover:bg-primary/90"
-                                >
-                                  Download Certificate
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                      <tbody>
+                        {attendanceRecords.map((log) => (
+                          <tr key={log._id} className="border-t">
+                            <td className="px-3 py-2">
+                              {new Date(log.sessionDate).toLocaleDateString()}
+                            </td>
+                            <td className="px-3 py-2">
+                              <Badge
+                                variant="outline"
+                                className={`capitalize ${
+                                  log.status === "present"
+                                    ? "text-green-600 border-green-600"
+                                    : "text-red-600 border-red-600"
+                                }`}
+                              >
+                                {log.status}
+                              </Badge>
+                            </td>
+                            <td className="px-3 py-2">
+                              {log.coachName || "—"}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {log.notes || "—"}
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
-                  </div>
-                )}
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
+      </main>
 
       <Footer />
     </div>

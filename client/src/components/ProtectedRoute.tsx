@@ -51,7 +51,7 @@ export const ProtectedRoute = ({
   }
 
   if (requiredRole && userRole !== requiredRole) {
-    if (userRole === "admin") return <Navigate to="/dashboard" replace />;
+    if (userRole === "admin") return <Navigate to="/admin-dashboard" replace />;
     if (userRole === "instructor")
       return <Navigate to="/instructor-dashboard" replace />;
     if (userRole === "student")

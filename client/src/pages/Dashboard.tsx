@@ -57,14 +57,17 @@ import adminService from "@/services/adminService";
 import examService from "@/services/examService";
 import programService from "@/services/programService";
 import moduleService from "@/services/moduleService";
+import playerService from "@/services/playerService";
 import { API_BASE_URL } from "@/lib/apiClient";
 
 import { AddProgramDialog } from "@/components/admin/AddProgramDialog";
 import { AddModuleDialog } from "@/components/admin/AddModuleDialog";
 import { EditModuleDialog } from "@/components/admin/EditModuleDialog";
 import { EditProgramDialog } from "@/components/admin/EditProgramDialog";
+import CertificateCenter from "@/components/admin/certificates/CertificateCenter";
 // components/ui/table.tsx
 import * as React from "react";
+import ApiPlayground from "./ApiPlayground";
 
 export const Table = ({ ...props }) => (
   <table className="w-full text-sm text-left" {...props} />
@@ -91,9 +94,9 @@ export const TableCell = ({ ...props }) => (
 export default function Dashboard() {
   const navigate = useNavigate();
 
-  // ==========================================
-  // AUTH
-  // ==========================================
+  /* ==========================================
+     AUTH
+  ========================================== */
   const token =
     localStorage.getItem("token") || sessionStorage.getItem("token");
 
@@ -102,14 +105,12 @@ export default function Dashboard() {
       JSON.parse(localStorage.getItem("user") || "null") ||
       JSON.parse(sessionStorage.getItem("user") || "null");
 
-    if (!token || !savedUser) {
-      navigate("/login");
-    }
+    if (!token || !savedUser) navigate("/login");
   };
 
-  // ==========================================
-  // GLOBAL STATE
-  // ==========================================
+  /* ==========================================
+     GLOBAL STATE
+  ========================================== */
   const [loading, setLoading] = useState(true);
 
   const [stats, setStats] = useState({
@@ -121,70 +122,69 @@ export default function Dashboard() {
 
   const [players, setPlayers] = useState<any[]>([]);
   const [lessons, setLessons] = useState<any[]>([]);
+  const [exams, setExams] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
-  const [exams, setExams] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [openExamId, setOpenExamId] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState("");
   const [selectedExam, setSelectedExam] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState("");
 
-  // PROGRAMS / MODULES
+  // Programs / Modules
   const [programs, setPrograms] = useState<any[]>([]);
   const [modules, setModules] = useState<any[]>([]);
-
   const [editProgramOpen, setEditProgramOpen] = useState(false);
   const [editProgram, setEditProgram] = useState<any | null>(null);
 
   const [editModuleOpen, setEditModuleOpen] = useState(false);
   const [editModule, setEditModule] = useState<any | null>(null);
 
-  // ==========================================
-  // JSON PARSER (لـ adminService / examService اللي بيرجع Response)
-  // ==========================================
-  const safeJSON = async (res: Response) => {
-    try {
-      return await res.json();
-    } catch {
-      return null;
-    }
-  };
+  /* ==========================================
+     FETCHERS
+  ========================================== */
 
-  // ==========================================
-  // DASHBOARD FETCHERS
-  // ==========================================
   const fetchDashboardData = async () => {
     setLoading(true);
-
     try {
-      const statsRes = await adminService.getDashboard();
-      const statsJson = (await safeJSON(statsRes)) || {};
+      /* PLAYERS */
+      const playersRes = await playerService.getAllPlayers();
+      const playerPayload =
+        playersRes?.data?.players ||
+        playersRes?.data ||
+        playersRes?.players ||
+        playersRes;
+      const playerList = Array.isArray(playerPayload) ? playerPayload : [];
 
-      const playersRes = await adminService.getPlayers();
-      const playersJson = (await safeJSON(playersRes)) || [];
-
+      /* LESSONS */
       const lessonsRes = await adminService.getLessons();
-      const lessonsJson =
-        (await safeJSON(lessonsRes))?.lessons ||
-        (await safeJSON(lessonsRes)) ||
-        [];
+      const lessonsPayload =
+        lessonsRes?.data?.lessons || lessonsRes?.lessons || lessonsRes?.data;
+      const lessonsList = Array.isArray(lessonsPayload) ? lessonsPayload : [];
 
+      /* ATTENDANCE */
       const attendanceRes = await adminService.getAttendanceToday();
-      const attendanceJson = (await safeJSON(attendanceRes)) || [];
+      const attendancePayload =
+        attendanceRes?.data?.attendance ||
+        attendanceRes?.attendance ||
+        attendanceRes?.data ||
+        attendanceRes;
+      const attendanceList = Array.isArray(attendancePayload)
+        ? attendancePayload
+        : [];
 
+      /* STATS */
       setStats({
-        totalPlayers: statsJson.totalPlayers || playersJson.length || 0,
-        activePlayers:
-          playersJson.filter((p: any) => p.status === "active")?.length || 0,
-        upcomingLessons: lessonsJson.length || 0,
-        todayAttendance: attendanceJson.length || 0,
+        totalPlayers: playerList.length,
+        activePlayers: playerList.filter((p) => p.status === "active").length,
+        upcomingLessons: lessonsList.length,
+        todayAttendance: attendanceList.length,
       });
 
-      setPlayers(playersJson);
-      setLessons(lessonsJson);
-    } catch (error) {
-      console.error("Dashboard Fetch Error:", error);
+      setPlayers(playerList);
+      setLessons(lessonsList);
+    } catch (err) {
+      console.error("Dashboard Data Error:", err);
     } finally {
       setLoading(false);
     }
@@ -193,51 +193,47 @@ export default function Dashboard() {
   const fetchExams = async () => {
     try {
       const res = await examService.getAllExams();
-      const data = await safeJSON(res);
 
-      const list = data?.exams || [];
+      const list = Array.isArray(res?.exams)
+        ? res.exams
+        : Array.isArray(res)
+        ? res
+        : [];
+
       setExams(list);
 
       if (!selectedExam && list.length > 0) {
         setSelectedExam(list[0]._id);
       }
-    } catch (error) {
-      console.error("Fetch Exams Error:", error);
+    } catch (err) {
+      console.error("Fetch Exams Error:", err);
     }
   };
 
   const fetchRegistrations = async () => {
     try {
-      if (!selectedExam) {
-        setRegistrations([]);
-        return;
-      }
+      if (!selectedExam) return setRegistrations([]);
 
       const res = await examService.getAdminRegistrations(selectedExam);
-      const data = await safeJSON(res);
+      const list = Array.isArray(res?.registrations) ? res.registrations : [];
 
-      setRegistrations(
-        Array.isArray(data?.registrations) ? data.registrations : []
-      );
-    } catch (error) {
-      console.error("Fetch registrations error:", error);
+      setRegistrations(list);
+    } catch (err) {
+      console.error("Fetch Registrations Error:", err);
       setRegistrations([]);
     }
   };
 
   const fetchSubmissions = async () => {
     try {
-      if (!selectedExam) {
-        setSubmissions([]);
-        return;
-      }
+      if (!selectedExam) return setSubmissions([]);
 
       const res = await examService.getAdminSubmissions(selectedExam);
-      const data = await safeJSON(res);
+      const list = Array.isArray(res?.submissions) ? res.submissions : [];
 
-      setSubmissions(Array.isArray(data?.submissions) ? data.submissions : []);
-    } catch (error) {
-      console.error("Fetch submissions error:", error);
+      setSubmissions(list);
+    } catch (err) {
+      console.error("Fetch Submissions Error:", err);
       setSubmissions([]);
     }
   };
@@ -245,13 +241,16 @@ export default function Dashboard() {
   const fetchPrograms = async () => {
     try {
       const res = await programService.getPrograms();
-      if (res?.success) {
-        setPrograms(res.programs || []);
-      } else {
-        setPrograms([]);
-      }
-    } catch (error) {
-      console.error("Fetch programs error:", error);
+
+      const list = Array.isArray(res?.programs)
+        ? res.programs
+        : Array.isArray(res)
+        ? res
+        : [];
+
+      setPrograms(list);
+    } catch (err) {
+      console.error("Fetch Programs Error:", err);
       setPrograms([]);
     }
   };
@@ -259,49 +258,50 @@ export default function Dashboard() {
   const fetchModules = async () => {
     try {
       const res = await moduleService.getModules();
-      if (res?.success) {
-        setModules(res.modules || []);
-      } else {
-        setModules([]);
-      }
-    } catch (error) {
-      console.error("Fetch modules error:", error);
+
+      const list = Array.isArray(res?.modules)
+        ? res.modules
+        : Array.isArray(res)
+        ? res
+        : [];
+
+      setModules(list);
+    } catch (err) {
+      console.error("Fetch Modules Error:", err);
       setModules([]);
     }
   };
 
-  // ==========================================
-  // REGISTRATION ACTIONS
-  // ==========================================
-  const approveFn = async (regId: string) => {
-    await examService.approveRegistration(regId);
+  /* ==========================================
+     ACTIONS
+  ========================================== */
+
+  const approveFn = async (id: string) => {
+    await examService.approveRegistration(id);
     fetchRegistrations();
   };
 
-  const rejectFn = async (regId: string) => {
-    await examService.rejectRegistration(regId);
+  const rejectFn = async (id: string) => {
+    await examService.rejectRegistration(id);
     fetchRegistrations();
   };
 
-  const publishExamAdmin = async (examId: string) => {
+  const publishExamAdmin = async (id: string) => {
     try {
-      await examService.publishExam(examId);
+      await examService.publishExam(id);
       fetchExams();
     } catch (err) {
-      console.error("Publish exam error:", err);
+      console.error("Publish Exam Error:", err);
     }
   };
 
-  // ==========================================
-  // PROGRAMS / MODULES ACTIONS
-  // ==========================================
   const handleEditProgram = (program: any) => {
     setEditProgram(program);
     setEditProgramOpen(true);
   };
 
   const handleDeleteProgram = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this program?")) return;
+    if (!confirm("Delete program?")) return;
     await programService.deleteProgram(id);
     fetchPrograms();
   };
@@ -317,29 +317,29 @@ export default function Dashboard() {
     fetchModules();
   };
 
-  // ==========================================
-  // EFFECTS
-  // ==========================================
+  /* ==========================================
+     EFFECTS
+  ========================================== */
+
   useEffect(() => {
     checkAuth();
     fetchDashboardData();
     fetchExams();
     fetchPrograms();
     fetchModules();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
     fetchRegistrations();
     fetchSubmissions();
     setSelectedStudent("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExam]);
 
-  // ==========================================
-  // DERIVED DATA
-  // ==========================================
-  const filteredPlayers = players.filter((player: any) => {
+  /* ==========================================
+     DERIVED DATA
+  ========================================== */
+
+  const filteredPlayers = players.filter((player) => {
     const q = searchQuery.toLowerCase();
     return (
       player.name?.toLowerCase().includes(q) ||
@@ -348,7 +348,7 @@ export default function Dashboard() {
     );
   });
 
-  const finalizedSubmissions = submissions.filter((s: any) => s?.finalPassed);
+  const finalizedSubmissions = submissions.filter((s) => s?.finalPassed);
 
   // ==========================================
   // UI RENDER
@@ -435,7 +435,9 @@ export default function Dashboard() {
             <TabsTrigger value="lessons">Lessons</TabsTrigger>
             <TabsTrigger value="programs">Programs</TabsTrigger>
             <TabsTrigger value="modules">Modules</TabsTrigger>
+            <TabsTrigger value="certificates">Certificates</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="api-playground">APIs</TabsTrigger>
           </TabsList>
 
           {/* PLAYERS */}
@@ -1052,7 +1054,10 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </TabsContent>
-
+          {/* CERTIFICATES MANAGEMENT */}
+          <TabsContent value="certificates">
+            <CertificateCenter />
+          </TabsContent>
           {/* ANALYTICS */}
           <TabsContent value="analytics">
             <Card>
@@ -1061,6 +1066,20 @@ export default function Dashboard() {
                 <CardDescription>Coming soon…</CardDescription>
               </CardHeader>
               <CardContent></CardContent>
+            </Card>
+          </TabsContent>
+          {/* API PLAYGROUND */}
+          <TabsContent value="api-playground">
+            <Card>
+              <CardHeader>
+                <CardTitle>API Playground</CardTitle>
+                <CardDescription>
+                  Test API endpoints directly from the dashboard
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ApiPlayground />
+              </CardContent>
             </Card>
           </TabsContent>
         </Tabs>

@@ -145,10 +145,7 @@ const programsMock = [
 async function seedPrograms() {
   try {
     console.log("⏳ Connecting to MongoDB...");
-    await mongoose.connect(
-      process.env.MONGO_URI ||
-        "mongodb+srv://admin:P%40%24%24w0rd%40M%40zen%402025@cluster0.dvvixke.mongodb.net/silatacademy?retryWrites=true&w=majority"
-    );
+    await mongoose.connect(process.env.MONGO_URI);
 
     console.log("🔥 Dropping existing Programs & Modules...");
     await Program.deleteMany({});

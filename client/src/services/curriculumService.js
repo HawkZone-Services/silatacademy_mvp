@@ -1,4 +1,4 @@
-import apiClient from "@/lib/apiClient";
+import apiClient from "@/shared/api/apiClient";
 
 const curriculumService = {
   getByBelt: (belt) => apiClient.get(`/curriculum/${belt}`),

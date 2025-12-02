@@ -6,7 +6,6 @@ import {
   httpError,
   asNumber,
 } from "../utils/validation.js";
-import { upsertCertificateForFinalResult } from "./certificateController.js";
 import Notification from "../models/Notification.js";
 import { getDb } from "../utils/mongodb.js";
 import Exam from "../models/Exam.js";
@@ -17,10 +16,11 @@ import ExamRegistration from "../models/ExamRegistration.js";
 import Certificate from "../models/Certificate.js";
 import User from "../models/User.js";
 import Player from "../models/Player.js";
-import Lesson from "../models/Lesson.js";
-import LessonProgress from "../models/LessonProgress.js";
-import Program from "../models/Program.js";
-
+import { awardXpForEvent } from "../utils/xp.js";
+import {
+  attachExamEligibility,
+  buildExamEligibility,
+} from "../services/eligibilityService.js";
 const PRACTICAL_COMPONENT_MAX = 100;
 const PRACTICAL_COMPONENTS = [
   "morality",
@@ -58,13 +58,16 @@ const computeFinalPassMark = (exam) => {
   return Math.round((theoryMax + practicalMax) * 0.6);
 };
 
-const mapPracticalScores = (body = {}) => ({
-  morality: asNumber(body.morality),
-  practicalMethod: asNumber(body.practicalMethod),
-  technique: asNumber(body.technique),
-  physical: asNumber(body.physical),
-  mental: asNumber(body.mental),
-});
+const mapPracticalScores = (body = {}) => {
+  const scores = body.scores || body;
+  return {
+    morality: asNumber(scores.discipline ?? scores.morality),
+    practicalMethod: asNumber(scores.performance ?? scores.practicalMethod),
+    technique: asNumber(scores.technique),
+    physical: asNumber(scores.physical ?? 0),
+    mental: asNumber(scores.mental ?? 0),
+  };
+};
 
 const findCompletedExamIdsForStudent = async (studentId) => {
   const [finalized, submittedAttempts] = await Promise.all([
@@ -83,78 +86,6 @@ const findCompletedExamIdsForStudent = async (studentId) => {
   );
 };
 
-const beltToProgramLevel = (belt) => {
-  if (["white", "yellow"].includes(belt)) return "beginner";
-  if (["blue", "brown"].includes(belt)) return "intermediate";
-  if (["red", "black"].includes(belt)) return "advanced";
-  return null;
-};
-
-const lessonCompletionForBelt = async (userId, beltLevel) => {
-  const level = beltToProgramLevel(beltLevel);
-  if (!level) return { total: 0, completed: 0 };
-
-  const [totalLessons] = await Lesson.aggregate([
-    {
-      $lookup: {
-        from: Program.collection.name,
-        localField: "program",
-        foreignField: "_id",
-        as: "program",
-      },
-    },
-    { $unwind: { path: "$program", preserveNullAndEmptyArrays: true } },
-    { $match: { "program.level": level } },
-    { $count: "count" },
-  ]);
-
-  const [completedLessons] = await LessonProgress.aggregate([
-    { $match: { user: userId, completed: true } },
-    {
-      $lookup: {
-        from: Lesson.collection.name,
-        localField: "lesson",
-        foreignField: "_id",
-        as: "lesson",
-      },
-    },
-    { $unwind: { path: "$lesson", preserveNullAndEmptyArrays: true } },
-    {
-      $lookup: {
-        from: Program.collection.name,
-        localField: "lesson.program",
-        foreignField: "_id",
-        as: "program",
-      },
-    },
-    { $unwind: { path: "$program", preserveNullAndEmptyArrays: true } },
-    { $match: { "program.level": level } },
-    { $count: "count" },
-  ]);
-
-  return {
-    total: totalLessons?.count || 0,
-    completed: completedLessons?.count || 0,
-  };
-};
-
-const withExamLocks = async (exams, userId) => {
-  if (!userId) return exams;
-  return Promise.all(
-    exams.map(async (exam) => {
-      const status = await lessonCompletionForBelt(userId, exam.beltLevel);
-      const locked =
-        status.total > 0 && status.completed < status.total ? true : false;
-      return {
-        ...exam,
-        locked,
-        lessonsRequired: status.total,
-        lessonsCompleted: status.completed,
-      };
-    })
-  );
-};
-
 /* =====================================================
    REGISTRATION STATUS (STUDENT)
 ===================================================== */
@@ -169,8 +100,10 @@ export const getRegistrationStatus = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    status: registration?.status || "none",
-    finalized: Boolean(finalResult),
+    data: {
+      status: registration?.status || "none",
+      finalized: Boolean(finalResult),
+    },
   });
 });
 
@@ -225,7 +158,7 @@ export const createExam = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    exam: result,
+    data: { exam: result },
   });
 });
 
@@ -247,12 +180,9 @@ export const listExams = asyncHandler(async (req, res) => {
 
   const exams = await Exam.find(filter).sort({ createdAt: -1 });
 
-  const enriched =
-    req.user?.role === "student"
-      ? await withExamLocks(exams, req.user._id)
-      : exams;
+  const enriched = await attachExamEligibility(exams, req.user?._id);
 
-  res.json({ success: true, exams: enriched });
+  res.json({ success: true, data: { exams: enriched } });
 });
 
 /* =====================================================
@@ -270,7 +200,7 @@ export const getExam = asyncHandler(async (req, res) => {
 
   if (!exam) throw httpError(404, "Exam not found");
 
-  res.json({ success: true, exam });
+  res.json({ success: true, data: { exam } });
 });
 
 /* =====================================================
@@ -285,7 +215,7 @@ export const updateExam = asyncHandler(async (req, res) => {
 
   if (!result.matchedCount) throw httpError(404, "Exam not found");
 
-  res.json({ success: true, message: "Exam updated" });
+  res.json({ success: true, data: { message: "Exam updated" } });
 });
 
 /* =====================================================
@@ -301,7 +231,7 @@ export const publishExam = asyncHandler(async (req, res) => {
 
   if (!result.matchedCount) throw httpError(404, "Exam not found");
 
-  res.json({ success: true, message: "Exam published" });
+  res.json({ success: true, data: { message: "Exam published" } });
 });
 
 /* =====================================================
@@ -319,9 +249,9 @@ export const getExamsByBeltLevel = asyncHandler(async (req, res) => {
     ...(excludedIds.length ? { _id: { $nin: excludedIds } } : {}),
   }).sort({ createdAt: -1 });
 
-  const enriched = await withExamLocks(exams, studentId);
+  const enriched = await attachExamEligibility(exams, studentId);
 
-  res.json({ success: true, exams: enriched });
+  res.json({ success: true, data: { exams: enriched } });
 });
 
 /* =====================================================
@@ -357,15 +287,15 @@ export const ExamRegisteration = asyncHandler(async (req, res) => {
   const alreadyRegistered = registration?.lastErrorObject?.updatedExisting;
   const regDoc =
     registration.value ||
-    (await ExamRegistration.findById(
-      registration.lastErrorObject?.upsertedId
-    ));
+    (await ExamRegistration.findById(registration.lastErrorObject?.upsertedId));
 
   res.status(alreadyRegistered ? 200 : 201).json({
     success: true,
-    registrationId: regDoc?._id,
-    status: regDoc?.status || "pending",
-    alreadyRegistered: Boolean(alreadyRegistered),
+    data: {
+      registrationId: regDoc?._id,
+      status: regDoc?.status || "pending",
+      alreadyRegistered: Boolean(alreadyRegistered),
+    },
   });
 });
 
@@ -376,132 +306,138 @@ export const listSubmissions = asyncHandler(async (req, res) => {
   const examObjId = assertObjectId(req.params.examId, "examId");
 
   const submissions = await ExamAttempt.aggregate([
-      {
-        $match: {
-          exam: examObjId,
-          submittedAt: { $ne: null },
-        },
+    {
+      $match: {
+        exam: examObjId,
+        submittedAt: { $ne: null },
       },
-      {
-        $lookup: {
-          from: User.collection.name,
-          localField: "student",
-          foreignField: "_id",
-          as: "studentDoc",
-        },
+    },
+    {
+      $lookup: {
+        from: User.collection.name,
+        localField: "student",
+        foreignField: "_id",
+        as: "studentDoc",
       },
-      {
-        $unwind: {
-          path: "$studentDoc",
-          preserveNullAndEmptyArrays: true,
-        },
+    },
+    {
+      $unwind: {
+        path: "$studentDoc",
+        preserveNullAndEmptyArrays: true,
       },
-      {
-        $lookup: {
-          from: Exam.collection.name,
-          localField: "exam",
-          foreignField: "_id",
-          as: "examDoc",
-        },
+    },
+    {
+      $lookup: {
+        from: Exam.collection.name,
+        localField: "exam",
+        foreignField: "_id",
+        as: "examDoc",
       },
-      {
-        $unwind: {
-          path: "$examDoc",
-          preserveNullAndEmptyArrays: true,
-        },
+    },
+    {
+      $unwind: {
+        path: "$examDoc",
+        preserveNullAndEmptyArrays: true,
       },
-      {
-        $lookup: {
-          from: FinalExamResult.collection.name,
-          let: { examId: "$exam", studentId: "$student" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$exam", "$$examId"] },
-                    { $eq: ["$student", "$$studentId"] },
-                  ],
-                },
+    },
+    {
+      $lookup: {
+        from: FinalExamResult.collection.name,
+        let: { examId: "$exam", studentId: "$student" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$exam", "$$examId"] },
+                  { $eq: ["$student", "$$studentId"] },
+                ],
               },
             },
-            { $sort: { finalizedAt: -1, date: -1, _id: -1 } },
-            { $limit: 1 },
-          ],
-          as: "finalResult",
-        },
+          },
+          { $sort: { finalizedAt: -1, date: -1, _id: -1 } },
+          { $limit: 1 },
+        ],
+        as: "finalResult",
       },
-      {
-        $unwind: {
-          path: "$finalResult",
-          preserveNullAndEmptyArrays: true,
-        },
+    },
+    {
+      $unwind: {
+        path: "$finalResult",
+        preserveNullAndEmptyArrays: true,
       },
-      {
-        $lookup: {
-          from: PracticalEvaluation.collection.name,
-          let: { examId: "$exam", studentId: "$student" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$exam", "$$examId"] },
-                    { $eq: ["$student", "$$studentId"] },
-                  ],
-                },
+    },
+    {
+      $lookup: {
+        from: PracticalEvaluation.collection.name,
+        let: { examId: "$exam", studentId: "$student" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$exam", "$$examId"] },
+                  { $eq: ["$student", "$$studentId"] },
+                ],
               },
             },
-            { $sort: { createdAt: -1 } },
-            { $limit: 1 },
+          },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 },
+        ],
+        as: "practicalEval",
+      },
+    },
+    {
+      $unwind: {
+        path: "$practicalEval",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        _id: 1,
+        exam: {
+          $cond: [
+            { $ifNull: ["$examDoc", false] },
+            {
+              _id: "$examDoc._id",
+              title: "$examDoc.title",
+              beltLevel: "$examDoc.beltLevel",
+            },
+            "$exam",
           ],
-          as: "practicalEval",
         },
-      },
-      {
-        $unwind: {
-          path: "$practicalEval",
-          preserveNullAndEmptyArrays: true,
+        student: {
+          _id: "$studentDoc._id",
+          name: "$studentDoc.name",
+          email: "$studentDoc.email",
+          belt: "$studentDoc.beltLevel",
         },
-      },
-      {
-        $project: {
-          _id: 1,
-          exam: {
-            $cond: [
-              { $ifNull: ["$examDoc", false] },
-              {
-                _id: "$examDoc._id",
-                title: "$examDoc.title",
-                beltLevel: "$examDoc.beltLevel",
-              },
-              "$exam",
-            ],
-          },
-          student: {
-            _id: "$studentDoc._id",
-            name: "$studentDoc.name",
-            email: "$studentDoc.email",
-            belt: "$studentDoc.beltLevel",
-          },
-          autoScore: 1,
-          manualScore: 1,
-          theoryScore: 1,
-          pass: 1,
-          submittedAt: 1,
-          practicalRecorded: { $cond: [{ $ifNull: ["$practicalEval", false] }, true, false] },
-          finalPassed: {
-            $cond: [{ $ifNull: ["$finalResult", false] }, "$finalResult.passed", null],
-          },
-          finalTotalScore: "$finalResult.totalScore",
-          finalPracticalScores: "$finalResult.practicalScores",
-          finalizedAt: "$finalResult.finalizedAt",
+        autoScore: 1,
+        manualScore: 1,
+        theoryScore: 1,
+        pass: 1,
+        submittedAt: 1,
+        practicalRecorded: {
+          $cond: [{ $ifNull: ["$practicalEval", false] }, true, false],
         },
+        finalPassed: {
+          $cond: [
+            { $ifNull: ["$finalResult", false] },
+            "$finalResult.passed",
+            null,
+          ],
+        },
+        finalTotalScore: "$finalResult.totalScore",
+        finalPracticalScores: "$finalResult.practicalScores",
+        finalizedAt: "$finalResult.finalizedAt",
       },
-      { $sort: { submittedAt: -1 } },
-    ]);
+    },
+    { $sort: { submittedAt: -1 } },
+  ]);
 
-  res.json({ success: true, submissions });
+  res.json({ success: true, data: { submissions } });
 });
 
 /* =====================================================
@@ -591,7 +527,7 @@ export const listRegistrations = asyncHandler(async (req, res) => {
     ])
     .toArray();
 
-  res.json({ success: true, registrations });
+  res.json({ success: true, data: { registrations } });
 });
 
 /* =====================================================
@@ -616,7 +552,7 @@ export const approveRegistration = asyncHandler(async (req, res) => {
     throw httpError(404, "Registration not found or already processed");
   }
 
-  res.json({ success: true, message: "Registration approved" });
+  res.json({ success: true, data: { message: "Registration approved" } });
 });
 
 /* =====================================================
@@ -641,7 +577,7 @@ export const rejectRegistration = asyncHandler(async (req, res) => {
     throw httpError(404, "Registration not found or already processed");
   }
 
-  res.json({ success: true, message: "Registration rejected" });
+  res.json({ success: true, data: { message: "Registration rejected" } });
 });
 
 /* =====================================================
@@ -658,21 +594,6 @@ export const startAttempt = asyncHandler(async (req, res) => {
     .findOne({ _id: examObjectId, status: "published" });
   if (!exam) {
     throw httpError(403, "Exam is not available to start");
-  }
-
-  const lessonStatus = await lessonCompletionForBelt(
-    db,
-    studentId,
-    exam.beltLevel
-  );
-  if (
-    lessonStatus.total > 0 &&
-    lessonStatus.completed < lessonStatus.total
-  ) {
-    throw httpError(
-      403,
-      "Complete all required lessons before taking this exam."
-    );
   }
 
   const [registration, finalResult, submittedAttempt] = await Promise.all([
@@ -693,7 +614,9 @@ export const startAttempt = asyncHandler(async (req, res) => {
   ]);
 
   if (!registration) {
-    throw httpError(403, "You are not approved to start this exam");
+    throw httpError(403, "You are not approved to start this exam", {
+      reason: "REGISTRATION_REQUIRED",
+    });
   }
 
   if (finalResult) {
@@ -702,6 +625,20 @@ export const startAttempt = asyncHandler(async (req, res) => {
 
   if (submittedAttempt) {
     throw httpError(400, "Attempt already submitted for this exam");
+  }
+
+  const eligibility = await buildExamEligibility({
+    exam,
+    userId: studentId,
+    registration,
+    enforceRegistration: true,
+  });
+
+  if (!eligibility.isEligible) {
+    throw httpError(403, "Not eligible to start this exam", {
+      reason: eligibility.lockedReason,
+      details: eligibility.lockedReasons,
+    });
   }
 
   const attempt = await db.collection("examAttempts").findOneAndUpdate(
@@ -726,13 +663,22 @@ export const startAttempt = asyncHandler(async (req, res) => {
   );
 
   if (attempt?.value?._id) {
-    await db.collection("exams").updateOne(
-      { _id: examObjectId },
-      { $addToSet: { attempts: attempt.value._id } }
-    );
+    await db
+      .collection("exams")
+      .updateOne(
+        { _id: examObjectId },
+        { $addToSet: { attempts: attempt.value._id } }
+      );
   }
 
-  res.json({ success: true, attemptId: attempt.value._id, attempt: attempt.value });
+  res.json({
+    success: true,
+    data: {
+      attemptId: attempt.value._id,
+      attempt: attempt.value,
+      eligibility,
+    },
+  });
 });
 
 /* =====================================================
@@ -828,10 +774,12 @@ export const submitAttempt = asyncHandler(async (req, res) => {
 
   return res.json({
     success: true,
-    attemptId: attemptObjectId,
-    theoryScore,
-    theoryPass,
-    message: "Theory submitted. Awaiting practical evaluation.",
+    data: {
+      attemptId: attemptObjectId,
+      theoryScore,
+      theoryPass,
+      message: "Theory submitted. Awaiting practical evaluation.",
+    },
   });
 });
 
@@ -866,11 +814,13 @@ export const gradeManual2 = asyncHandler(async (req, res) => {
     createdAt: new Date(),
   };
 
-  const writeResult = await db.collection("practicalEvaluations").updateOne(
-    { exam: examId, student: studentId },
-    { $setOnInsert: evaluation },
-    { upsert: true }
-  );
+  const writeResult = await db
+    .collection("practicalEvaluations")
+    .updateOne(
+      { exam: examId, student: studentId },
+      { $setOnInsert: evaluation },
+      { upsert: true }
+    );
 
   if (!writeResult.upsertedCount) {
     throw httpError(409, "Practical evaluation already exists");
@@ -878,8 +828,10 @@ export const gradeManual2 = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    message: "Practical scores saved",
-    evaluation: { ...evaluation, _id: writeResult.upsertedId },
+    data: {
+      message: "Practical scores saved",
+      evaluation: { ...evaluation, _id: writeResult.upsertedId },
+    },
   });
 });
 
@@ -895,6 +847,7 @@ export const combineScores = asyncHandler(async (req, res) => {
   const existingFinal = await db
     .collection("finalExamResults")
     .findOne({ exam: examId, student: studentId });
+
   if (existingFinal) {
     throw httpError(409, "Result already finalized");
   }
@@ -950,14 +903,24 @@ export const combineScores = asyncHandler(async (req, res) => {
     finalizedAt: new Date(),
   };
 
-  const insertResult = await db.collection("finalExamResults").updateOne(
-    { exam: examId, student: studentId },
-    { $setOnInsert: finalResult },
-    { upsert: true }
-  );
+  const insertResult = await db
+    .collection("finalExamResults")
+    .updateOne(
+      { exam: examId, student: studentId },
+      { $setOnInsert: finalResult },
+      { upsert: true }
+    );
 
   if (!insertResult.upsertedCount) {
     throw httpError(409, "Result already finalized");
+  }
+  if (passed) {
+    const player = await Player.findOne({ user: studentId });
+    if (player) {
+      player.totalExamsPassed = (player.totalExamsPassed || 0) + 1;
+      await player.save();
+      await awardXpForEvent(player._id, "EXAM_PASS");
+    }
   }
 
   await db.collection("examAttempts").updateOne(
@@ -972,18 +935,26 @@ export const combineScores = asyncHandler(async (req, res) => {
     }
   );
 
-  let certificate;
-  try {
-    const certResult = await upsertCertificateForFinalResult(
-      db,
+  /* -----------------------------------------
+     Auto-Issue Exam Certificate if Passed
+  ------------------------------------------ */
+  let certificate = null;
+
+  if (passed) {
+    certificate = await Certificate.create({
+      user: studentId,
       examId,
-      studentId
-    );
-    certificate = certResult.certificate;
-  } catch (err) {
-    console.error("Certificate generation failed after finalization", err);
+      type: "exam",
+      title: `${exam.title} Certificate`,
+      description: `Passed final exam for ${exam.beltLevel} belt`,
+      issuedBy: req.user?._id,
+      issuedAt: new Date(),
+    });
   }
 
+  /* -----------------------------------------
+     Notifications
+  ------------------------------------------ */
   try {
     await Notification.create({
       user: studentId,
@@ -993,6 +964,7 @@ export const combineScores = asyncHandler(async (req, res) => {
         : "Your exam has been graded.",
       type: "result",
     });
+
     if (certificate?._id) {
       await Notification.create({
         user: studentId,
@@ -1002,10 +974,10 @@ export const combineScores = asyncHandler(async (req, res) => {
       });
     }
   } catch (err) {
-    console.error("Failed to send notifications after grading", err);
+    console.error("Failed to send notifications", err);
   }
 
-  res.json({ success: true, finalResult, certificate });
+  res.json({ success: true, data: { finalResult, certificate } });
 });
 
 /* =====================================================
@@ -1051,7 +1023,7 @@ export const gradeManual = asyncHandler(async (req, res) => {
     }
   );
 
-  res.json({ success: true, finalScore, pass });
+  res.json({ success: true, data: { finalScore, pass } });
 });
 
 /* =====================================================
@@ -1151,7 +1123,9 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
           finalizedAt: "$finalResult.finalizedAt",
           certificate: {
             _id: "$certificate._id",
-            issuedAt: { $ifNull: ["$certificate.issuedAt", "$certificate.createdAt"] },
+            issuedAt: {
+              $ifNull: ["$certificate.issuedAt", "$certificate.createdAt"],
+            },
             beltLevel: "$certificate.beltLevel",
           },
         },
@@ -1160,5 +1134,5 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
     ])
     .toArray();
 
-  res.json({ success: true, attempts });
+  res.json({ success: true, data: { attempts } });
 });

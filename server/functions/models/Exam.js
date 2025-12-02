@@ -37,4 +37,7 @@ const ExamSchema = new mongoose.Schema({
   },
 });
 
+ExamSchema.index({ status: 1 });
+ExamSchema.index({ beltLevel: 1 });
+
 export default mongoose.model("Exam", ExamSchema);

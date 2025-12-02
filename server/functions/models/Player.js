@@ -111,6 +111,30 @@ const PlayerSchema = new mongoose.Schema(
     trainingLogs: [TrainingLogSchema],
 
     exams: [PlayerExamHistorySchema], // belt-specific exam history
+    xp: {
+      type: Number,
+      default: 0,
+    },
+    level: {
+      type: Number,
+      default: 1,
+    },
+    streakDays: {
+      type: Number,
+      default: 0,
+    },
+    lastActiveDate: {
+      type: Date,
+    },
+
+    totalLessonsCompleted: {
+      type: Number,
+      default: 0,
+    },
+    totalExamsPassed: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

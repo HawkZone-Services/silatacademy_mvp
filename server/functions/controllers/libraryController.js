@@ -25,13 +25,25 @@ export const listLibrary = asyncHandler(async (req, res) => {
       { title: new RegExp(q, "i") },
       { description: new RegExp(q, "i") },
     ];
-  res.json(await LibraryItem.find(filter).sort({ createdAt: -1 }));
+  const items = await LibraryItem.find(filter).sort({ createdAt: -1 });
+
+  res.json({
+    success: true,
+    data: {
+      items,
+    },
+  });
 });
 
 export const getLibraryItem = asyncHandler(async (req, res) => {
   const item = await LibraryItem.findById(assertObjectId(req.params.id, "id"));
-  if (!item) return res.status(404).json({ message: "Library item not found" });
-  res.json(item);
+  if (!item) throw httpError(404, "Library item not found");
+  res.json({
+    success: true,
+    data: {
+      item,
+    },
+  });
 });
 
 export const createLibraryItem = asyncHandler(async (req, res) => {
@@ -40,7 +52,12 @@ export const createLibraryItem = asyncHandler(async (req, res) => {
     ...req.body,
     createdBy: req.user._id,
   });
-  res.status(201).json(item);
+  res.status(201).json({
+    success: true,
+    data: {
+      item,
+    },
+  });
 });
 
 export const updateLibraryItem = asyncHandler(async (req, res) => {
@@ -52,11 +69,19 @@ export const updateLibraryItem = asyncHandler(async (req, res) => {
       new: true,
     }
   );
-  if (!item) return res.status(404).json({ message: "Library item not found" });
-  res.json(item);
+  if (!item) throw httpError(404, "Library item not found");
+  res.json({
+    success: true,
+    data: {
+      item,
+    },
+  });
 });
 
 export const deleteLibraryItem = asyncHandler(async (req, res) => {
   await LibraryItem.findByIdAndDelete(assertObjectId(req.params.id, "id"));
-  res.json({ success: true });
+  res.json({
+    success: true,
+    data: { deleted: true },
+  });
 });

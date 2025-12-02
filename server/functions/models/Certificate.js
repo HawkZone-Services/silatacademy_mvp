@@ -1,26 +1,40 @@
+// models/Certificate.js
 import mongoose from "mongoose";
 
-const CertificateSchema = new mongoose.Schema({
-  student: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  exam: { type: mongoose.Schema.Types.ObjectId, ref: "Exam" },
-  attempt: { type: mongoose.Schema.Types.ObjectId, ref: "ExamAttempt" },
-  player: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
+const CertificateSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-  scores: {
-    morality: Number,
-    method: Number,
-    technique: Number,
-    physical: Number,
-    mental: Number,
-    total: Number,
+    type: {
+      type: String,
+      enum: [
+        "exam",
+        "completion",
+        "attendance",
+        "performance",
+        "manual",
+        "module",
+        "program",
+        "practical",
+        "theory",
+      ],
+      required: true,
+    },
+
+    title: String,
+    description: String,
+    issuedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+    examId: { type: mongoose.Schema.Types.ObjectId, ref: "Exam" },
+    lessonId: { type: mongoose.Schema.Types.ObjectId, ref: "Lesson" },
+    moduleId: { type: mongoose.Schema.Types.ObjectId, ref: "Module" },
+    programId: { type: mongoose.Schema.Types.ObjectId, ref: "Program" },
+
+    meta: Object,
+
+    issuedAt: { type: Date, default: Date.now },
   },
+  { timestamps: true }
+);
 
-  passed: Boolean,
-  beltLevel: String, // player's belt AFTER exam
-  pdfUrl: String,
-  createdAt: { type: Date, default: Date.now },
-});
-
-const Certificate = mongoose.model("Certificate", CertificateSchema);
-
-export default Certificate;
+export default mongoose.model("Certificate", CertificateSchema);

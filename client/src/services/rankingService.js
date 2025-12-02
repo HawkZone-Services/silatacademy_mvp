@@ -1,8 +1,8 @@
-import apiClient from "@/lib/apiClient";
+import apiClient from "@/shared/api/apiClient";
 
 const rankingService = {
   getRanking: () => apiClient.get("/ranking"),
-  createRank: (body) => apiClient.post("/ranking", { body }),
+  createRank: (body) => apiClient.post("/ranking", body),
   getEligibleByBelt: (belt) => apiClient.get(`/ranking/${belt}/eligible`),
 };
 

@@ -1,29 +1,32 @@
-import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import examService from "@/services/examService";
+import { Timer } from "lucide-react";
+import { getExamById } from "@/features/exams/api/getExamById";
+import { getMyAttempts } from "@/features/exams/api/getMyAttempts";
+import { submitAttempt as submitAttemptApi } from "@/features/exams/api/submitAttempt";
 
 export default function ExamInterface() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { examId } = useParams();
-
   const [params] = useSearchParams();
   const attemptId = params.get("attempt");
 
-  const token =
-    localStorage.getItem("token") || sessionStorage.getItem("token");
+  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
 
-  const [exam, setExam] = useState<any>(null);
-  const [attempt, setAttempt] = useState<any>(null);
   const [answers, setAnswers] = useState<any>({});
-  const [loading, setLoading] = useState(true);
   const [focusLosses, setFocusLosses] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [forcedSubmit, setForcedSubmit] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qc = useQueryClient();
 
   useEffect(() => {
     if (!attemptId || !examId) {
@@ -34,60 +37,88 @@ export default function ExamInterface() {
       });
       navigate("/student-dashboard");
     }
-  }, [attemptId, examId]);
+  }, [attemptId, examId, navigate, toast]);
 
-  const fetchExam = async () => {
-    try {
-      const res = await examService.getExam(examId as string);
-      const data = await res.json();
-      setExam(data.exam);
-    } catch (err) {
-      console.error("Exam fetch error:", err);
+  const examQuery = useQuery(["exam", examId], () => getExamById(examId as string), {
+    enabled: !!examId && !!token,
+  });
+
+  const attemptsQuery = useQuery(["my-attempts"], getMyAttempts, {
+    enabled: !!attemptId && !!token,
+  });
+
+  const exam = (examQuery.data?.data?.exam || examQuery.data?.data) ?? null;
+  const attempts = attemptsQuery.data?.data?.attempts || attemptsQuery.data?.data || [];
+  const attempt = attempts.find((a: any) => a?._id === attemptId);
+
+  useEffect(() => {
+    if (!attempt && attemptsQuery.isSuccess) {
+      toast({
+        variant: "destructive",
+        title: "Access Denied",
+        description: "No active attempt found.",
+      });
+      navigate("/student-dashboard");
     }
-  };
-
-  const fetchAttempt = async () => {
-    try {
-      const res = await examService.getMyAttempts();
-
-      const data = await res.json();
-      const found = data.attempts.find((a: any) => a._id === attemptId);
-
-      if (!found) {
-        toast({
-          variant: "destructive",
-          title: "Access Denied",
-          description: "No active attempt found.",
-        });
-        navigate("/student-dashboard");
-        return;
-      }
-
-      if (found.submittedAt) {
-        toast({
-          variant: "destructive",
-          title: "Exam already submitted",
-        });
-        navigate("/student-dashboard");
-      }
-
-      setAttempt(found);
-    } catch (err) {
-      console.error("Attempt fetch error:", err);
+    if (attempt?.submittedAt) {
+      toast({
+        variant: "destructive",
+        title: "Exam already submitted",
+      });
+      navigate("/student-dashboard");
     }
-  };
+  }, [attempt, attemptsQuery.isSuccess, navigate, toast]);
+
+  useEffect(() => {
+    if (exam?.timeLimit) {
+      setTimeLeft(exam.timeLimit * 60);
+    }
+  }, [exam?.timeLimit]);
 
   useEffect(() => {
     const onBlur = () => setFocusLosses((x) => x + 1);
     window.addEventListener("blur", onBlur);
-
     return () => window.removeEventListener("blur", onBlur);
   }, []);
 
   useEffect(() => {
-    if (!token) return;
-    Promise.all([fetchExam(), fetchAttempt()]).finally(() => setLoading(false));
-  }, [token]);
+    if (!exam?.timeLimit || forcedSubmit) return;
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          handleSubmit(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [exam?.timeLimit, forcedSubmit]);
+
+  const submitMutation = useMutation(submitAttemptApi, {
+    onSuccess: () => {
+      qc.invalidateQueries(["my-attempts"]);
+      localStorage.setItem("refreshResults", "1");
+      toast({
+        title: "Exam submitted",
+        description: forcedSubmit
+          ? "Time expired. Your answers were submitted automatically."
+          : "Your theory exam has been submitted successfully.",
+      });
+      navigate("/student-dashboard");
+    },
+    onError: (err: any) => {
+      console.error("Submit error:", err);
+      toast({
+        variant: "destructive",
+        title: "Submit failed",
+        description: err?.message || "An error occurred.",
+      });
+    },
+  });
 
   const handleMCQ = (qId: string, index: number) => {
     setAnswers({ ...answers, [qId]: { selectedIndex: index } });
@@ -101,53 +132,42 @@ export default function ExamInterface() {
     setAnswers({ ...answers, [qId]: { essayText: text } });
   };
 
-  const handleSubmit = async () => {
-    const formattedAnswers = exam.questions.map((q: any) => ({
-      questionId: q._id,
-      selectedIndex:
-        answers[q._id]?.selectedIndex !== undefined
-          ? answers[q._id].selectedIndex
-          : null,
-      booleanAnswer:
-        answers[q._id]?.booleanAnswer !== undefined
-          ? answers[q._id].booleanAnswer
-          : null,
-      essayText: answers[q._id]?.essayText || "",
-    }));
+  const handleSubmit = useCallback(
+    (autoForced = false) => {
+      if (!exam || submitMutation.isLoading) return;
 
-    try {
-      const res = await examService.submitAttempt({
-        attemptId,
+      const formattedAnswers = exam.questions.map((q: any) => ({
+        questionId: q._id,
+        selectedIndex:
+          answers[q._id]?.selectedIndex !== undefined
+            ? answers[q._id].selectedIndex
+            : null,
+        booleanAnswer:
+          answers[q._id]?.booleanAnswer !== undefined
+            ? answers[q._id].booleanAnswer
+            : null,
+        essayText: answers[q._id]?.essayText || "",
+      }));
+
+      setForcedSubmit(autoForced);
+      submitMutation.mutate({
+        attemptId: attemptId as string,
         answers: formattedAnswers,
         focusLosses,
-        forcedSubmitReason: null,
+        forcedSubmitReason: autoForced ? "TIME_EXPIRED" : null,
       });
+    },
+    [answers, attemptId, exam, focusLosses, submitMutation]
+  );
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast({
-          variant: "destructive",
-          title: "Submit failed",
-          description: data.message || "An error occurred.",
-        });
-        return;
-      }
-
-      localStorage.setItem("refreshResults", "1");
-
-      toast({
-        title: "Exam submitted",
-        description: "Your theory exam has been submitted successfully.",
-      });
-
-      navigate("/student-dashboard");
-    } catch (err) {
-      console.error("Submit error:", err);
-    }
+  const formatTime = (seconds: number) => {
+    if (!seconds) return "—";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
-  if (loading || !exam) {
+  if (examQuery.isLoading || attemptsQuery.isLoading || !exam) {
     return (
       <div className="flex items-center justify-center h-screen">
         <span>Loading exam...</span>
@@ -159,12 +179,16 @@ export default function ExamInterface() {
     <div className="min-h-screen p-6">
       <Card className="mx-auto max-w-3xl shadow-xl">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">
-            {exam.title}
+          <CardTitle className="text-2xl font-bold text-center flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>{exam.title}</span>
+            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Badge variant="outline">{exam.questions.length} Questions</Badge>
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Timer className="h-4 w-4" />
+                {formatTime(timeLeft)}
+              </Badge>
+            </span>
           </CardTitle>
-          <div className="text-center text-muted-foreground">
-            {exam.questions.length} Questions • {exam.timeLimit} Minutes
-          </div>
         </CardHeader>
 
         <CardContent className="space-y-6">
@@ -225,7 +249,11 @@ export default function ExamInterface() {
             </div>
           ))}
 
-          <Button className="w-full py-6 text-lg" onClick={handleSubmit}>
+          <Button
+            className="w-full py-6 text-lg"
+            onClick={() => handleSubmit(false)}
+            disabled={submitMutation.isLoading}
+          >
             Submit Exam
           </Button>
         </CardContent>

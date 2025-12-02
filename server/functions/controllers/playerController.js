@@ -9,22 +9,33 @@ import PDFDocument from "pdfkit";
 import { assertObjectId, httpError } from "../utils/validation.js";
 import { Types } from "mongoose";
 
+/* ============================================================
+   LIST PLAYERS
+============================================================= */
 export const listPlayers = asyncHandler(async (req, res) => {
   const players = await PlayerProfile.aggregate([
-    {
-      $lookup: {
-        from: User.collection.name,
-        localField: "user",
-        foreignField: "_id",
-        as: "user",
-      },
+  {
+    $lookup: {
+      from: User.collection.name,
+      localField: "user",
+      foreignField: "_id",
+      as: "user",
     },
-    { $unwind: "$user" },
-  ]);
+  },
+  { $unwind: "$user" },
+]);
 
-  res.status(200).json(players);
+res.status(200).json({
+    success: true,
+    data: {
+      players,
+    },
+  });
 });
 
+/* ============================================================
+   GET PLAYER BY ID
+============================================================= */
 export const getPlayer = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const player = await PlayerProfile.aggregate([
@@ -40,29 +51,59 @@ export const getPlayer = asyncHandler(async (req, res) => {
     { $unwind: "$user" },
   ]);
 
-  if (!player.length)
-    return res.status(404).json({ message: "Player not found" });
+  if (!player.length) {
+    throw httpError(404, "Player not found");
+  }
 
-  res.status(200).json(player[0]);
+  res.status(200).json({
+    success: true,
+    data: {
+      player: player[0],
+    },
+  });
 });
 
+/* ============================================================
+   UPDATE PLAYER
+============================================================= */
 export const updatePlayer = asyncHandler(async (req, res) => {
   const player = await Player.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
   });
-  if (!player) return res.status(404).json({ message: "Player not found" });
-  res.json(player);
+
+  if (!player) {
+    throw httpError(404, "Player not found");
+  }
+
+  res.json({
+    success: true,
+    data: { player },
+  });
 });
 
+/* ============================================================
+   DELETE PLAYER
+============================================================= */
 export const deletePlayer = asyncHandler(async (req, res) => {
-  const p = await Player.findByIdAndDelete(req.params.id);
-  if (!p) return res.status(404).json({ message: "Player not found" });
-  res.json({ success: true });
+  const player = await Player.findByIdAndDelete(req.params.id);
+
+  if (!player) {
+    throw httpError(404, "Player not found");
+  }
+
+  res.json({
+    success: true,
+    data: { message: "Player deleted successfully" },
+  });
 });
 
+/* ============================================================
+   ADD ATTENDANCE ENTRY
+============================================================= */
 export const addAttendance = asyncHandler(async (req, res) => {
   const { sessionId, date, coachId, status, notes } = req.body;
-  const att = await Attendance.create({
+
+  const attendance = await Attendance.create({
     player: req.params.id,
     sessionId,
     sessionDate: date || new Date(),
@@ -70,42 +111,66 @@ export const addAttendance = asyncHandler(async (req, res) => {
     status,
     notes,
   });
+
   await Player.findByIdAndUpdate(req.params.id, {
     $inc: { "training.attendanceCount": 1 },
   });
-  res.status(201).json(att);
+
+  res.status(201).json({
+    success: true,
+    data: { attendance },
+  });
 });
 
+/* ============================================================
+   GET PLAYER ATTENDANCE LOG
+============================================================= */
 export const getAttendance = asyncHandler(async (req, res) => {
   const { from, to } = req.query;
+
   const filter = { player: req.params.id };
+
   if (from || to) filter.sessionDate = {};
   if (from) filter.sessionDate.$gte = new Date(from);
   if (to) filter.sessionDate.$lte = new Date(to);
+
   const logs = await Attendance.find(filter).sort({ sessionDate: -1 });
-  res.json(logs);
+
+  res.json({
+    success: true,
+    data: { attendance: logs },
+  });
 });
 
+/* ============================================================
+   GENERATE PLAYER REPORT PDF
+============================================================= */
 export const playerReportPdf = asyncHandler(async (req, res) => {
   const player = await Player.findById(req.params.id).populate(
     "user",
     "name email"
   );
-  if (!player) return res.status(404).json({ message: "Player not found" });
+
+  if (!player) throw httpError(404, "Player not found");
 
   const doc = new PDFDocument();
   res.setHeader("Content-Type", "application/pdf");
+
   doc.text(`Player: ${player.user.name}`);
   doc.text(`Belt: ${player.beltLevel}`);
   doc.text(
-    `Stats: Power ${player.stats?.power || 0}, Flex ${
+    `Stats: Power ${player.stats?.power || 0}, Flexibility ${
       player.stats?.flexibility || 0
     }`
   );
-  doc.end();
+
   doc.pipe(res);
+  doc.end();
 });
 
+/* ============================================================
+   PROMOTE PLAYER BELT
+============================================================= */
 export const promotePlayer = asyncHandler(async (req, res) => {
   const { nextBelt } = req.body;
 
@@ -115,18 +180,30 @@ export const promotePlayer = asyncHandler(async (req, res) => {
     { new: true }
   );
 
-  res.json({ success: true, player });
+  res.json({
+    success: true,
+    data: { player },
+  });
 });
 
+/* ============================================================
+   ADD EXAM HISTORY TO PLAYER
+============================================================= */
 export const addExamToPlayer = asyncHandler(async (req, res) => {
   const player = await Player.findById(req.params.id);
 
   player.exams.push(req.body);
   await player.save();
 
-  res.json({ success: true, player });
+  res.json({
+    success: true,
+    data: { player },
+  });
 });
 
+/* ============================================================
+   MARK BELT UPGRADE AS PENDING
+============================================================= */
 export const markPendingUpgrade = asyncHandler(async (req, res) => {
   const { examId, attemptId } = req.body;
   const playerId = assertObjectId(req.params.id, "playerId");
@@ -145,13 +222,22 @@ export const markPendingUpgrade = asyncHandler(async (req, res) => {
     note: "Exam passed pending coach approval",
   });
 
-  res.json({ success: true, pendingUpgrade: entry });
+  res.json({
+    success: true,
+    data: { pendingUpgrade: entry },
+  });
 });
 
+/* ============================================================
+   APPROVE BELT UPGRADE
+============================================================= */
 export const approveUpgrade = asyncHandler(async (req, res) => {
   const { toBelt, note } = req.body;
+
   const entryId = assertObjectId(req.params.historyId, "historyId");
-  const coachId = req.user?._id ? assertObjectId(req.user._id, "coachId") : null;
+  const coachId = req.user?._id
+    ? assertObjectId(req.user._id, "coachId")
+    : null;
 
   const history = await BeltHistory.findById(entryId);
   if (!history) throw httpError(404, "Upgrade request not found");
@@ -178,5 +264,182 @@ export const approveUpgrade = asyncHandler(async (req, res) => {
     type: "belt",
   });
 
-  res.json({ success: true, history, player });
+  res.json({
+    success: true,
+    data: { history, player },
+  });
 });
+export const getEligibility = asyncHandler(async (req, res) => {
+  const studentId = req.user._id;
+
+  // 1️⃣ Get user belt level → program level
+  const user = await User.findById(studentId);
+  const belt = user.beltLevel;
+
+  const mapBeltToProgram = {
+    white: "beginner",
+    yellow: "beginner",
+    blue: "intermediate",
+    brown: "intermediate",
+    red: "advanced",
+    black: "advanced",
+  };
+
+  const programLevel = mapBeltToProgram[belt];
+
+  // 2️⃣ Attendance Summary
+  const attendance = await Attendance.aggregate([
+    { $match: { player: studentId } },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: 1 },
+        present: {
+          $sum: {
+            $cond: [{ $eq: ["$status", "present"] }, 1, 0],
+          },
+        },
+      },
+    },
+  ]);
+
+  const totalSessions = attendance[0]?.total || 0;
+  const attended = attendance[0]?.present || 0;
+  const attendanceRate = totalSessions
+    ? Math.round((attended / totalSessions) * 100)
+    : 0;
+
+  const requiredAttendance =
+    programLevel === "beginner"
+      ? 50
+      : programLevel === "intermediate"
+      ? 60
+      : 70;
+
+  // 3️⃣ Lesson progress
+  const program = await Program.findOne({ level: programLevel });
+  const totalLessons = await Lesson.countDocuments({ program: program._id });
+  const completedLessons = await LessonProgress.countDocuments({
+    user: studentId,
+    completed: true,
+  });
+
+  const lessonsRemaining = totalLessons - completedLessons;
+
+  // 4️⃣ Quiz pass rate
+  const quizzes = await QuizResult.find({ student: studentId });
+  const passed = quizzes.filter((q) => q.passed).length;
+  const quizRate = quizzes.length
+    ? Math.round((passed / quizzes.length) * 100)
+    : 0;
+
+  const quizNeeded = 70;
+
+  // 5️⃣ Determine final eligibility
+  let lockedReasons = [];
+
+  if (attendanceRate < requiredAttendance)
+    lockedReasons.push("Attendance below required percentage.");
+
+  if (completedLessons < totalLessons)
+    lockedReasons.push("Not all lessons are completed.");
+
+  if (quizRate < quizNeeded) lockedReasons.push("Quiz pass rate is too low.");
+
+  const eligibleForExam = lockedReasons.length === 0;
+
+  res.json({
+    success: true,
+    data: {
+      attendanceRate,
+      requiredAttendance,
+
+      completedLessons,
+      totalLessons,
+      lessonsRemaining,
+
+      quizRate,
+      quizNeeded,
+
+      eligibleForExam,
+      lockedReasons,
+    },
+  });
+});
+export const getPlayerFull = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const player = await Player.findOne({ user: userId })
+    .populate("user", "name email phone gender")
+    .lean();
+
+  if (!player) throw httpError(404, "Player not found");
+
+  const [attendance, lessons, exams, certificates] = await Promise.all([
+    Attendance.find({ player: player._id }).sort({ sessionDate: -1 }).lean(),
+    LessonProgress.find({ user: userId }).populate("lesson").lean(),
+    ExamAttempt.find({ student: userId }).lean(),
+    Certificate.find({ student: userId }).lean(),
+  ]);
+
+  res.json({
+    success: true,
+    data: {
+      player,
+      stats: {
+        xp: player.xp,
+        level: player.level,
+        streak: player.streakDays,
+        lessonsCompleted: player.totalLessonsCompleted,
+        examsPassed: player.totalExamsPassed,
+      },
+      attendance,
+      lessons,
+      exams,
+      certificates,
+      timeline: buildTimeline(attendance, lessons, exams, certificates),
+    },
+  });
+});
+
+const buildTimeline = (attendance, lessons, exams, certificates) => {
+  const items = [];
+
+  attendance.forEach((a) =>
+    items.push({
+      type: "attendance",
+      date: a.sessionDate,
+      title: "Training Attendance",
+      detail: a.status,
+    })
+  );
+
+  lessons.forEach((l) =>
+    items.push({
+      type: "lesson",
+      date: l.completedAt,
+      title: `Completed Lesson: ${l.lesson.title}`,
+      detail: "Lesson Completed",
+    })
+  );
+
+  exams.forEach((e) =>
+    items.push({
+      type: "exam",
+      date: e.submittedAt,
+      title: `Exam Attempt`,
+      detail: `Theory Score: ${e.theoryScore}`,
+    })
+  );
+
+  certificates.forEach((c) =>
+    items.push({
+      type: "certificate",
+      date: c.issuedAt,
+      title: `Certificate Issued`,
+      detail: c.title,
+    })
+  );
+
+  return items.sort((a, b) => new Date(b.date) - new Date(a.date));
+};

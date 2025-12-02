@@ -1,4 +1,5 @@
 import express from "express";
+import { check } from "express-validator";
 import {
   listModules,
   getModule,
@@ -6,6 +7,8 @@ import {
   updateModule,
   deleteModule,
 } from "../controllers/moduleController.js";
+import { protect, checkRole } from "../middlewares/authMiddleware.js";
+import { validate } from "../middlewares/validate.js";
 
 const router = express.Router();
 
@@ -17,15 +20,40 @@ const router = express.Router();
 router.get("/", listModules);
 
 // GET module by id
-router.get("/:id", getModule);
+router.get("/:id", validate([check("id").isMongoId()]), getModule);
 
 // CREATE module (requires program ID in body)
-router.post("/", createModule);
+router.post(
+  "/",
+  protect,
+  checkRole("admin"),
+  validate([
+    check("title").notEmpty().withMessage("title is required"),
+    check("program").optional().isMongoId(),
+  ]),
+  createModule
+);
 
 // UPDATE module
-router.patch("/:id", updateModule);
+router.patch(
+  "/:id",
+  protect,
+  checkRole("admin"),
+  validate([
+    check("id").isMongoId(),
+    check("title").optional().isString(),
+    check("program").optional().isMongoId(),
+  ]),
+  updateModule
+);
 
 // DELETE module
-router.delete("/:id", deleteModule);
+router.delete(
+  "/:id",
+  protect,
+  checkRole("admin"),
+  validate([check("id").isMongoId()]),
+  deleteModule
+);
 
 export default router;

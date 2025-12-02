@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import playerService from "@/services/playerService";
 
-const normalizePlayer = (p: any) => {
+const normalizePlayer = (p) => {
   return {
     id: p._id,
     name: p.name || p.full_name || "Unknown",
@@ -31,23 +31,37 @@ const normalizePlayer = (p: any) => {
 };
 
 export const PlayersSection = () => {
-  const [players, setPlayers] = useState<any[]>([]);
-  const [filteredPlayers, setFilteredPlayers] = useState<any[]>([]);
+  const [players, setPlayers] = useState([]);
+  const [filteredPlayers, setFilteredPlayers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
 
   const fetchPlayers = async () => {
     try {
-      const res = await playerService.getAllPlayers();
+      const res = await playerService.getAllPlayers(); // apiClient returns JSON ready
 
-      const data = await res.json();
+      console.log("Players response:", res);
 
-      const normalized = data.map(normalizePlayer);
+      if (!res.success) {
+        setPlayers([]);
+        setFilteredPlayers([]);
+        return;
+      }
+
+      const payload = res.data || res.raw || {};
+      const list = Array.isArray(payload.players)
+        ? payload.players
+        : Array.isArray(payload)
+        ? payload
+        : [];
+      const normalized = list.map(normalizePlayer);
 
       setPlayers(normalized);
       setFilteredPlayers(normalized);
     } catch (error) {
       console.error("Players fetch error:", error);
+      setPlayers([]);
+      setFilteredPlayers([]);
     } finally {
       setLoading(false);
     }

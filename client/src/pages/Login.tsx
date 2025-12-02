@@ -57,7 +57,7 @@ const Login = () => {
         navigate("/admin-dashboard");
         break;
       case "coach":
-        navigate("/instructor");
+        navigate("/instructor-dashboard");
         break;
       case "student":
         navigate("/student-dashboard");

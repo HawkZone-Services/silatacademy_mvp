@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "proxy": "https://api-f3rwhuz64a-uc.a.run.app/api/v1",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -49,6 +50,7 @@
     "embla-carousel-react": "^8.6.0",
     "file-saver": "^2.0.5",
     "firebase": "^12.5.0",
+    "framer-motion": "^12.23.25",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
     "jspdf": "^3.0.4",

@@ -1,5 +1,5 @@
 import asyncHandler from "express-async-handler";
-import Ranking from "../models/Ranking.js";
+import Ranking from "../models/BeltRanking.js";
 import Player from "../models/Player.js";
 
 export const listRanks = asyncHandler(async (req, res) => {
