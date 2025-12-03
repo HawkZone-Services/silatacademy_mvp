@@ -10,9 +10,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import router from "./routes/index.js";
-import { connectDB } from "./utils/db-lazy.js"; // ✨ النسخة الجديدة
-import { errorHandler, notFound } from "./middlewares/errorMiddleware.js";
 
+import { errorHandler, notFound } from "./middlewares/errorMiddleware.js";
+import { connectDB } from "./utils/db.js";
 dotenv.config();
 
 const app = express();

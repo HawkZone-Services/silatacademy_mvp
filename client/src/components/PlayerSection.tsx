@@ -4,27 +4,28 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import playerService from "@/services/playerService";
 
+// FINAL NORMALIZER
 const normalizePlayer = (p) => {
+  const user = p.user || {};
+
   return {
     id: p._id,
-    name: p.name || p.full_name || "Unknown",
-    email: p.email || "",
-    phone: p.phone || "",
-    belt: p.belt || "White Belt",
+    name: user.name || "Unknown Player",
+    email: user.email || "",
+    phone: user.phone || "",
+    gender: user.gender || "",
+
+    belt: p.beltLabel || p.beltLevel || "white",
     beltColor: p.beltColor || "#ffffff",
 
-    current_belt: p.belt || "white",
-    status: p.status || "active",
-
-    image: p.avatar || null,
-
-    // fallback training fields
-    age: p.age || 0,
+    age: p.age || null,
     height: p.height || "N/A",
     weight: p.weight || "N/A",
 
+    coach: p.coach || "Not Assigned",
     trainingYears: p.trainingYears || 0,
-    coach: p.coach || "Unknown",
+
+    image: user.avatarUrl || null,
 
     achievements: Array.isArray(p.achievements) ? p.achievements : [],
   };
@@ -37,23 +38,22 @@ export const PlayersSection = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchPlayers = async () => {
+    setLoading(true);
+
     try {
-      const res = await playerService.getAllPlayers(); // apiClient returns JSON ready
+      const res = await playerService.getAllPlayers();
 
       console.log("Players response:", res);
 
-      if (!res.success) {
+      // API ALWAYS returns → { success, data: { players: [] } }
+      if (!res.success || !res.data || !Array.isArray(res.data.players)) {
         setPlayers([]);
         setFilteredPlayers([]);
         return;
       }
 
-      const payload = res.data || res.raw || {};
-      const list = Array.isArray(payload.players)
-        ? payload.players
-        : Array.isArray(payload)
-        ? payload
-        : [];
+      const list = res.data.players;
+      console.log("Raw players list:", list);
       const normalized = list.map(normalizePlayer);
 
       setPlayers(normalized);

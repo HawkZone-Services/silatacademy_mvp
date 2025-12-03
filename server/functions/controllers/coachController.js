@@ -1,39 +1,63 @@
 import asyncHandler from "express-async-handler";
+import mongoose from "mongoose";
+
 import Coach from "../models/Coach.js";
 import Player from "../models/Player.js";
 import BeltHistory from "../models/BeltHistory.js";
 import Notification from "../models/Notification.js";
 import TrainingTask from "../models/TrainingTask.js";
-import { getDb } from "../utils/mongodb.js";
+import LessonProgress from "../models/LessonProgress.js";
+import ExamAttempt from "../models/ExamAttempt.js";
+import Lesson from "../models/Lesson.js";
+import Exam from "../models/Exam.js";
+
 import { assertObjectId, httpError, toObjectId } from "../utils/validation.js";
 
+/* =====================================================
+   1) LIST COACHES
+===================================================== */
 export const listCoaches = asyncHandler(async (req, res) => {
   const coaches = await Coach.find().populate("user", "name email avatarUrl");
+
   res.json(coaches);
 });
 
+/* =====================================================
+   2) GET COACH
+===================================================== */
 export const getCoach = asyncHandler(async (req, res) => {
   const coach = await Coach.findById(req.params.id).populate(
     "user",
     "name email avatarUrl"
   );
-  if (!coach) return res.status(404).json({ message: "Coach not found" });
+
+  if (!coach) throw httpError(404, "Coach not found");
   res.json(coach);
 });
 
+/* =====================================================
+   3) CREATE COACH
+===================================================== */
 export const createCoach = asyncHandler(async (req, res) => {
   const coach = await Coach.create(req.body);
   res.status(201).json(coach);
 });
 
+/* =====================================================
+   4) UPDATE COACH
+===================================================== */
 export const updateCoach = asyncHandler(async (req, res) => {
   const coach = await Coach.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
   });
-  if (!coach) return res.status(404).json({ message: "Coach not found" });
+
+  if (!coach) throw httpError(404, "Coach not found");
   res.json(coach);
 });
 
+/* =====================================================
+   5) LIST PENDING BELT UPGRADES
+===================================================== */
 export const listPendingUpgrades = asyncHandler(async (req, res) => {
   const pending = await BeltHistory.find({ status: "pending" })
     .populate("player", "beltLevel user")
@@ -44,9 +68,12 @@ export const listPendingUpgrades = asyncHandler(async (req, res) => {
   res.json({ success: true, pending });
 });
 
+/* =====================================================
+   6) APPROVE BELT UPGRADE
+===================================================== */
 export const approveBeltUpgrade = asyncHandler(async (req, res) => {
   const { toBelt, note } = req.body;
-  const historyId = assertObjectId(req.params.id, "historyId");
+  const historyId = assertObjectId(req.params.id);
 
   const history = await BeltHistory.findById(historyId);
   if (!history) throw httpError(404, "Upgrade request not found");
@@ -55,9 +82,12 @@ export const approveBeltUpgrade = asyncHandler(async (req, res) => {
   if (!player) throw httpError(404, "Player not found");
 
   const newBelt = toBelt || player.beltLevel;
+
+  // Update player
   player.beltLevel = newBelt;
   await player.save();
 
+  // Update history
   history.status = "approved";
   history.toBelt = newBelt;
   history.approvedAt = new Date();
@@ -65,6 +95,7 @@ export const approveBeltUpgrade = asyncHandler(async (req, res) => {
   if (note) history.note = note;
   await history.save();
 
+  // Notify user
   await Notification.create({
     user: player.user,
     title: "Belt Upgrade Approved",
@@ -75,75 +106,56 @@ export const approveBeltUpgrade = asyncHandler(async (req, res) => {
   res.json({ success: true, history, player });
 });
 
+/* =====================================================
+   7) GET STUDENT LESSON PROGRESS (with populate)
+===================================================== */
 export const getStudentLessonProgress = asyncHandler(async (req, res) => {
-  const db = await getDb();
-  const playerId = assertObjectId(req.params.id, "playerId");
+  const playerId = assertObjectId(req.params.id);
+
   const player = await Player.findById(playerId);
   if (!player) throw httpError(404, "Player not found");
 
   const userId = player.user;
 
-  const progress = await db
-    .collection("lessonprogresses")
-    .aggregate([
-      { $match: { user: userId } },
-      {
-        $lookup: {
-          from: "lessons",
-          localField: "lesson",
-          foreignField: "_id",
-          as: "lesson",
-        },
-      },
-      { $unwind: { path: "$lesson", preserveNullAndEmptyArrays: true } },
-      { $sort: { updatedAt: -1 } },
-    ])
-    .toArray();
+  const progress = await LessonProgress.find({ user: userId })
+    .populate("lesson")
+    .sort({ updatedAt: -1 });
 
   res.json({ success: true, progress });
 });
 
+/* =====================================================
+   8) GET STUDENT EXAM ATTEMPTS
+===================================================== */
 export const getStudentExamAttempts = asyncHandler(async (req, res) => {
-  const db = await getDb();
-  const playerId = assertObjectId(req.params.id, "playerId");
+  const playerId = assertObjectId(req.params.id);
+
   const player = await Player.findById(playerId);
   if (!player) throw httpError(404, "Player not found");
-  const userId = player.user;
 
-  const attempts = await db
-    .collection("examAttempts")
-    .aggregate([
-      { $match: { student: userId } },
-      {
-        $lookup: {
-          from: "exams",
-          localField: "exam",
-          foreignField: "_id",
-          as: "exam",
-        },
-      },
-      { $unwind: { path: "$exam", preserveNullAndEmptyArrays: true } },
-      { $sort: { submittedAt: -1 } },
-    ])
-    .toArray();
+  const attempts = await ExamAttempt.find({ student: player.user })
+    .populate("exam")
+    .sort({ submittedAt: -1 });
 
   res.json({ success: true, attempts });
 });
 
+/* =====================================================
+   9) ASSIGN TRAINING TASK
+===================================================== */
 export const assignTrainingTask = asyncHandler(async (req, res) => {
   const { playerId, title, description, dueDate } = req.body;
-  const playerObj = assertObjectId(playerId, "playerId");
 
   const task = await TrainingTask.create({
-    player: playerObj,
-    coach: req.user?._id ? toObjectId(req.user._id) : undefined,
+    player: assertObjectId(playerId),
+    coach: req.user?._id,
     title,
     description,
     dueDate: dueDate ? new Date(dueDate) : undefined,
   });
 
   await Notification.create({
-    user: req.body.userId || undefined,
+    user: req.body.userId,
     title: "New Training Task",
     message: `Task assigned: ${title}`,
     type: "system",
@@ -152,10 +164,15 @@ export const assignTrainingTask = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, task });
 });
 
+/* =====================================================
+   10) GET PLAYER TASKS
+===================================================== */
 export const getPlayerTasks = asyncHandler(async (req, res) => {
-  const playerId = assertObjectId(req.params.id, "playerId");
+  const playerId = assertObjectId(req.params.id);
+
   const tasks = await TrainingTask.find({ player: playerId })
     .sort({ createdAt: -1 })
     .lean();
+
   res.json({ success: true, tasks });
 });

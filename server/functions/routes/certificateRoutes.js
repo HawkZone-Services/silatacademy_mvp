@@ -26,10 +26,7 @@ router.post(
   "/lesson/:lessonId/:studentId",
   protect,
   checkRole("admin"),
-  validate([
-    check("lessonId").isMongoId(),
-    check("studentId").isMongoId(),
-  ]),
+  validate([check("lessonId").isMongoId(), check("studentId").isMongoId()]),
   issueLessonCertificate
 );
 router.post(

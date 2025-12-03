@@ -68,6 +68,7 @@ import CertificateCenter from "@/components/admin/certificates/CertificateCenter
 // components/ui/table.tsx
 import * as React from "react";
 import ApiPlayground from "./ApiPlayground";
+import PlayerScreen from "@/components/admin/tabs/PlayersScreen";
 
 export const Table = ({ ...props }) => (
   <table className="w-full text-sm text-left" {...props} />
@@ -125,7 +126,6 @@ export default function Dashboard() {
   const [exams, setExams] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
 
   const [openExamId, setOpenExamId] = useState("");
   const [selectedExam, setSelectedExam] = useState("");
@@ -146,43 +146,27 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     setLoading(true);
+
     try {
-      /* PLAYERS */
-      const playersRes = await playerService.getAllPlayers();
-      const playerPayload =
-        playersRes?.data?.players ||
-        playersRes?.data ||
-        playersRes?.players ||
-        playersRes;
-      const playerList = Array.isArray(playerPayload) ? playerPayload : [];
+      const [playersRes, lessonsRes, attendanceRes] = await Promise.all([
+        adminService.getPlayers(),
+        adminService.getLessons(),
+        adminService.getAttendanceToday(),
+      ]);
 
-      /* LESSONS */
-      const lessonsRes = await adminService.getLessons();
-      const lessonsPayload =
-        lessonsRes?.data?.lessons || lessonsRes?.lessons || lessonsRes?.data;
-      const lessonsList = Array.isArray(lessonsPayload) ? lessonsPayload : [];
+      const players = playersRes.data || [];
+      const lessons = lessonsRes.data?.lessons || [];
+      const attendance = attendanceRes.data?.attendance || [];
 
-      /* ATTENDANCE */
-      const attendanceRes = await adminService.getAttendanceToday();
-      const attendancePayload =
-        attendanceRes?.data?.attendance ||
-        attendanceRes?.attendance ||
-        attendanceRes?.data ||
-        attendanceRes;
-      const attendanceList = Array.isArray(attendancePayload)
-        ? attendancePayload
-        : [];
-
-      /* STATS */
       setStats({
-        totalPlayers: playerList.length,
-        activePlayers: playerList.filter((p) => p.status === "active").length,
-        upcomingLessons: lessonsList.length,
-        todayAttendance: attendanceList.length,
+        totalPlayers: players.length,
+        activePlayers: players.filter((p) => p.user?.isActive).length,
+        upcomingLessons: lessons.length,
+        todayAttendance: attendance.length,
       });
 
-      setPlayers(playerList);
-      setLessons(lessonsList);
+      setPlayers(players);
+      setLessons(lessons);
     } catch (err) {
       console.error("Dashboard Data Error:", err);
     } finally {
@@ -339,15 +323,6 @@ export default function Dashboard() {
      DERIVED DATA
   ========================================== */
 
-  const filteredPlayers = players.filter((player) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      player.name?.toLowerCase().includes(q) ||
-      player.email?.toLowerCase().includes(q) ||
-      player.national_id?.toLowerCase().includes(q)
-    );
-  });
-
   const finalizedSubmissions = submissions.filter((s) => s?.finalPassed);
 
   // ==========================================
@@ -442,71 +417,10 @@ export default function Dashboard() {
 
           {/* PLAYERS */}
           <TabsContent value="players">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Player Management</CardTitle>
-                    <CardDescription>Manage academy players</CardDescription>
-                  </div>
-                  <AddPlayerDialog onPlayerAdded={fetchDashboardData} />
-                </div>
-              </CardHeader>
-
-              <CardContent>
-                <Input
-                  placeholder="Search by name, email, or ID..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="mb-4"
-                />
-
-                <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                  {filteredPlayers.map((player: any) => (
-                    <div
-                      key={player._id}
-                      className="flex items-center justify-between p-4 bg-accent/10 rounded-lg hover:bg-accent/20 transition"
-                    >
-                      <div>
-                        <h4 className="font-semibold">{player.name}</h4>
-                        <p className="text-sm">{player.email}</p>
-
-                        <div className="flex gap-2 mt-2">
-                          <Badge variant="outline" className="capitalize">
-                            {player.beltLevel || "white"}
-                          </Badge>
-                          <Badge variant="secondary">
-                            {player.status || "active"}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            navigate(`/player/${player._id}?mode=cert`)
-                          }
-                        >
-                          Generate Cert
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            navigate(`/player/${player._id}?mode=view`)
-                          }
-                        >
-                          View Details
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <PlayerScreen
+              fetchDashboardData={fetchDashboardData}
+              token={token}
+            />
           </TabsContent>
 
           {/* TESTING TAB */}

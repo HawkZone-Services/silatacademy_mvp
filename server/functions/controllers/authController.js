@@ -1,100 +1,128 @@
 import asyncHandler from "express-async-handler";
 import bcrypt from "bcryptjs";
-import { getDb } from "../utils/mongodb.js";
+
+import User from "../models/User.js";
+import Profile from "../models/Profile.js";
+import Player from "../models/Player.js";
 import { generateToken } from "../utils/generateToken.js";
 
-// =======================
-// REGISTER USER (admin creates: admin | instructor | student)
-// =======================
+/* =====================================================
+   REGISTER USER (admin / instructor / student)
+====================================================== */
 export const regUser = asyncHandler(async (req, res) => {
   try {
-    const { name, email, password, role, nationalId, phone, profile } =
-      req.body;
+    const {
+      name,
+      email,
+      password,
+      role,
+      nationalId,
+      phone,
+      gender,
+      dob,
+      profile, // بيانات البروفايل العامة
+      player, // بيانات اللاعب لو role = student
+    } = req.body;
 
-    if (!name || !email || !password || !role) {
+    // basic validation متوافقة مع User schema
+    if (!name || !password || !role || !nationalId || !gender) {
       return res.status(400).json({
         success: false,
-        message: "name, email, role, and password are required",
+        message:
+          "name, password, role, nationalId and gender are required fields.",
       });
     }
 
-    const db = await getDb("silatacademy");
-    const normalizedEmail = email.toLowerCase().trim();
-
-    // Check email
-    const existingEmail = await db
-      .collection("users")
-      .findOne({ email: normalizedEmail });
-
-    if (existingEmail) {
+    const allowedRoles = ["admin", "instructor", "student"];
+    if (!allowedRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: "Email already exists",
+        message: `Invalid role. Allowed: ${allowedRoles.join(", ")}`,
       });
     }
 
-    // Check national ID
-    if (nationalId) {
-      const existingNational = await db
-        .collection("users")
-        .findOne({ nationalId });
+    const normalizedEmail = email ? email.toLowerCase().trim() : null;
 
-      if (existingNational) {
+    // ===== Check email uniqueness (لو موجود)
+    if (normalizedEmail) {
+      const existingEmail = await User.findOne({ email: normalizedEmail });
+      if (existingEmail) {
         return res.status(400).json({
           success: false,
-          message: "National ID already exists",
+          message: "Email already exists",
         });
       }
     }
 
-    // Hash password
-    const hashPassword = await bcrypt.hash(password, 10);
+    // ===== Check nationalId uniqueness
+    const existingNational = await User.findOne({ nationalId });
+    if (existingNational) {
+      return res.status(400).json({
+        success: false,
+        message: "National ID already exists",
+      });
+    }
 
-    // Create user
-    const newUser = {
+    // ===== Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // ===== Create User
+    const user = await User.create({
       name,
       email: normalizedEmail,
-      passwordHash: hashPassword,
+      nationalId,
+      passwordHash,
+      gender,
+      dob: dob ? new Date(dob) : undefined,
+      phone: phone || undefined,
       role,
-      nationalId: nationalId || null,
-      phone: phone || null,
       avatarUrl: profile?.avatar || "",
       createdBy: req.user?._id || null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    });
 
-    const userResult = await db.collection("users").insertOne(newUser);
-    const userId = userResult.insertedId;
-
-    // Create profile
-    const newProfile = {
-      user: userId,
-      firstName: profile?.firstName || "",
+    // ===== Create Profile (لكل المستخدمين)
+    const userProfile = await Profile.create({
+      user: user._id,
+      firstName: profile?.firstName || name,
       lastName: profile?.lastName || "",
       avatar: profile?.avatar || "",
       address: profile?.address || {},
       bio: profile?.bio || "",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+      social: profile?.social || {},
+    });
 
-    const profileResult = await db.collection("profiles").insertOne(newProfile);
+    // ===== Create Player فقط لو role = student
+    let playerDoc = null;
 
-    // Link profile
-    await db
-      .collection("users")
-      .updateOne(
-        { _id: userId },
-        { $set: { profile: profileResult.insertedId } }
-      );
+    if (role === "student") {
+      playerDoc = await Player.create({
+        user: user._id,
+
+        beltLevel: player?.beltLevel || "white", // Player schema هيظبط beltColor و beltLabel
+
+        age: player?.age ?? null,
+        height: player?.height || "",
+        weight: player?.weight || "",
+        coach: player?.coach || "",
+
+        trainingStartDate: player?.trainingStartDate || "",
+        trainingYears: player?.trainingYears || 0,
+
+        stats: player?.stats || undefined,
+        currentFocus: player?.currentFocus || "",
+        achievements: player?.achievements || [],
+        health: player?.health || {},
+        trainingLogs: player?.trainingLogs || [],
+      });
+    }
 
     return res.status(201).json({
       success: true,
       message: `${role} registered successfully`,
       data: {
-        userId,
-        profileId: profileResult.insertedId,
+        userId: user._id,
+        profileId: userProfile._id,
+        playerId: playerDoc?._id || null,
       },
     });
   } catch (error) {
@@ -105,7 +133,6 @@ export const regUser = asyncHandler(async (req, res) => {
     });
   }
 });
-
 export const login = asyncHandler(async (req, res) => {
   let { username, password } = req.body;
 
@@ -116,15 +143,13 @@ export const login = asyncHandler(async (req, res) => {
     });
   }
 
-  const db = await getDb("silatacademy");
   const input = username.trim().toLowerCase();
 
   const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input);
   const isNationalId = /^[0-9]{10,20}$/.test(input);
   const isPhone = /^[0-9]{8,15}$/.test(input);
 
-  let query = {};
-
+  const query = {};
   if (isEmail) query.email = input;
   else if (isNationalId) query.nationalId = input;
   else if (isPhone) query.phone = input;
@@ -135,27 +160,13 @@ export const login = asyncHandler(async (req, res) => {
     });
   }
 
-  const user = await db.collection("users").findOne(query);
+  // Find user
+  const user = await User.findOne(query);
+  if (!user)
+    return res.status(404).json({ success: false, message: "User not found" });
 
-  if (!user) {
-    return res.status(404).json({
-      success: false,
-      message: "User not found",
-    });
-  }
-
-  // 🔥 FIX HERE: passwordHash OR old password
-  const storedHash = user.passwordHash || user.password;
-
-  if (!storedHash) {
-    return res.status(500).json({
-      success: false,
-      message: "Password is missing for this user.",
-    });
-  }
-
-  const match = await bcrypt.compare(password, storedHash);
-
+  // Validate password
+  const match = await bcrypt.compare(password, user.passwordHash);
   if (!match) {
     return res.status(401).json({
       success: false,
@@ -163,25 +174,25 @@ export const login = asyncHandler(async (req, res) => {
     });
   }
 
+  // Generate token
   const token = generateToken(user._id, user.role);
 
-  const profile = await db
-    .collection("playerProfiles")
-    .findOne({ user: user._id });
+  // Load profile (optional)
+  const profile = await Profile.findOne({ user: user._id }).lean();
+
+  // Load player (only for students)
+  const player =
+    user.role === "student"
+      ? await Player.findOne({ user: user._id }).lean()
+      : null;
 
   return res.json({
     success: true,
     message: "Login successful",
     data: {
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        nationalId: user.nationalId,
-        role: user.role,
-        profile: profile || null,
-      },
+      user,
+      profile: profile || null,
+      player: player || null,
       token,
     },
   });

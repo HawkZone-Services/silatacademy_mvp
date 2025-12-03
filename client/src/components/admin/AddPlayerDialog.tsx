@@ -84,8 +84,10 @@ export const AddPlayerDialog = ({ onPlayerAdded }: AddPlayerDialogProps) => {
         },
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Failed to add player");
+      // axios → البيانات داخل response.data
+      if (response.status !== 201) {
+        throw new Error(response.data?.message || "Failed to add player");
+      }
 
       toast({
         title: "Success",

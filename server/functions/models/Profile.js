@@ -1,46 +1,7 @@
 import mongoose from "mongoose";
 
-const AchievementSchema = new mongoose.Schema({
-  title: String,
-  date: String,
-  description: String,
-  type: {
-    type: String,
-    enum: ["competition", "belt", "workshop", "certificate"],
-  },
-});
-
-const HealthSchema = new mongoose.Schema({
-  status: String,
-  lastCheckup: String,
-  injuries: [
-    {
-      type: String,
-    },
-  ],
-  nutritionPlan: String,
-  restSchedule: String,
-  medicalNotes: String,
-});
-
-const TrainingLogSchema = new mongoose.Schema({
-  date: String,
-  focus: String,
-  attendance: Boolean,
-  performanceNotes: String,
-  coachRemarks: String,
-});
-
-const StatsSchema = new mongoose.Schema({
-  power: Number,
-  flexibility: Number,
-  endurance: Number,
-  speed: Number,
-});
-
-const PlayerProfileSchema = new mongoose.Schema(
+const ProfileSchema = new mongoose.Schema(
   {
-    // رابط المستخدم الأساسي
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -48,31 +9,46 @@ const PlayerProfileSchema = new mongoose.Schema(
       unique: true,
     },
 
-    // بيانات عامة
-    name: { type: String, required: true },
-    belt: { type: String, required: true },
-    beltColor: { type: String },
-    age: Number,
-    height: String,
-    weight: String,
-    coach: String,
+    firstName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
 
-    trainingStartDate: String,
-    trainingYears: Number,
+    lastName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
 
-    stats: StatsSchema,
+    avatar: {
+      type: String,
+      default: "",
+    },
 
-    currentFocus: String,
+    address: {
+      country: { type: String, default: "" },
+      city: { type: String, default: "" },
+      street: { type: String, default: "" },
+      postalCode: { type: String, default: "" },
+    },
 
-    achievements: [AchievementSchema],
+    bio: {
+      type: String,
+      default: "",
+    },
 
-    health: HealthSchema,
-
-    trainingLogs: [TrainingLogSchema],
+    social: {
+      facebook: { type: String, default: "" },
+      instagram: { type: String, default: "" },
+      youtube: { type: String, default: "" },
+      tiktok: { type: String, default: "" },
+      website: { type: String, default: "" },
+    },
   },
-  { timestamps: true, collection: "playerProfiles" }
+  {
+    timestamps: true,
+  }
 );
 
-const PlayerProfile = mongoose.model("PlayerProfile", PlayerProfileSchema);
-
-export default PlayerProfile;
+export default mongoose.model("Profile", ProfileSchema);

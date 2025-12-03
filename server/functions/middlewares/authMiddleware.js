@@ -1,34 +1,34 @@
+// middleware/authMiddleware.js
 import jwt from "jsonwebtoken";
 import asyncHandler from "express-async-handler";
-import { ObjectId } from "mongodb";
-import { getDb } from "../utils/mongodb.js";
+import User from "../models/User.js";
+import { connectDB } from "../utils/db.js";
 
-// Use process.env or Firebase Secret Manager (runtime)
 const JWT_SECRET = process.env.JWT_SECRET;
 
 export const protect = asyncHandler(async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res
-      .status(401)
-      .json({ message: "Not authorized, token missing or malformed" });
+    return res.status(401).json({
+      message: "Not authorized, token missing or malformed",
+    });
   }
 
   const token = authHeader.split(" ")[1];
 
   try {
-    // Verify token
+    // Decode token
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded?.id) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
 
-    // Connect to DB
-    const db = await getDb("silatacademy"); // your DB name
-    const user = await db
-      .collection("users")
-      .findOne(
-        { _id: new ObjectId(decoded.id) },
-        { projection: { password: 0 } }
-      );
+    // Ensure DB connection using mongoose
+    await connectDB();
+
+    // Fetch user (mongoose)
+    const user = await User.findById(decoded.id).select("-passwordHash");
 
     if (!user) {
       return res.status(401).json({ message: "User not found" });
@@ -38,12 +38,19 @@ export const protect = asyncHandler(async (req, res, next) => {
       return res.status(403).json({ message: "Account is inactive" });
     }
 
-    req.user = user;
+    // Attach user to request
+    req.user = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      beltLevel: user.beltLevel, // لو محتاجها في eligibility
+    };
+
     next();
   } catch (error) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("JWT verification error:", error);
-    }
+    console.error("JWT verification error:", error);
+
     return res.status(401).json({
       message: "Invalid or expired token. Please log in again.",
     });
@@ -52,9 +59,9 @@ export const protect = asyncHandler(async (req, res, next) => {
 
 export const checkRole = (...allowedRoles) => {
   return (req, res, next) => {
-    if (!req.user || !req.user.role) {
+    if (!req.user?.role) {
       return res.status(401).json({
-        message: "Not authorized, role missing or user not authenticated",
+        message: "Not authorized, user not authenticated",
       });
     }
 

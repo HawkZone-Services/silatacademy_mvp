@@ -17,9 +17,20 @@ const LessonSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     summary: { type: String },
     videoUrl: { type: String },
+
+    // NEW FIELDS (requested)
+    technicalContent: { type: String },
+    medicalContent: { type: String },
+    psychologyContent: { type: String },
+
+    // Lesson long content
     content: { type: String },
+
     durationMinutes: { type: Number },
     resources: [{ type: String }],
+
+    // Lesson order within the program/module
+    order: { type: Number, default: 0 },
 
     quiz: { type: Array, default: [] },
 
@@ -28,6 +39,7 @@ const LessonSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Optional unique index
 LessonSchema.index({ module: 1, title: 1 }, { unique: true });
 
 export default mongoose.model("Lesson", LessonSchema);

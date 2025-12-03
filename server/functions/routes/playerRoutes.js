@@ -19,7 +19,7 @@ import { validate } from "../middlewares/validate.js";
 
 const router = express.Router();
 
-router.get("/", protect, checkRole("admin", "instructor"), listPlayers);
+router.get("/", listPlayers);
 router.get("/eligibility", protect, checkRole("student"), getEligibility);
 router.get(
   "/:id",

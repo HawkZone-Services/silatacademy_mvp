@@ -13,61 +13,53 @@ import { Types } from "mongoose";
    LIST PLAYERS
 ============================================================= */
 export const listPlayers = asyncHandler(async (req, res) => {
-  const players = await PlayerProfile.aggregate([
-  {
-    $lookup: {
-      from: User.collection.name,
-      localField: "user",
-      foreignField: "_id",
-      as: "user",
-    },
-  },
-  { $unwind: "$user" },
-]);
+  const players = await Player.find({})
+    .populate("user", "name email phone nationalId gender role")
+    .lean();
 
-res.status(200).json({
+  res.status(200).json({
     success: true,
     data: {
       players,
     },
   });
 });
-
 /* ============================================================
    GET PLAYER BY ID
 ============================================================= */
 export const getPlayer = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const player = await PlayerProfile.aggregate([
-    { $match: { _id: new Types.ObjectId(id) } },
-    {
-      $lookup: {
-        from: User.collection.name,
-        localField: "user",
-        foreignField: "_id",
-        as: "user",
-      },
-    },
-    { $unwind: "$user" },
-  ]);
 
-  if (!player.length) {
+  if (!Types.ObjectId.isValid(id)) {
+    throw httpError(400, "Invalid player id");
+  }
+
+  const player = await Player.findById(id)
+    .populate("user", "name email phone nationalId gender role")
+    .lean();
+
+  if (!player) {
     throw httpError(404, "Player not found");
   }
 
   res.status(200).json({
     success: true,
     data: {
-      player: player[0],
+      player,
     },
   });
 });
-
 /* ============================================================
    UPDATE PLAYER
 ============================================================= */
 export const updatePlayer = asyncHandler(async (req, res) => {
-  const player = await Player.findByIdAndUpdate(req.params.id, req.body, {
+  const { id } = req.params;
+
+  if (!Types.ObjectId.isValid(id)) {
+    throw httpError(400, "Invalid player id");
+  }
+
+  const player = await Player.findByIdAndUpdate(id, req.body, {
     new: true,
   });
 
@@ -85,15 +77,23 @@ export const updatePlayer = asyncHandler(async (req, res) => {
    DELETE PLAYER
 ============================================================= */
 export const deletePlayer = asyncHandler(async (req, res) => {
-  const player = await Player.findByIdAndDelete(req.params.id);
+  const { id } = req.params;
 
-  if (!player) {
-    throw httpError(404, "Player not found");
-  }
+  const player = await Player.findById(id);
+  if (!player) throw httpError(404, "Player not found");
+
+  // Delete Player
+  await Player.deleteOne({ _id: id });
+
+  // Delete Profile
+  await Profile.deleteOne({ user: player.user });
+
+  // Delete User
+  await User.findByIdAndDelete(player.user);
 
   res.json({
     success: true,
-    data: { message: "Player deleted successfully" },
+    data: { message: "Player, profile and user deleted successfully" },
   });
 });
 
@@ -102,9 +102,14 @@ export const deletePlayer = asyncHandler(async (req, res) => {
 ============================================================= */
 export const addAttendance = asyncHandler(async (req, res) => {
   const { sessionId, date, coachId, status, notes } = req.body;
+  const { id: playerId } = req.params;
+
+  if (!Types.ObjectId.isValid(playerId)) {
+    throw httpError(400, "Invalid player id");
+  }
 
   const attendance = await Attendance.create({
-    player: req.params.id,
+    player: playerId,
     sessionId,
     sessionDate: date || new Date(),
     coach: coachId,
@@ -112,9 +117,7 @@ export const addAttendance = asyncHandler(async (req, res) => {
     notes,
   });
 
-  await Player.findByIdAndUpdate(req.params.id, {
-    $inc: { "training.attendanceCount": 1 },
-  });
+  // مفيش training.attendanceCount في Player schema حالياً، فمش هنزود حاجة هنا
 
   res.status(201).json({
     success: true,
@@ -127,8 +130,13 @@ export const addAttendance = asyncHandler(async (req, res) => {
 ============================================================= */
 export const getAttendance = asyncHandler(async (req, res) => {
   const { from, to } = req.query;
+  const { id: playerId } = req.params;
 
-  const filter = { player: req.params.id };
+  if (!Types.ObjectId.isValid(playerId)) {
+    throw httpError(400, "Invalid player id");
+  }
+
+  const filter = { player: playerId };
 
   if (from || to) filter.sessionDate = {};
   if (from) filter.sessionDate.$gte = new Date(from);
@@ -146,21 +154,32 @@ export const getAttendance = asyncHandler(async (req, res) => {
    GENERATE PLAYER REPORT PDF
 ============================================================= */
 export const playerReportPdf = asyncHandler(async (req, res) => {
-  const player = await Player.findById(req.params.id).populate(
-    "user",
-    "name email"
-  );
+  const { id } = req.params;
+
+  if (!Types.ObjectId.isValid(id)) {
+    throw httpError(400, "Invalid player id");
+  }
+
+  const player = await Player.findById(id)
+    .populate("user", "name email")
+    .lean();
 
   if (!player) throw httpError(404, "Player not found");
 
   const doc = new PDFDocument();
   res.setHeader("Content-Type", "application/pdf");
 
-  doc.text(`Player: ${player.user.name}`);
-  doc.text(`Belt: ${player.beltLevel}`);
+  doc.fontSize(18).text(`Player Report`, { underline: true });
+  doc.moveDown();
+  doc.fontSize(14).text(`Player: ${player.user?.name || "N/A"}`);
+  doc.text(`Email: ${player.user?.email || "N/A"}`);
+  doc.text(`Belt: ${player.beltLabel || player.beltLevel}`);
+  doc.moveDown();
   doc.text(
     `Stats: Power ${player.stats?.power || 0}, Flexibility ${
       player.stats?.flexibility || 0
+    }, Endurance ${player.stats?.endurance || 0}, Speed ${
+      player.stats?.speed || 0
     }`
   );
 
@@ -172,13 +191,20 @@ export const playerReportPdf = asyncHandler(async (req, res) => {
    PROMOTE PLAYER BELT
 ============================================================= */
 export const promotePlayer = asyncHandler(async (req, res) => {
+  const { id } = req.params;
   const { nextBelt } = req.body;
 
+  if (!Types.ObjectId.isValid(id)) {
+    throw httpError(400, "Invalid player id");
+  }
+
   const player = await Player.findByIdAndUpdate(
-    req.params.id,
+    id,
     { beltLevel: nextBelt },
     { new: true }
   );
+
+  if (!player) throw httpError(404, "Player not found");
 
   res.json({
     success: true,
@@ -190,7 +216,14 @@ export const promotePlayer = asyncHandler(async (req, res) => {
    ADD EXAM HISTORY TO PLAYER
 ============================================================= */
 export const addExamToPlayer = asyncHandler(async (req, res) => {
-  const player = await Player.findById(req.params.id);
+  const { id } = req.params;
+
+  if (!Types.ObjectId.isValid(id)) {
+    throw httpError(400, "Invalid player id");
+  }
+
+  const player = await Player.findById(id);
+  if (!player) throw httpError(404, "Player not found");
 
   player.exams.push(req.body);
   await player.save();
@@ -269,12 +302,18 @@ export const approveUpgrade = asyncHandler(async (req, res) => {
     data: { history, player },
   });
 });
-export const getEligibility = asyncHandler(async (req, res) => {
-  const studentId = req.user._id;
 
-  // 1️⃣ Get user belt level → program level
-  const user = await User.findById(studentId);
-  const belt = user.beltLevel;
+/* ============================================================
+   GET EXAM ELIGIBILITY FOR CURRENT STUDENT
+============================================================= */
+export const getEligibility = asyncHandler(async (req, res) => {
+  const studentId = req.user._id; // User._id
+
+  // 1️⃣ Get Player → belt level
+  const player = await Player.findOne({ user: studentId });
+  if (!player) throw httpError(404, "Player not found");
+
+  const belt = player.beltLevel;
 
   const mapBeltToProgram = {
     white: "beginner",
@@ -287,9 +326,9 @@ export const getEligibility = asyncHandler(async (req, res) => {
 
   const programLevel = mapBeltToProgram[belt];
 
-  // 2️⃣ Attendance Summary
+  // 2️⃣ Attendance Summary (player _id)
   const attendance = await Attendance.aggregate([
-    { $match: { player: studentId } },
+    { $match: { player: player._id } },
     {
       $group: {
         _id: null,
@@ -318,7 +357,10 @@ export const getEligibility = asyncHandler(async (req, res) => {
 
   // 3️⃣ Lesson progress
   const program = await Program.findOne({ level: programLevel });
-  const totalLessons = await Lesson.countDocuments({ program: program._id });
+  const totalLessons = program
+    ? await Lesson.countDocuments({ program: program._id })
+    : 0;
+
   const completedLessons = await LessonProgress.countDocuments({
     user: studentId,
     completed: true,
@@ -336,7 +378,7 @@ export const getEligibility = asyncHandler(async (req, res) => {
   const quizNeeded = 70;
 
   // 5️⃣ Determine final eligibility
-  let lockedReasons = [];
+  const lockedReasons = [];
 
   if (attendanceRate < requiredAttendance)
     lockedReasons.push("Attendance below required percentage.");
@@ -366,6 +408,9 @@ export const getEligibility = asyncHandler(async (req, res) => {
     },
   });
 });
+/* ============================================================
+   GET FULL PLAYER DASHBOARD FOR CURRENT STUDENT
+============================================================= */
 export const getPlayerFull = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
@@ -418,7 +463,7 @@ const buildTimeline = (attendance, lessons, exams, certificates) => {
     items.push({
       type: "lesson",
       date: l.completedAt,
-      title: `Completed Lesson: ${l.lesson.title}`,
+      title: `Completed Lesson: ${l.lesson?.title || "Lesson"}`,
       detail: "Lesson Completed",
     })
   );
@@ -428,7 +473,7 @@ const buildTimeline = (attendance, lessons, exams, certificates) => {
       type: "exam",
       date: e.submittedAt,
       title: `Exam Attempt`,
-      detail: `Theory Score: ${e.theoryScore}`,
+      detail: `Theory Score: ${e.theoryScore ?? 0}`,
     })
   );
 

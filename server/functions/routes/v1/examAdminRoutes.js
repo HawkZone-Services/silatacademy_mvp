@@ -30,7 +30,10 @@ router.post(
     check("beltLevel")
       .isIn(["white", "yellow", "blue", "brown", "red", "black"])
       .withMessage("beltLevel invalid"),
-    check("questions").optional().isArray().withMessage("questions must be array"),
+    check("questions")
+      .optional()
+      .isArray()
+      .withMessage("questions must be array"),
   ]),
   createExam
 );
@@ -57,9 +60,15 @@ router.post(
   validate([
     check("examId").notEmpty().withMessage("examId is required"),
     check("studentId").notEmpty().withMessage("studentId is required"),
-    check("scores.technique").isNumeric().withMessage("technique score required"),
-    check("scores.performance").isNumeric().withMessage("performance score required"),
-    check("scores.discipline").isNumeric().withMessage("discipline score required"),
+    check("scores.technique")
+      .isNumeric()
+      .withMessage("technique score required"),
+    check("scores.performance")
+      .isNumeric()
+      .withMessage("performance score required"),
+    check("scores.discipline")
+      .isNumeric()
+      .withMessage("discipline score required"),
   ]),
   gradeManual2
 );

@@ -3,15 +3,16 @@ import { check } from "express-validator";
 import {
   listExams,
   getExamsByBeltLevel,
-  getMyAttempts,
   getExam,
   ExamRegisteration,
   startAttempt,
   submitAttempt,
   getRegistrationStatus,
+  getMyAttempts,
 } from "../../controllers/examController.js";
 import { protect, checkRole } from "../../middlewares/authMiddleware.js";
 import { validate } from "../../middlewares/validate.js";
+import { get } from "mongoose";
 
 const router = express.Router();
 

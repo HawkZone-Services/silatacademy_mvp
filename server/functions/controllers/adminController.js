@@ -1,74 +1,56 @@
 import asyncHandler from "express-async-handler";
 import { stringify } from "csv-stringify";
-
 import bcrypt from "bcryptjs";
-import { ObjectId } from "mongodb";
-
-import { getDb } from "../utils/mongodb.js";
-import { generateToken } from "../utils/generateToken.js";
+import User from "../models/User.js";
+import Player from "../models/Player.js";
+import Attendance from "../models/Attendance.js";
+import ExamAttempt from "../models/ExamAttempt.js";
+import Profile from "../models/Profile.js";
 
 // =====================================================
-// DASHBOARD (Native MongoDB)
+// 🟦 DASHBOARD — MONGOOSE VERSION
 // =====================================================
 export const dashboard = asyncHandler(async (req, res) => {
-  const db = await getDb();
-
-  const [players, attempts, avgScoreArr, attendanceRateArr, usersByRole] =
+  const [players, attempts, avgScore, attendanceRate, usersByRole] =
     await Promise.all([
-      db.collection("playerProfiles").countDocuments(),
-      db.collection("examAttempts").countDocuments(),
-      db
-        .collection("examAttempts")
-        .aggregate([{ $group: { _id: null, avg: { $avg: "$totalScore" } } }])
-        .toArray(),
-      db
-        .collection("attendance")
-        .aggregate([
-          {
-            $group: {
-              _id: null,
-              rate: {
-                $avg: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] },
-              },
+      Player.countDocuments(),
+
+      ExamAttempt.countDocuments(),
+
+      ExamAttempt.aggregate([
+        { $group: { _id: null, avg: { $avg: "$autoScore" } } },
+      ]),
+
+      Attendance.aggregate([
+        {
+          $group: {
+            _id: null,
+            rate: {
+              $avg: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] },
             },
           },
-        ])
-        .toArray(),
-      db
-        .collection("users")
-        .aggregate([{ $group: { _id: "$role", count: { $sum: 1 } } }])
-        .toArray(),
+        },
+      ]),
+
+      User.aggregate([{ $group: { _id: "$role", count: { $sum: 1 } } }]),
     ]);
 
   res.json({
     totalPlayers: players,
     totalAttempts: attempts,
-    avgScore: avgScoreArr[0]?.avg || 0,
-    attendanceRate: attendanceRateArr[0]?.rate || 0,
+    avgScore: avgScore[0]?.avg || 0,
+    attendanceRate: attendanceRate[0]?.rate || 0,
     usersByRole,
   });
 });
 
 // =====================================================
-// EXPORT RESULTS CSV
+// 🟧 EXPORT RESULTS CSV
 // =====================================================
 export const exportResultsCsv = asyncHandler(async (req, res) => {
-  const db = await getDb();
-
-  const attempts = await db
-    .collection("examAttempts")
-    .aggregate([
-      {
-        $lookup: {
-          from: "users",
-          localField: "student",
-          foreignField: "_id",
-          as: "student",
-        },
-      },
-      { $unwind: "$student" },
-    ])
-    .toArray();
+  const attempts = await ExamAttempt.find({})
+    .populate("student", "name email")
+    .lean();
 
   res.setHeader("Content-Type", "text/csv");
   res.setHeader("Content-Disposition", "attachment; filename=results.csv");
@@ -79,7 +61,12 @@ export const exportResultsCsv = asyncHandler(async (req, res) => {
   });
 
   attempts.forEach((a) =>
-    stringifier.write([a.student.name, a.student.email, a.totalScore, a.pass])
+    stringifier.write([
+      a.student?.name || "",
+      a.student?.email || "",
+      a.autoScore + a.manualScore,
+      a.pass,
+    ])
   );
 
   stringifier.pipe(res);
@@ -87,192 +74,224 @@ export const exportResultsCsv = asyncHandler(async (req, res) => {
 });
 
 // =====================================================
-// CREATE PLAYER PROFILE (ADMIN)
+// 🟩 CREATE PLAYER (ADMIN)
 // =====================================================
 export const adminCreatePlayerProfile = asyncHandler(async (req, res) => {
-  try {
-    const {
-      name,
-      email,
-      password,
-      nationalId,
-      role = "student",
-      phone,
-      avatar,
-      playerData,
-    } = req.body;
+  const {
+    name,
+    email,
+    password,
+    nationalId,
+    role = "student",
+    phone,
+    avatar,
+    playerData,
+    gender,
+    dob,
+    profile,
+  } = req.body;
 
-    if (!name || !nationalId || !password) {
-      return res.status(400).json({
-        message: "name, nationalId, and password are required",
-      });
-    }
-
-    const db = await getDb();
-
-    // Check existing user
-    const existingUser = await db.collection("users").findOne({ nationalId });
-    if (existingUser) {
-      return res.status(400).json({ message: "National ID already exists" });
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashPassword = await bcrypt.hash(password, salt);
-
-    // CREATE USER
-    const newUser = {
-      name,
-      email: email || null,
-      nationalId,
-      passwordHash: hashPassword,
-      role,
-      phone,
-      avatarUrl: avatar || "",
-      createdBy: req.user?._id || null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    const userInsert = await db.collection("users").insertOne(newUser);
-    const userId = userInsert.insertedId;
-
-    // CREATE PLAYER PROFILE
-    const newProfile = {
-      user: userId,
-      name,
-      belt: playerData?.belt || "White Belt",
-      beltColor: playerData?.beltColor || "#ffffff",
-      age: playerData?.age || null,
-      height: playerData?.height || null,
-      weight: playerData?.weight || null,
-      trainingStartDate: playerData?.trainingStartDate || null,
-      trainingYears: playerData?.trainingYears || 0,
-      coach: playerData?.coach || null,
-      stats: playerData?.stats || {
-        power: 0,
-        flexibility: 0,
-        endurance: 0,
-        speed: 0,
-      },
-      currentFocus: playerData?.currentFocus || "",
-      achievements: playerData?.achievements || [],
-      health: playerData?.health || {},
-      trainingLogs: playerData?.trainingLogs || [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    const profileInsert = await db
-      .collection("playerProfiles")
-      .insertOne(newProfile);
-
-    res.status(201).json({
-      message: "Player and profile created successfully",
-      userId,
-      profileId: profileInsert.insertedId,
+  if (!name || !nationalId || !password || !gender) {
+    return res.status(400).json({
+      message: "name, gender, nationalId, and password are required",
     });
-  } catch (error) {
-    console.error("Admin Create Player Error:", error);
-    res.status(500).json({ message: error.message });
   }
+
+  // Student only
+  if (role !== "student") {
+    return res.status(400).json({
+      message: "adminCreatePlayerProfile is only for creating students",
+    });
+  }
+
+  // Check existing user
+  const existingUser = await User.findOne({ nationalId });
+  if (existingUser) {
+    return res.status(400).json({ message: "National ID already exists" });
+  }
+
+  // Hash password
+  const hashPassword = await bcrypt.hash(password, 10);
+
+  // ===== CREATE USER =====
+  const user = await User.create({
+    name,
+    email,
+    nationalId,
+    passwordHash: hashPassword,
+    role: "student",
+    gender,
+    dob,
+    phone,
+    avatarUrl: avatar || "",
+    createdBy: req.user?._id || null,
+  });
+
+  // ===== CREATE PROFILE =====
+  const userProfile = await Profile.create({
+    user: user._id,
+    firstName: profile?.firstName || name,
+    lastName: profile?.lastName || "",
+    avatar: profile?.avatar || "",
+    address: profile?.address || {},
+    bio: profile?.bio || "",
+    social: profile?.social || {},
+  });
+
+  // ===== CREATE PLAYER =====
+  const player = await Player.create({
+    user: user._id,
+    beltLevel: playerData?.beltLevel || "white",
+    beltColor: playerData?.beltColor,
+    age: playerData?.age,
+    height: playerData?.height,
+    weight: playerData?.weight,
+    coach: playerData?.coach,
+    trainingStartDate: playerData?.trainingStartDate,
+    trainingYears: playerData?.trainingYears || 0,
+    stats: playerData?.stats,
+    currentFocus: playerData?.currentFocus,
+    achievements: playerData?.achievements,
+    health: playerData?.health,
+    trainingLogs: playerData?.trainingLogs,
+  });
+
+  res.status(201).json({
+    message: "Student created successfully",
+    userId: user._id,
+    profileId: userProfile._id,
+    playerId: player._id,
+  });
 });
 
 // =====================================================
-// GET ALL PLAYERS
+// 🟨 GET ALL PLAYERS
 // =====================================================
 export const adminGetAllPlayers = asyncHandler(async (req, res) => {
-  const db = await getDb();
-
-  const players = await db
-    .collection("playerProfiles")
-    .aggregate([
-      {
-        $lookup: {
-          from: "users",
-          localField: "user",
-          foreignField: "_id",
-          as: "user",
-        },
-      },
-      { $unwind: "$user" },
-    ])
-    .toArray();
+  const players = await Player.find({})
+    .populate("user", "-passwordHash")
+    .lean();
 
   res.status(200).json(players);
 });
 
 // =====================================================
-// GET PLAYER BY ID
+// 🟪 GET PLAYER BY ID
 // =====================================================
 export const adminGetPlayerById = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const { id } = req.params;
 
-  const player = await db
-    .collection("playerProfiles")
-    .aggregate([
-      { $match: { _id: new ObjectId(id) } },
-      {
-        $lookup: {
-          from: "users",
-          localField: "user",
-          foreignField: "_id",
-          as: "user",
-        },
-      },
-      { $unwind: "$user" },
-    ])
-    .toArray();
+  const player = await Player.findById(id)
+    .populate("user", "-passwordHash")
+    .lean();
 
-  if (!player.length)
+  if (!player) {
     return res.status(404).json({ message: "Player not found" });
+  }
 
-  res.status(200).json(player[0]);
+  res.status(200).json(player);
 });
 
 // =====================================================
-// UPDATE PLAYER
+// 🔵 UPDATE PLAYER
 // =====================================================
 export const adminUpdatePlayer = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const { id } = req.params;
 
-  const result = await db
-    .collection("playerProfiles")
-    .updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { ...req.body, updatedAt: new Date() } }
-    );
+  const {
+    // USER
+    name,
+    email,
+    nationalId,
+    gender,
+    phone,
+    isActive,
+    dob,
 
-  if (result.matchedCount === 0)
-    return res.status(404).json({ message: "Player not found" });
+    // PROFILE
+    profile,
 
-  res.status(200).json({ message: "Player updated successfully" });
+    // PLAYER
+    beltLevel,
+    beltColor,
+    age,
+    height,
+    weight,
+    coach,
+    trainingStartDate,
+    trainingYears,
+    stats,
+    currentFocus,
+    achievements,
+    trainingLogs,
+    health,
+  } = req.body;
+
+  // UPDATE USER
+  const updatedUser = await User.findByIdAndUpdate(
+    id,
+    { name, email, nationalId, gender, phone, dob, isActive },
+    { new: true }
+  ).lean();
+
+  if (!updatedUser) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  // UPDATE PROFILE
+  await Profile.findOneAndUpdate(
+    { user: id },
+    {
+      firstName: profile?.firstName || updatedUser.name,
+      lastName: profile?.lastName,
+      avatar: profile?.avatar,
+      address: profile?.address,
+      bio: profile?.bio,
+      social: profile?.social,
+    }
+  );
+
+  // UPDATE PLAYER
+  const updatedPlayer = await Player.findOneAndUpdate(
+    { user: id },
+    {
+      beltLevel,
+      beltColor,
+      age,
+      height,
+      weight,
+      coach,
+      trainingStartDate,
+      trainingYears,
+      stats,
+      currentFocus,
+      achievements,
+      trainingLogs,
+      health,
+    },
+    { new: true }
+  ).lean();
+
+  res.json({
+    success: true,
+    message: "Player updated successfully",
+    data: { user: updatedUser, player: updatedPlayer },
+  });
 });
 
 // =====================================================
-// DELETE PLAYER + LINKED USER
+// 🔴 DELETE PLAYER + LINKED USER
 // =====================================================
 export const adminDeletePlayer = asyncHandler(async (req, res) => {
-  const db = await getDb();
   const { id } = req.params;
 
-  const player = await db
-    .collection("playerProfiles")
-    .findOne({ _id: new ObjectId(id) });
+  const player = await Player.findOne({ user: id });
+  if (!player) {
+    return res.status(404).json({ message: "Player not found" });
+  }
 
-  if (!player) return res.status(404).json({ message: "Player not found" });
+  await Player.deleteOne({ user: id });
+  await User.findByIdAndDelete(id);
 
-  // Delete player profile
-  await db.collection("playerProfiles").deleteOne({
-    _id: new ObjectId(id),
-  });
-
-  // Delete linked user
-  await db.collection("users").deleteOne({ _id: player.user });
-
-  res.status(200).json({
-    message: "Player and user deleted successfully",
-  });
+  res.status(200).json({ message: "Player and user deleted successfully" });
 });
