@@ -6,22 +6,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Check, ChevronsUpDown } from "lucide-react";
-import lessonService from "@/services/lessonService";
 
-// 👇 لو عندك programService جاهز استعمله، لو لا استخدم fetch عادي
+import lessonService from "@/services/lessonService";
 import programService from "@/services/programService";
+import moduleService from "@/services/moduleService";
 
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+
 import {
   Command,
   CommandEmpty,
@@ -30,75 +33,58 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+
 import { cn } from "@/lib/utils";
 
-interface AddLessonDialogProps {
-  onLessonAdded?: () => void;
-}
+type Program = { _id: string; title: string };
+type Module = { _id: string; title: string; program?: any };
 
-type ModuleOption = {
-  _id: string;
-  title: string;
-};
-
-type ProgramOption = {
-  _id: string;
-  title: string;
-  modules?: ModuleOption[];
-};
-
-export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
-  const [open, setOpen] = useState(false);
-  const [loadingSubmit, setLoadingSubmit] = useState(false);
-  const [loadingPrograms, setLoadingPrograms] = useState(false);
-  const [loadingModules, setLoadingModules] = useState(false);
-
+export const AddLessonDialog = ({ onLessonAdded }) => {
   const { toast } = useToast();
 
-  const [programs, setPrograms] = useState<ProgramOption[]>([]);
-  const [modules, setModules] = useState<ModuleOption[]>([]);
+  const [open, setOpen] = useState(false);
 
-  const [selectedProgramId, setSelectedProgramId] = useState<string>("");
-  const [selectedModuleId, setSelectedModuleId] = useState<string>("");
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [allModules, setAllModules] = useState<Module[]>([]);
+  const [modules, setModules] = useState<Module[]>([]);
 
-  const [formData, setFormData] = useState({
+  const [loadingPrograms, setLoadingPrograms] = useState(false);
+  const [loadingModules, setLoadingModules] = useState(false);
+  const [loadingSubmit, setLoadingSubmit] = useState(false);
+
+  const [selectedProgramId, setSelectedProgramId] = useState("");
+  const [selectedModuleId, setSelectedModuleId] = useState("");
+
+  const [form, setForm] = useState({
     title: "",
     summary: "",
     videoUrl: "",
     content: "",
-    programId: "",
-    moduleId: "",
+    technicalContent: "",
+    medicalContent: "",
+    psychologyContent: "",
+    order: "",
     durationMinutes: "",
     resources: "",
   });
 
-  // 🟢 حمل البرامج أول ما المودال يتفتح
+  /* ------------------------------------
+      Load Programs + All Modules on Open
+  ------------------------------------- */
   useEffect(() => {
     if (!open) return;
 
-    const fetchPrograms = async () => {
+    const loadPrograms = async () => {
       try {
         setLoadingPrograms(true);
-
-        // ✅ لو عندك programService:
         const res = await programService.getPrograms();
-        const data = await res.json();
-
-        // ❗ مثال باستخدام fetch مباشر - عدّل الـ URL حسب الـ API عندك
-        // const res = await fetch("/api/programs");
-        // const data = await res.json();
-
-        if (!res.ok || !data?.success) {
-          throw new Error(data?.message || "Failed to load programs");
-        }
-
-        const list: ProgramOption[] = data.programs || data.data || [];
+        const list = res?.programs || [];
+        console.log("Fetched Programs:", list);
         setPrograms(list);
-      } catch (error: any) {
-        console.error(error);
+      } catch {
         toast({
           title: "Error",
-          description: error.message || "Failed to load programs",
+          description: "Failed to load programs",
           variant: "destructive",
         });
       } finally {
@@ -106,89 +92,79 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
       }
     };
 
-    fetchPrograms();
-  }, [open, toast]);
+    const loadModules = async () => {
+      try {
+        setLoadingModules(true);
+        const res = await moduleService.getModules();
+        const list = res?.modules || [];
+        setAllModules(list);
+      } catch {
+        toast({
+          title: "Error",
+          description: "Failed to load modules",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingModules(false);
+      }
+    };
 
-  // 🟢 لما يختار Program → حدّث modules
-  const handleSelectProgram = async (programId: string) => {
+    loadPrograms();
+    loadModules();
+  }, [open]);
+
+  /* ------------------------------------
+      Select Program → Filter Modules
+  ------------------------------------- */
+  const handleSelectProgram = (programId: string) => {
     setSelectedProgramId(programId);
     setSelectedModuleId("");
-    setModules([]);
-    setFormData((prev) => ({
-      ...prev,
-      programId,
-      moduleId: "",
-    }));
 
-    if (!programId) return;
+    const filtered = allModules.filter((m) => m.program?._id === programId);
 
-    // لو البرامج اللي جاية من الـ API فيها modules جاهزة
-    const program = programs.find((p) => p._id === programId);
-    if (program && program.modules && program.modules.length > 0) {
-      setModules(program.modules);
-      return;
-    }
-
-    // غير كده → نجيب الموديولات من API منفصل
-    try {
-      setLoadingModules(true);
-
-      // مثال: GET /api/programs/:id/modules
-      const res = await fetch(`/api/programs/${programId}/modules`);
-      const data = await res.json();
-
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.message || "Failed to load modules");
-      }
-
-      const list: ModuleOption[] = data.modules || data.data || [];
-      setModules(list);
-    } catch (error: any) {
-      console.error(error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to load modules",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingModules(false);
-    }
+    setModules(filtered);
   };
 
   const handleSelectModule = (moduleId: string) => {
     setSelectedModuleId(moduleId);
-    setFormData((prev) => ({
-      ...prev,
-      moduleId,
-    }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /* ------------------------------------
+      Submit New Lesson
+  ------------------------------------- */
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoadingSubmit(true);
 
     try {
       const payload = {
-        title: formData.title,
-        summary: formData.summary,
-        videoUrl: formData.videoUrl,
-        content: formData.content,
-        programId: formData.programId || undefined,
-        moduleId: formData.moduleId || undefined,
-        durationMinutes: formData.durationMinutes
-          ? Number(formData.durationMinutes)
+        title: form.title,
+        summary: form.summary,
+        videoUrl: form.videoUrl,
+        content: form.content,
+        technicalContent: form.technicalContent,
+        medicalContent: form.medicalContent,
+        psychologyContent: form.psychologyContent,
+
+        order: form.order ? Number(form.order) : 0,
+        durationMinutes: form.durationMinutes
+          ? Number(form.durationMinutes)
           : undefined,
-        resources: formData.resources
-          ? formData.resources.split("\n").filter(Boolean)
+
+        resources: form.resources
+          ? form.resources.split("\n").filter(Boolean)
           : [],
+
+        programId: selectedProgramId || null,
+        moduleId: selectedModuleId || null,
+
         quiz: [],
       };
 
       const res = await lessonService.createLesson(payload);
-      const data = await res.json();
 
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.message || "Failed to add lesson");
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.message || "Lesson creation failed");
       }
 
       toast({
@@ -196,20 +172,25 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
         description: "Lesson added successfully",
       });
 
+      // reset
       setOpen(false);
-      setFormData({
+      setForm({
         title: "",
         summary: "",
         videoUrl: "",
         content: "",
-        programId: "",
-        moduleId: "",
+        technicalContent: "",
+        medicalContent: "",
+        psychologyContent: "",
+        order: "",
         durationMinutes: "",
         resources: "",
       });
+
       setSelectedProgramId("");
       setSelectedModuleId("");
       setModules([]);
+
       onLessonAdded?.();
     } catch (error: any) {
       toast({
@@ -222,6 +203,9 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
     }
   };
 
+  /* ------------------------------------
+      UI Labels
+  ------------------------------------- */
   const selectedProgramLabel =
     programs.find((p) => p._id === selectedProgramId)?.title ||
     "Select program";
@@ -230,78 +214,86 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
     modules.find((m) => m._id === selectedModuleId)?.title ||
     (selectedProgramId ? "Select module" : "Select program first");
 
+  /* ------------------------------------
+      RENDER UI
+  ------------------------------------- */
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="gap-2">
           <Calendar className="w-4 h-4" />
-          Add New Lesson
+          Add Lesson
         </Button>
       </DialogTrigger>
+
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Lesson</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Title */}
           <div>
-            <Label htmlFor="title">Lesson Title *</Label>
+            <Label>Title *</Label>
             <Input
-              id="title"
               required
-              value={formData.title}
-              onChange={(e) =>
-                setFormData({ ...formData, title: e.target.value })
-              }
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
           </div>
 
-          {/* 🔹 Program & Module Comboboxes */}
+          {/* Summary */}
+          <div>
+            <Label>Summary</Label>
+            <Textarea
+              value={form.summary}
+              onChange={(e) => setForm({ ...form, summary: e.target.value })}
+            />
+          </div>
+
+          {/* Content */}
+          <div>
+            <Label>Content</Label>
+            <Textarea
+              value={form.content}
+              onChange={(e) => setForm({ ...form, content: e.target.value })}
+            />
+          </div>
+
+          {/* Program + Module */}
           <div className="grid grid-cols-2 gap-4">
-            {/* Program Combobox */}
-            <div className="space-y-1">
+            {/* Program */}
+            <div>
               <Label>Program</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={false}
-                    className="w-full justify-between"
-                    disabled={loadingPrograms}
-                  >
-                    <span className="truncate">
-                      {loadingPrograms
-                        ? "Loading programs..."
-                        : selectedProgramLabel}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <Button variant="outline" className="w-full justify-between">
+                    {selectedProgramLabel}
+                    <ChevronsUpDown className="h-4 w-4 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[260px] p-0">
+
+                <PopoverContent className="w-64 p-0">
                   <Command>
-                    <CommandInput placeholder="Search program..." />
+                    <CommandInput placeholder="Search programs..." />
                     <CommandList>
-                      <CommandEmpty>
-                        {loadingPrograms ? "Loading..." : "No program found"}
-                      </CommandEmpty>
+                      <CommandEmpty>No programs found</CommandEmpty>
+
                       <CommandGroup>
-                        {programs.map((program) => (
+                        {programs.map((p) => (
                           <CommandItem
-                            key={program._id}
-                            value={program.title}
-                            onSelect={() => handleSelectProgram(program._id)}
+                            key={p._id}
+                            onSelect={() => handleSelectProgram(p._id)}
                           >
                             <Check
                               className={cn(
                                 "mr-2 h-4 w-4",
-                                program._id === selectedProgramId
+                                p._id === selectedProgramId
                                   ? "opacity-100"
                                   : "opacity-0"
                               )}
                             />
-                            <span className="truncate">{program.title}</span>
+                            {p.title}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -311,68 +303,60 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
               </Popover>
             </div>
 
-            {/* Module Combobox */}
-            <div className="space-y-1">
-              <Label>Module (optional)</Label>
+            {/* Module */}
+            <div>
+              <Label>Module</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
-                    type="button"
                     variant="outline"
-                    role="combobox"
-                    aria-expanded={false}
+                    disabled={!selectedProgramId}
                     className="w-full justify-between"
-                    disabled={!selectedProgramId || loadingModules}
                   >
-                    <span className="truncate">
-                      {loadingModules
-                        ? "Loading modules..."
-                        : selectedModuleLabel}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    {selectedModuleLabel}
+                    <ChevronsUpDown className="h-4 w-4 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[260px] p-0">
+
+                <PopoverContent className="w-64 p-0">
                   <Command>
-                    <CommandInput placeholder="Search module..." />
+                    <CommandInput placeholder="Search modules..." />
+
                     <CommandList>
                       <CommandEmpty>
-                        {selectedProgramId
-                          ? loadingModules
-                            ? "Loading..."
-                            : "No module found"
-                          : "Select program first"}
+                        {!selectedProgramId
+                          ? "Select program first"
+                          : modules.length === 0
+                          ? "No modules in this program"
+                          : "No results"}
                       </CommandEmpty>
+
                       <CommandGroup>
-                        {/* خيار بدون Module */}
-                        <CommandItem
-                          value="none"
-                          onSelect={() => handleSelectModule("")}
-                        >
+                        {/* No module */}
+                        <CommandItem onSelect={() => handleSelectModule("")}>
                           <Check
                             className={cn(
                               "mr-2 h-4 w-4",
                               !selectedModuleId ? "opacity-100" : "opacity-0"
                             )}
                           />
-                          <span className="truncate">No module / General</span>
+                          No Module (General)
                         </CommandItem>
 
-                        {modules.map((module) => (
+                        {modules.map((m) => (
                           <CommandItem
-                            key={module._id}
-                            value={module.title}
-                            onSelect={() => handleSelectModule(module._id)}
+                            key={m._id}
+                            onSelect={() => handleSelectModule(m._id)}
                           >
                             <Check
                               className={cn(
                                 "mr-2 h-4 w-4",
-                                module._id === selectedModuleId
+                                m._id === selectedModuleId
                                   ? "opacity-100"
                                   : "opacity-0"
                               )}
                             />
-                            <span className="truncate">{module.title}</span>
+                            {m.title}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -383,74 +367,8 @@ export const AddLessonDialog = ({ onLessonAdded }: AddLessonDialogProps) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="videoUrl">Video URL</Label>
-              <Input
-                id="videoUrl"
-                value={formData.videoUrl}
-                onChange={(e) =>
-                  setFormData({ ...formData, videoUrl: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="durationMinutes">Duration (minutes)</Label>
-              <Input
-                id="durationMinutes"
-                type="number"
-                value={formData.durationMinutes}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    durationMinutes: e.target.value,
-                  })
-                }
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="summary">Summary</Label>
-            <Textarea
-              id="summary"
-              value={formData.summary}
-              onChange={(e) =>
-                setFormData({ ...formData, summary: e.target.value })
-              }
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="content">Content</Label>
-            <Textarea
-              id="content"
-              value={formData.content}
-              onChange={(e) =>
-                setFormData({ ...formData, content: e.target.value })
-              }
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="resources">Resources (one per line)</Label>
-            <Textarea
-              id="resources"
-              value={formData.resources}
-              onChange={(e) =>
-                setFormData({ ...formData, resources: e.target.value })
-              }
-            />
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </Button>
+          {/* Save */}
+          <div className="flex justify-end">
             <Button type="submit" disabled={loadingSubmit}>
               {loadingSubmit ? "Adding..." : "Add Lesson"}
             </Button>

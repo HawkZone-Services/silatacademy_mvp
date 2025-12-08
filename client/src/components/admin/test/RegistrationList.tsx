@@ -15,8 +15,9 @@ export function RegistrationList({
   onReject,
   onSelect,
 }: RegistrationListProps) {
+  // Ensure we only render un-finalized registrations
   const filtered = Array.isArray(list)
-    ? list.filter((r) => !r?.finalPassed)
+    ? list.filter((r) => !Boolean(r?.finalPassed))
     : [];
 
   if (!filtered.length) {
@@ -30,45 +31,59 @@ export function RegistrationList({
   return (
     <div className="space-y-3">
       {filtered.map((reg: any) => {
+        // Normalize IDs
         const studentId =
           reg?.student?._id ||
           reg?.player?._id ||
           reg?.student ||
-          reg?.playerId;
-        const examId = reg?.exam?._id || reg?.exam || reg?.examId;
+          reg?.playerId ||
+          null;
+
+        const examId = reg?.exam?._id || reg?.exam || reg?.examId || null;
+
         const isFinal = Boolean(reg?.finalPassed);
 
+        // Normalize name
         const name =
           reg?.student?.name ||
           reg?.player?.name ||
           reg?.studentName ||
           reg?.playerName ||
-          `Student ${studentId?.slice?.(-4) || ""}`;
+          (studentId ? `Student ${String(studentId).slice(-4)}` : "Unknown");
 
+        // Normalize exam title
         const examTitle =
-          reg?.exam?.title || reg?.examTitle || `Exam ${examId?.slice?.(-4)}`;
+          reg?.exam?.title ||
+          reg?.examTitle ||
+          (examId ? `Exam ${String(examId).slice(-4)}` : "Exam");
+
+        // Theory score fallback logic
+        const theoryScore = reg?.theoryScore ?? reg?.autoScore ?? null;
 
         return (
           <Card key={reg._id} className="p-4">
             <div className="flex items-center justify-between gap-4">
+              {/* LEFT SIDE */}
               <div>
                 <h3 className="font-semibold">{name}</h3>
                 <p className="text-sm text-muted-foreground">{examTitle}</p>
 
-                {typeof reg.autoScore === "number" && (
+                {/* THEORY SCORE */}
+                {typeof theoryScore === "number" && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Theory score: {reg.theoryScore ?? reg.autoScore}{" "}
+                    Theory Score: {theoryScore}
                     {reg.pass !== undefined && (
                       <Badge
                         variant={reg.pass ? "secondary" : "outline"}
                         className="ml-2"
                       >
-                        {reg.pass ? "Passed" : "Not passed"}
+                        {reg.pass ? "Passed" : "Not Passed"}
                       </Badge>
                     )}
                   </p>
                 )}
 
+                {/* FINAL FLAG */}
                 {isFinal && (
                   <Badge variant="secondary" className="mt-2">
                     Finalized
@@ -76,7 +91,9 @@ export function RegistrationList({
                 )}
               </div>
 
+              {/* RIGHT SIDE */}
               <div className="flex flex-col items-end gap-2">
+                {/* Select for practical scoring */}
                 {studentId && examId && onSelect && (
                   <Button
                     size="sm"
@@ -84,10 +101,11 @@ export function RegistrationList({
                     disabled={isFinal}
                     onClick={() => onSelect(studentId, examId)}
                   >
-                    {isFinal ? "Finalized" : "Select for practical scoring"}
+                    {isFinal ? "Finalized" : "Select for Practical Scoring"}
                   </Button>
                 )}
 
+                {/* Approve / Reject */}
                 {reg.status === "pending" && (
                   <div className="flex items-center gap-2">
                     {onApprove && (
@@ -107,6 +125,7 @@ export function RegistrationList({
                   </div>
                 )}
 
+                {/* Status */}
                 {reg.status && reg.status !== "pending" && (
                   <Badge variant="outline" className="capitalize">
                     {reg.status}

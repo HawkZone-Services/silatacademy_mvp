@@ -19,49 +19,10 @@ import { validate } from "../middlewares/validate.js";
 const router = express.Router();
 
 /* =======================
-   ADMIN LESSON CRUD
+   STUDENT LESSON ROUTES
 ======================= */
 
-router.get("/", protect, checkRole("admin"), listLessons);
-router.post(
-  "/",
-  protect,
-  checkRole("admin"),
-  validate([check("title").notEmpty().withMessage("title is required")]),
-  createLesson
-);
-router.get("/:id", protect, checkRole("admin"), getLesson);
-router.patch(
-  "/:id",
-  protect,
-  checkRole("admin"),
-  validate([check("title").optional().isString()]),
-  updateLesson
-);
-router.delete("/:id", protect, checkRole("admin"), deleteLesson);
-
-router.get(
-  "/:lessonId/quiz",
-  protect,
-  checkRole("student"),
-  getLessonQuiz
-);
-router.post(
-  "/:lessonId/quiz/submit",
-  protect,
-  checkRole("student"),
-  submitLessonQuiz
-);
-router.post(
-  "/:id/progress",
-  protect,
-  checkRole("student", "admin", "instructor"),
-  saveProgress
-);
-/* =======================
-   STUDENT LESSON APIS
-======================= */
-// 🔹 دروس الطالب المتاحة (مع locks + attendance)
+// 1️⃣ MUST COME FIRST — static route
 router.get(
   "/student/available",
   protect,
@@ -69,7 +30,7 @@ router.get(
   getStudentAvailableLessons
 );
 
-// 🔹 ملخص progress على مستوى البرامج/الكلي
+// 2️⃣ static
 router.get(
   "/student/progress",
   protect,
@@ -77,11 +38,62 @@ router.get(
   getStudentLessonProgress
 );
 
-// 🔹 إنهاء الدرس + تسجيل نتيجة الكويز
+// 3️⃣ static for quiz
+router.get(
+  "/student/:lessonId/quiz",
+  protect,
+  checkRole("student"),
+  getLessonQuiz
+);
+
+// 4️⃣ static submit route
+router.post(
+  "/student/:lessonId/quiz/submit",
+  protect,
+  checkRole("student"),
+  submitLessonQuiz
+);
+
+// 5️⃣ static route for completing lesson
 router.post(
   "/student/:lessonId/complete",
   protect,
   checkRole("student"),
   completeStudentLesson
 );
+
+// 6️⃣ LAST → dynamic catch route
+router.get("/student/:lessonId", protect, checkRole("student"), getLesson);
+
+/* =======================
+   ADMIN LESSON CRUD
+======================= */
+
+router.get("/", listLessons);
+
+router.post(
+  "/",
+  protect,
+  checkRole("admin"),
+  validate([check("title").notEmpty().withMessage("title is required")]),
+  createLesson
+);
+
+router.get(
+  "/:id",
+  protect,
+  checkRole("admin", "instructor"), // فقط أدمن ومدرب يعرضوا التفاصيل
+  getLesson
+);
+
+router.patch(
+  "/:id",
+  protect,
+  checkRole("admin"),
+  validate([check("title").optional().isString()]),
+  updateLesson
+);
+
+router.delete("/:id", protect, checkRole("admin"), deleteLesson);
+
 export default router;

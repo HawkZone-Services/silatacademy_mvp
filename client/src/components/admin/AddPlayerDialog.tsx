@@ -6,184 +6,297 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import adminService from "@/services/adminService";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus } from "lucide-react";
-import adminService from "@/services/adminService";
 
-interface AddPlayerDialogProps {
-  onPlayerAdded?: () => void;
-}
-
-export const AddPlayerDialog = ({ onPlayerAdded }: AddPlayerDialogProps) => {
+export function AddPlayerDialog({ onPlayerAdded }) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
 
-  const [formData, setFormData] = useState({
-    national_id: "",
-    full_name: "",
+  const initial = {
+    // USER
+    name: "",
     email: "",
     phone: "",
-    date_of_birth: "",
-    gender: "",
-    address: "",
-    city: "",
-    current_belt: "white",
-    emergency_contact_name: "",
-    emergency_contact_phone: "",
-    medical_notes: "",
+    nationalId: "",
+    gender: "male",
+    dob: "",
     password: "",
-  });
 
-  const resetForm = () =>
-    setFormData({
-      national_id: "",
-      full_name: "",
-      email: "",
-      phone: "",
-      date_of_birth: "",
-      gender: "",
-      address: "",
-      city: "",
-      current_belt: "white",
-      emergency_contact_name: "",
-      emergency_contact_phone: "",
-      medical_notes: "",
-      password: "",
-    });
+    // PLAYER
+    beltLevel: "white",
+    height: "",
+    weight: "",
+    trainingStartDate: "",
+    coach: "",
+    stats: { power: 0, flexibility: 0, endurance: 0, speed: 0 },
+    medicalNotes: "",
+    emergencyName: "",
+    emergencyPhone: "",
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const [form, setForm] = useState(initial);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!form.name || !form.nationalId || !form.password) {
+      toast({
+        title: "Missing data",
+        description: "Name, National ID, and Password are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await adminService.createPlayer({
-        name: formData.full_name,
-        email: formData.email,
-        password: formData.password,
-        nationalId: formData.national_id,
-        phone: formData.phone,
-        avatar: "",
+      // Age calculation
+      const age = form.dob
+        ? new Date().getFullYear() - new Date(form.dob).getFullYear()
+        : null;
+
+      const payload = {
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        nationalId: form.nationalId,
+        dob: form.dob,
+        gender: form.gender,
+        password: form.password,
+
         playerData: {
-          belt: formData.current_belt,
-          beltColor: "#ffffff",
-          age: formData.date_of_birth
+          beltLevel: form.beltLevel,
+          age,
+          height: form.height,
+          weight: form.weight,
+          coach: form.coach,
+
+          trainingStartDate: form.trainingStartDate,
+          trainingYears: form.trainingStartDate
             ? new Date().getFullYear() -
-              new Date(formData.date_of_birth).getFullYear()
-            : null,
-          stats: { power: 0, flexibility: 0, endurance: 0, speed: 0 },
-          achievements: [],
+              new Date(form.trainingStartDate).getFullYear()
+            : 0,
+
+          stats: form.stats,
+
           health: {
-            medicalNotes: formData.medical_notes,
+            medicalNotes: form.medicalNotes,
             injuries: [],
           },
+
+          achievements: [],
           trainingLogs: [],
         },
-      });
+      };
 
-      // axios → البيانات داخل response.data
-      if (response.status !== 201) {
-        throw new Error(response.data?.message || "Failed to add player");
+      const res = await adminService.createPlayer(payload);
+
+      if (res.status !== 201) {
+        throw new Error(res.data?.message || "Failed to create player");
       }
 
-      toast({
-        title: "Success",
-        description: "Player added successfully",
-      });
+      toast({ title: "Success", description: "Player added successfully" });
 
-      resetForm();
+      setForm(initial);
       setOpen(false);
       onPlayerAdded?.();
-    } catch (error: any) {
+    } catch (err) {
       toast({
         title: "Error",
-        description: error.message || "Failed to add player",
+        description:
+          err?.response?.data?.message || err.message || "Failed to add player",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2">
-          <UserPlus className="w-4 h-4" />
-          Add New Player
+        <Button>
+          <UserPlus className="w-4 h-4 mr-2" />
+          Add Player
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Player</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>National ID *</Label>
-              <Input
-                required
-                value={formData.national_id}
-                onChange={(e) =>
-                  setFormData({ ...formData, national_id: e.target.value })
-                }
-              />
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* ========================== */}
+          {/* BASIC IDENTITY */}
+          {/* ========================== */}
+          <section>
+            <h3 className="font-semibold mb-2">Basic Identity</h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Full Name *</Label>
+                <Input
+                  required
+                  value={form.name}
+                  onChange={(e) => set("name", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label>National ID *</Label>
+                <Input
+                  required
+                  value={form.nationalId}
+                  onChange={(e) => set("nationalId", e.target.value)}
+                />
+              </div>
             </div>
 
-            <div>
-              <Label>Full Name *</Label>
-              <Input
-                required
-                value={formData.full_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, full_name: e.target.value })
-                }
-              />
-            </div>
-          </div>
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <div>
+                <Label>Date of Birth</Label>
+                <Input
+                  type="date"
+                  value={form.dob}
+                  onChange={(e) => set("dob", e.target.value)}
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Email *</Label>
-              <Input
-                required
-                type="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-              />
+              <div>
+                <Label>Gender</Label>
+                <div className="flex border rounded overflow-hidden">
+                  <button
+                    type="button"
+                    className={`px-4 py-1 ${
+                      form.gender === "male"
+                        ? "bg-primary text-white"
+                        : "bg-muted"
+                    }`}
+                    onClick={() => set("gender", "male")}
+                  >
+                    Male
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-4 py-1 ${
+                      form.gender === "female"
+                        ? "bg-primary text-white"
+                        : "bg-muted"
+                    }`}
+                    onClick={() => set("gender", "female")}
+                  >
+                    Female
+                  </button>
+                </div>
+              </div>
             </div>
+          </section>
 
-            <div>
-              <Label>Phone *</Label>
-              <Input
-                required
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-              />
+          {/* ========================== */}
+          {/* CONTACT INFORMATION */}
+          {/* ========================== */}
+          <section>
+            <h3 className="font-semibold mb-2">Contact Information</h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => set("email", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label>Phone</Label>
+                <Input
+                  value={form.phone}
+                  onChange={(e) => set("phone", e.target.value)}
+                />
+              </div>
             </div>
-          </div>
+          </section>
 
-          <div>
-            <Label>Password *</Label>
+          {/* ========================== */}
+          {/* LOGIN + BELT */}
+          {/* ========================== */}
+          <section>
+            <h3 className="font-semibold mb-2">Login & Training</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Password *</Label>
+                <Input
+                  required
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => set("password", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label>Belt Level</Label>
+                <select
+                  className="border p-2 rounded w-full bg-background "
+                  value={form.beltLevel}
+                  onChange={(e) => set("beltLevel", e.target.value)}
+                >
+                  <option value="white">White</option>
+                  <option value="yellow">Yellow</option>
+                  <option value="blue">Blue</option>
+                  <option value="brown">Brown</option>
+                  <option value="red">Red</option>
+                  <option value="black">Black</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          {/* ========================== */}
+          {/* HEALTH + EMERGENCY CONTACT */}
+          {/* ========================== */}
+          <section>
+            <h3 className="font-semibold mb-2">Health & Emergency Info</h3>
+
+            <Label>Medical Notes</Label>
             <Input
-              required
-              type="password"
-              value={formData.password}
-              onChange={(e) =>
-                setFormData({ ...formData, password: e.target.value })
-              }
-              placeholder="Enter a password for the student"
+              value={form.medicalNotes}
+              onChange={(e) => set("medicalNotes", e.target.value)}
             />
-          </div>
 
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <div>
+                <Label>Emergency Contact Name</Label>
+                <Input
+                  value={form.emergencyName}
+                  onChange={(e) => set("emergencyName", e.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label>Emergency Contact Phone</Label>
+                <Input
+                  value={form.emergencyPhone}
+                  onChange={(e) => set("emergencyPhone", e.target.value)}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* ========================== */}
+          {/* ACTION BUTTONS */}
+          {/* ========================== */}
           <div className="flex justify-end gap-3">
             <Button
               type="button"
@@ -201,4 +314,4 @@ export const AddPlayerDialog = ({ onPlayerAdded }: AddPlayerDialogProps) => {
       </DialogContent>
     </Dialog>
   );
-};
+}

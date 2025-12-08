@@ -28,6 +28,7 @@ export function EditPlayerDialog({
   onUpdated,
 }: EditPlayerDialogProps) {
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState<any>({
     // USER
@@ -38,7 +39,7 @@ export function EditPlayerDialog({
     phone: "",
     isActive: true,
 
-    // PROFILE
+    // PLAYER
     belt: "",
     beltColor: "",
     age: "",
@@ -48,13 +49,7 @@ export function EditPlayerDialog({
     trainingStartDate: "",
     trainingYears: "",
     currentFocus: "",
-
-    stats: {
-      power: 0,
-      flexibility: 0,
-      endurance: 0,
-      speed: 0,
-    },
+    stats: { power: 0, flexibility: 0, endurance: 0, speed: 0 },
 
     // HEALTH
     health: {
@@ -72,75 +67,59 @@ export function EditPlayerDialog({
 
   /** Load player data */
   useEffect(() => {
-    if (player) {
-      setForm({
-        full_name: player.user.name || "",
-        email: player.user.email || "",
-        nationalId: player.user.nationalId || "",
-        gender: player.gender || "",
-        phone: player.user.phone || "",
-        isActive: player.user.isActive ?? true,
+    if (!player) return;
 
-        // profile
-        belt: player.playerProfile?.belt || "",
-        beltColor: player.playerProfile?.beltColor || "",
-        age: player.playerProfile?.age || "",
-        height: player.playerProfile?.height || "",
-        weight: player.playerProfile?.weight || "",
-        coach: player.playerProfile?.coach || "",
-        trainingStartDate: player.playerProfile?.trainingStartDate || "",
-        trainingYears: player.playerProfile?.trainingYears || "",
-        currentFocus: player.playerProfile?.currentFocus || "",
+    setForm({
+      // USER
+      full_name: player.user?.name || "",
+      email: player.user?.email || "",
+      nationalId: player.user?.nationalId || "",
+      gender: player.user?.gender || "",
+      phone: player.user?.phone || "",
+      isActive: player.user?.isActive ?? true,
 
-        stats: player.playerProfile?.stats || {
-          power: 0,
-          flexibility: 0,
-          endurance: 0,
-          speed: 0,
-        },
+      // PLAYER
+      belt: player.beltLevel || "",
+      beltColor: player.beltColor || "",
+      age: player.age || "",
+      height: player.height || "",
+      weight: player.weight || "",
+      coach: player.coach || "",
+      trainingStartDate: player.trainingStartDate || "",
+      trainingYears: player.trainingYears || "",
+      currentFocus: player.currentFocus || "",
+      stats: player.stats || {
+        power: 0,
+        flexibility: 0,
+        endurance: 0,
+        speed: 0,
+      },
 
-        health: {
-          status: player.playerProfile?.health?.status || "",
-          lastCheckup: player.playerProfile?.health?.lastCheckup || "",
-          injuries: player.playerProfile?.health?.injuries || [],
-          nutritionPlan: player.playerProfile?.health?.nutritionPlan || "",
-          restSchedule: player.playerProfile?.health?.restSchedule || "",
-          medicalNotes: player.playerProfile?.health?.medicalNotes || "",
-        },
+      health: player.health || {
+        status: "",
+        lastCheckup: "",
+        injuries: [],
+        nutritionPlan: "",
+        restSchedule: "",
+        medicalNotes: "",
+      },
 
-        achievements: player.playerProfile?.achievements || [],
-        trainingLogs: player.playerProfile?.trainingLogs || [],
-      });
-    }
+      achievements: player.achievements || [],
+      trainingLogs: player.trainingLogs || [],
+    });
   }, [player]);
 
-  /** update field */
+  /** Update simple field */
   const handleChange = (e: any) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  /** handle health fields */
-  const handleHealthChange = (field: string, value: any) => {
-    setForm({
-      ...form,
-      health: {
-        ...form.health,
-        [field]: value,
-      },
-    });
-  };
+  const handleStatsChange = (key: string, val: any) =>
+    setForm({ ...form, stats: { ...form.stats, [key]: Number(val) } });
 
-  /** handle stats */
-  const handleStatsChange = (stat: string, value: any) => {
-    setForm({
-      ...form,
-      stats: {
-        ...form.stats,
-        [stat]: Number(value),
-      },
-    });
-  };
+  const handleHealthChange = (key: string, val: any) =>
+    setForm({ ...form, health: { ...form.health, [key]: val } });
 
-  /** Submit updated player */
+  /** Submit */
   const handleSubmit = async () => {
     if (!form.nationalId.trim()) {
       return toast({
@@ -149,25 +128,67 @@ export function EditPlayerDialog({
         variant: "destructive",
       });
     }
+    setLoading(true);
 
     try {
-      const res = await adminService.updatePlayer(player._id, form);
+      // -------- BUILD PAYLOAD TO MATCH BACKEND --------
+      const payload = {
+        // USER
+        name: form.full_name,
+        email: form.email,
+        nationalId: form.nationalId,
+        gender: form.gender,
+        phone: form.phone,
+        isActive: form.isActive === "true" || form.isActive === true,
 
-      if (!res.data?.success) {
+        // PROFILE
+        profile: {
+          firstName: form.full_name.split(" ")[0] || "",
+          lastName: form.full_name.split(" ").slice(1).join(" ") || "",
+          avatar: "",
+          address: "",
+          bio: "",
+          social: {},
+        },
+
+        // PLAYER fields
+        beltLevel: form.belt,
+        beltColor: form.beltColor,
+        age: form.age,
+        height: form.height,
+        weight: form.weight,
+        coach: form.coach,
+        trainingStartDate: form.trainingStartDate,
+        trainingYears: form.trainingYears,
+        stats: form.stats,
+        currentFocus: form.currentFocus,
+        achievements: form.achievements,
+        trainingLogs: form.trainingLogs,
+        health: form.health,
+      };
+
+      // -------- SEND REQUEST --------
+      const res = await adminService.updatePlayer(player.user._id, payload);
+
+      if (!res.success) {
         toast({
           title: "Update Failed",
-          description: res.data?.message,
+          description: res.message || "Something went wrong.",
           variant: "destructive",
         });
+        setLoading(false);
+
         return;
       }
 
+      // SUCCESS
       toast({
-        title: "Updated",
+        title: "Updated Successfully",
         description: "Player profile updated successfully.",
       });
 
       setOpen(false);
+      setLoading(false);
       onUpdated?.();
     } catch (err: any) {
       toast({
@@ -199,33 +220,34 @@ export function EditPlayerDialog({
             <Input
               name="full_name"
               value={form.full_name}
-              placeholder="Full Name"
               onChange={handleChange}
+              placeholder="Full Name"
             />
             <Input
               name="email"
               value={form.email}
-              placeholder="Email"
               onChange={handleChange}
+              placeholder="Email"
             />
             <Input
               name="nationalId"
               value={form.nationalId}
-              placeholder="National ID"
               onChange={handleChange}
+              placeholder="National ID"
             />
             <Input
               name="gender"
               value={form.gender}
-              placeholder="Gender"
               onChange={handleChange}
+              placeholder="Gender"
             />
             <Input
               name="phone"
               value={form.phone}
-              placeholder="Phone"
               onChange={handleChange}
+              placeholder="Phone"
             />
+
             <select
               name="isActive"
               value={form.isActive}
@@ -237,44 +259,46 @@ export function EditPlayerDialog({
             </select>
           </TabsContent>
 
-          {/* Training Info */}
+          {/* Training */}
           <TabsContent value="training" className="space-y-3 mt-3">
             <Input
               name="belt"
               value={form.belt}
-              placeholder="Belt (e.g. Yellow Belt)"
               onChange={handleChange}
+              placeholder="Belt (e.g. yellow)"
             />
             <Input
               name="beltColor"
               value={form.beltColor}
-              placeholder="Belt Color (Hex)"
               onChange={handleChange}
+              placeholder="Belt Color (#hex)"
             />
+
             <Input
               name="age"
-              value={form.age}
               type="number"
-              placeholder="Age"
+              value={form.age}
               onChange={handleChange}
+              placeholder="Age"
             />
             <Input
               name="height"
               value={form.height}
-              placeholder="Height (165 cm)"
               onChange={handleChange}
+              placeholder="Height (165 cm)"
             />
             <Input
               name="weight"
               value={form.weight}
-              placeholder="Weight (55 kg)"
               onChange={handleChange}
+              placeholder="Weight (55 kg)"
             />
+
             <Input
               name="coach"
               value={form.coach}
-              placeholder="Coach Name"
               onChange={handleChange}
+              placeholder="Coach"
             />
             <Input
               type="date"
@@ -288,21 +312,21 @@ export function EditPlayerDialog({
               value={form.trainingYears}
               onChange={handleChange}
             />
+
             <Input
               name="currentFocus"
               value={form.currentFocus}
-              placeholder="Current Focus"
               onChange={handleChange}
+              placeholder="Current Focus"
             />
 
-            {/* Stats */}
             <div className="grid grid-cols-4 gap-3">
               {["power", "flexibility", "endurance", "speed"].map((stat) => (
                 <Input
                   key={stat}
                   type="number"
-                  placeholder={stat}
                   value={form.stats[stat]}
+                  placeholder={stat}
                   onChange={(e) => handleStatsChange(stat, e.target.value)}
                 />
               ))}
@@ -312,14 +336,13 @@ export function EditPlayerDialog({
           {/* Health */}
           <TabsContent value="health" className="space-y-3 mt-3">
             <Input
-              placeholder="Health Status"
               value={form.health.status}
+              placeholder="Health Status"
               onChange={(e) => handleHealthChange("status", e.target.value)}
             />
 
             <Input
               type="date"
-              placeholder="Last Checkup Date"
               value={form.health.lastCheckup}
               onChange={(e) =>
                 handleHealthChange("lastCheckup", e.target.value)
@@ -327,44 +350,48 @@ export function EditPlayerDialog({
             />
 
             <Textarea
-              placeholder="Nutrition Plan"
               value={form.health.nutritionPlan}
               onChange={(e) =>
                 handleHealthChange("nutritionPlan", e.target.value)
               }
+              placeholder="Nutrition Plan"
             />
 
             <Textarea
-              placeholder="Rest Schedule"
               value={form.health.restSchedule}
               onChange={(e) =>
                 handleHealthChange("restSchedule", e.target.value)
               }
+              placeholder="Rest Schedule"
             />
 
             <Textarea
-              placeholder="Medical Notes"
               value={form.health.medicalNotes}
               onChange={(e) =>
                 handleHealthChange("medicalNotes", e.target.value)
               }
+              placeholder="Medical Notes"
             />
 
             <Textarea
-              placeholder="Injuries (comma separated)"
-              value={form.health.injuries?.join(", ") ?? ""}
+              value={form.health.injuries.join(", ")}
               onChange={(e) =>
                 handleHealthChange(
                   "injuries",
                   e.target.value.split(",").map((i) => i.trim())
                 )
               }
+              placeholder="Injuries (comma separated)"
             />
           </TabsContent>
         </Tabs>
 
-        <Button className="w-full mt-4" onClick={handleSubmit}>
-          Save Changes
+        <Button
+          className="w-full mt-4"
+          onClick={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? "Saveing Changes..." : "Save Changes"}
         </Button>
       </DialogContent>
     </Dialog>

@@ -139,17 +139,17 @@ const PlayerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-PlayerSchema.pre("validate", function (next) {
+PlayerSchema.pre("validate", function () {
   const level = (this.beltLevel || "white").toLowerCase();
   this.beltLevel = level;
+
   if (!this.beltColor) {
     this.beltColor = beltColorMap[level] || beltColorMap.white;
   }
+
   if (!this.beltLabel && level) {
-    const label = `${level.charAt(0).toUpperCase()}${level.slice(1)} Belt`;
-    this.beltLabel = label;
+    this.beltLabel = `${level.charAt(0).toUpperCase()}${level.slice(1)} Belt`;
   }
-  next();
 });
 
 const Player = mongoose.model("Player", PlayerSchema);

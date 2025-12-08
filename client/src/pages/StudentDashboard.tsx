@@ -35,6 +35,9 @@ import attendanceService from "@/services/attendanceService";
 import lessonService from "@/services/lessonService";
 import examService from "@/services/examService";
 import certificateService from "@/services/certificateService";
+import { LearningPathSection } from "@/features/lessons/components/LearningPathSection";
+import { getStudentLessons } from "@/features/lessons/api/getStudentLessons";
+import StudentLessonsPage from "@/features/lessons/pages/StudentLessonsPage";
 
 // ======================
 // Types (مرنة لو الـ API مختلف شويه)
@@ -158,7 +161,6 @@ export default function StudentDashboard() {
   const [results, setResults] = useState<any[]>([]);
 
   const beltLevel = student?.beltLevel || "white";
-  
 
   // أي تحكم بسيط في تبويب الاختبارات
   const [selectedExamTab, setSelectedExamTab] = useState<
@@ -254,23 +256,17 @@ export default function StudentDashboard() {
 
   const fetchLessons = async () => {
     try {
-      const res: any = await lessonService.getMyLessons();
-      if (res?.success === false) {
-        setLessons([]);
-        return;
-      }
-      const list = Array.isArray(res?.data?.lessons)
-        ? res.data.lessons
-        : Array.isArray(res?.data)
-        ? res.data
-        : [];
-      setLessons(list);
+      const res: any = await getStudentLessons();
+
+      const lessons =
+        res?.data?.data?.lessons || res?.data?.lessons || res?.data || [];
+
+      setLessons(lessons);
     } catch (error) {
       console.error("Lessons fetch error:", error);
       setLessons([]);
     }
   };
-
   const fetchExams = async () => {
     try {
       const res: any = await examService.getAvailableExams(beltLevel);
@@ -532,75 +528,7 @@ export default function StudentDashboard() {
 
           {/* ========== LEARNING PATH ========== */}
           <TabsContent value="learning" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Lessons & Quizzes</CardTitle>
-                <CardDescription>
-                  Complete your lessons and their quizzes before attempting belt
-                  exams.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {lessons.length === 0 && (
-                  <p className="text-muted-foreground text-sm">
-                    No lessons assigned yet.
-                  </p>
-                )}
-
-                {lessons.map((lesson) => (
-                  <div
-                    key={lesson._id}
-                    className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-accent/10"
-                  >
-                    <div>
-                      <h3 className="font-semibold flex items-center gap-2">
-                        {lesson.title}
-                        {lesson.completed && (
-                          <Badge
-                            variant="outline"
-                            className="flex items-center gap-1 text-xs"
-                          >
-                            <CheckCircle2 className="h-3 w-3" /> Completed
-                          </Badge>
-                        )}
-                        {lesson.locked && !lesson.completed && (
-                          <Badge
-                            variant="outline"
-                            className="flex items-center gap-1 text-xs"
-                          >
-                            <AlertCircle className="h-3 w-3" /> Locked
-                          </Badge>
-                        )}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {lesson.programLevel
-                          ? `${lesson.programLevel.toUpperCase()} level`
-                          : "General training lesson"}
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={lesson.locked}
-                        onClick={() => navigate(`/lesson/${lesson._id}`)}
-                      >
-                        View Lesson
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={lesson.locked}
-                        onClick={() => navigate(`/lesson/${lesson._id}/quiz`)}
-                      >
-                        Take Quiz
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <StudentLessonsPage />
           </TabsContent>
 
           {/* ========== EXAMS & RESULTS ========== */}
@@ -759,15 +687,17 @@ export default function StudentDashboard() {
                           </p>
                         </div>
 
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                            navigate(`/student/exams/${exam._id}?attempt=${att._id}`)
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            navigate(
+                              `/student/exams/${exam._id}?attempt=${att._id}`
+                            )
                           }
-                          >
-                            View Details
-                          </Button>
+                        >
+                          View Details
+                        </Button>
                       </div>
                     );
                   })}

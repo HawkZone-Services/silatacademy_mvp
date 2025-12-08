@@ -4,10 +4,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+
 import examService from "@/services/examService";
 
 interface Props {
@@ -25,16 +27,21 @@ export function PracticalScoreDialog({
   practicalRecorded,
   onSaved,
 }: Props) {
-  if (!studentId || !examId || finalPassed) {
-    return null;
-  }
+  /** Block component entirely if:
+   * - no student/exam
+   * - OR exam finalized
+   */
+  if (!studentId || !examId || finalPassed) return null;
+
+  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Prevent overriding if exists
   const [hasExistingScores, setHasExistingScores] = useState(
     Boolean(practicalRecorded)
   );
-  const { toast } = useToast();
 
   const [scores, setScores] = useState({
     morality: "",
@@ -44,13 +51,29 @@ export function PracticalScoreDialog({
     mental: "",
   });
 
-  const token =
-    localStorage.getItem("token") || sessionStorage.getItem("token");
+  const disabled = loading || !studentId || !examId || hasExistingScores;
 
-  const disabled = !studentId || !examId || loading;
-
+  /* ============================================
+        SUBMIT PRACTICAL SCORE
+     ============================================ */
   const handleSubmit = async () => {
-    if (disabled || practicalRecorded) return;
+    if (disabled) return;
+
+    const numericScores = Object.fromEntries(
+      Object.entries(scores).map(([k, v]) => [k, Number(v)])
+    );
+
+    // Validation
+    for (const key in numericScores) {
+      if (isNaN(numericScores[key]) || numericScores[key] < 0) {
+        toast({
+          title: "Invalid Score",
+          description: `${key} must be a valid positive number.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     setLoading(true);
 
@@ -58,15 +81,12 @@ export function PracticalScoreDialog({
       const res = await examService.savePracticalScore({
         studentId,
         examId,
-        ...Object.fromEntries(
-          Object.entries(scores).map(([k, v]) => [k, Number(v)])
-        ),
+        scores: numericScores,
       });
 
-      const data = await res.json();
+      const data = res?.data || res?.response?.data || res || {};
 
-      if (!res.ok) {
-        const data = await res.json();
+      if (!data?.success) {
         throw new Error(data?.message || "Failed to save practical score");
       }
 
@@ -77,12 +97,12 @@ export function PracticalScoreDialog({
 
       setOpen(false);
       setHasExistingScores(true);
+
       onSaved?.();
-    } catch (err) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description:
-          err instanceof Error ? err.message : "Failed to save practical score.",
+        description: error?.message || "Failed to save practical score.",
         variant: "destructive",
       });
     }
@@ -90,11 +110,15 @@ export function PracticalScoreDialog({
     setLoading(false);
   };
 
+  /* ============================================
+        RENDER
+     ============================================ */
   return (
     <>
-      {!hasExistingScores && !practicalRecorded ? (
+      {/* BUTTON (OPEN MODAL) */}
+      {!hasExistingScores ? (
         <Button
-          disabled={!studentId || !examId || loading}
+          disabled={disabled}
           onClick={() => setOpen(true)}
           variant="outline"
         >
@@ -111,6 +135,7 @@ export function PracticalScoreDialog({
         </div>
       )}
 
+      {/* DIALOG */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>

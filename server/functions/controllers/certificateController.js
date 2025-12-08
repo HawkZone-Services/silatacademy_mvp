@@ -34,7 +34,15 @@ const issue = async ({
     issuedAt: new Date(),
   });
 };
-
+const populateCertificate = async (certId) => {
+  return await Certificate.findById(certId)
+    .populate("user", "name email gender")
+    .populate("examId", "title beltLevel")
+    .populate("lessonId", "title")
+    .populate("moduleId", "title")
+    .populate("programId", "title")
+    .lean();
+};
 export const issueLessonCertificate = asyncHandler(async (req, res) => {
   const { lessonId, studentId } = req.params;
 
@@ -44,13 +52,15 @@ export const issueLessonCertificate = asyncHandler(async (req, res) => {
   const cert = await issue({
     userId: studentId,
     issuedBy: req.user._id,
-    type: "completion",
+    type: "lesson",
     title: `Lesson Completion: ${lesson.title}`,
     description: "Successfully completed lesson requirements",
     lessonId,
   });
 
-  res.json({ success: true, data: { certificate: cert } });
+  const populated = await populateCertificate(cert._id);
+
+  res.json({ success: true, data: { certificate: populated } });
 });
 
 export const issueModuleCertificate = asyncHandler(async (req, res) => {
@@ -68,7 +78,9 @@ export const issueModuleCertificate = asyncHandler(async (req, res) => {
     moduleId,
   });
 
-  res.json({ success: true, data: { certificate: cert } });
+  const populated = await populateCertificate(cert._id);
+
+  res.json({ success: true, data: { certificate: populated } });
 });
 
 export const issueProgramCertificate = asyncHandler(async (req, res) => {
@@ -86,7 +98,9 @@ export const issueProgramCertificate = asyncHandler(async (req, res) => {
     programId,
   });
 
-  res.json({ success: true, data: { certificate: cert } });
+  const populated = await populateCertificate(cert._id);
+
+  res.json({ success: true, data: { certificate: populated } });
 });
 
 export const issuePerformanceCertificate = asyncHandler(async (req, res) => {
@@ -100,7 +114,9 @@ export const issuePerformanceCertificate = asyncHandler(async (req, res) => {
     description: "Admin-issued performance evaluation certificate",
   });
 
-  res.json({ success: true, data: { certificate: cert } });
+  const populated = await populateCertificate(cert._id);
+
+  res.json({ success: true, data: { certificate: populated } });
 });
 
 export const issueAttendanceCertificate = asyncHandler(async (req, res) => {
@@ -118,7 +134,9 @@ export const issueAttendanceCertificate = asyncHandler(async (req, res) => {
     lessonId,
   });
 
-  res.json({ success: true, data: { certificate: cert } });
+  const populated = await populateCertificate(cert._id);
+
+  res.json({ success: true, data: { certificate: populated } });
 });
 
 export const issueManualCertificate = asyncHandler(async (req, res) => {
@@ -128,11 +146,13 @@ export const issueManualCertificate = asyncHandler(async (req, res) => {
     userId: studentId,
     issuedBy: req.user._id,
     type: "manual",
-    title: "Manual Certification",
-    description: "Manually issued certificate by admin",
+    title: "Manual Certificate",
+    description: "Issued manually by admin",
   });
 
-  res.json({ success: true, data: { certificate: cert } });
+  const populated = await populateCertificate(cert._id);
+
+  res.json({ success: true, data: { certificate: populated } });
 });
 
 export const issueExamCertificate = asyncHandler(async (req, res) => {
@@ -150,7 +170,9 @@ export const issueExamCertificate = asyncHandler(async (req, res) => {
     examId,
   });
 
-  res.json({ success: true, data: { certificate: cert } });
+  const populated = await populateCertificate(cert._id);
+
+  res.json({ success: true, data: { certificate: populated } });
 });
 
 export const overrideExamCertificate = asyncHandler(async (req, res) => {
@@ -191,6 +213,35 @@ export const adminListCertificates = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { certificates: certs } });
 });
 
+export const getCertificateData = asyncHandler(async (req, res) => {
+  const { examId, studentId } = req.params;
+
+  const cert = await Certificate.findOne({
+    examId,
+    user: studentId,
+  })
+    .populate("user", "name email gender")
+    .populate("examId", "title beltLevel")
+    .populate("lessonId", "title")
+    .populate("moduleId", "title")
+    .populate("programId", "title")
+    .lean();
+
+  if (!cert) throw httpError(404, "Certificate not found");
+
+  res.json({
+    success: true,
+    data: {
+      certificate: cert,
+      meta: {
+        serial: cert._id,
+        issuedAt: cert.issuedAt,
+      },
+    },
+  });
+});
+
+// PDF DOWNLOAD will be deleted later
 export const downloadCertificatePdf = asyncHandler(async (req, res) => {
   try {
     const { examId, studentId } = req.params;

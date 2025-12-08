@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { Button } from "@/components/ui/button";
+
 import {
   Select,
   SelectTrigger,
@@ -32,34 +33,55 @@ export default function IssueProgramDialog({ open, setOpen, onIssued }: Props) {
   const [studentId, setStudentId] = useState("");
   const [loading, setLoading] = useState(false);
 
+  /* =====================================================
+      LOAD DATA
+  ====================================================== */
   useEffect(() => {
     if (!open) return;
 
-    const load = async () => {
+    const loadData = async () => {
       try {
+        // ---- LOAD PROGRAMS ----
         const programsRes = await programService.getPrograms();
+        const programsList =
+          programsRes?.data?.programs ||
+          programsRes?.data ||
+          programsRes?.programs ||
+          [];
+
+        setPrograms(Array.isArray(programsList) ? programsList : []);
+
+        // ---- LOAD STUDENTS ----
         const playersRes = await adminService.getPlayers();
+        const playersList =
+          playersRes?.data?.players ||
+          playersRes?.data?.data?.players ||
+          playersRes?.data ||
+          [];
 
-        const programsJson = programsRes.programs || programsRes || [];
-        const playersJson = (await playersRes.json()) || [];
-
-        setPrograms(programsJson);
-        setStudents(playersJson);
+        setStudents(Array.isArray(playersList) ? playersList : []);
       } catch (err) {
         console.error("IssueProgramDialog load error:", err);
       }
     };
 
-    load();
+    loadData();
   }, [open]);
 
+  /* =====================================================
+      ISSUE CERTIFICATE
+  ====================================================== */
   const handleIssue = async () => {
     if (!programId || !studentId) return;
+    setLoading(true);
 
     try {
-      setLoading(true);
       const res = await certificateService.issueProgram(programId, studentId);
-      if (!res.ok) console.error("IssueProgram error:", res);
+
+      if (!res?.data?.success) {
+        console.error("IssueProgram error:", res?.data);
+      }
+
       onIssued();
       setOpen(false);
     } catch (err) {
@@ -69,6 +91,8 @@ export default function IssueProgramDialog({ open, setOpen, onIssued }: Props) {
     }
   };
 
+  /* ===================================================== */
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent>
@@ -77,6 +101,7 @@ export default function IssueProgramDialog({ open, setOpen, onIssued }: Props) {
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
+          {/* SELECT PROGRAM */}
           <Select value={programId} onValueChange={setProgramId}>
             <SelectTrigger>
               <SelectValue placeholder="Select program" />
@@ -90,19 +115,31 @@ export default function IssueProgramDialog({ open, setOpen, onIssued }: Props) {
             </SelectContent>
           </Select>
 
+          {/* SELECT STUDENT */}
           <Select value={studentId} onValueChange={setStudentId}>
             <SelectTrigger>
               <SelectValue placeholder="Select student" />
             </SelectTrigger>
             <SelectContent>
-              {students.map((s: any) => (
-                <SelectItem key={s._id} value={s._id}>
-                  {s.name || s.fullName || s.email}
-                </SelectItem>
-              ))}
+              {students.map((s: any) => {
+                const uid = s.user?._id || s._id;
+                const display =
+                  s.user?.name ||
+                  s.name ||
+                  s.user?.email ||
+                  s.email ||
+                  "Unnamed student";
+
+                return (
+                  <SelectItem key={uid} value={uid}>
+                    {display}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
 
+          {/* BUTTON */}
           <Button
             className="w-full"
             onClick={handleIssue}

@@ -13,7 +13,7 @@ import {
   overrideExamCertificate,
   getMyCertificates,
   adminListCertificates,
-  downloadCertificatePdf,
+  getCertificateData,
 } from "../controllers/certificateController.js";
 
 const router = express.Router();
@@ -85,10 +85,10 @@ router.post(
 // Admin list
 router.get("/admin/all", protect, checkRole("admin"), adminListCertificates);
 router.get(
-  "/pdf/:examId/:studentId",
+  "/data/:examId/:studentId",
   protect,
   validate([check("examId").isMongoId(), check("studentId").isMongoId()]),
-  downloadCertificatePdf
+  getCertificateData
 );
 
 export default router;

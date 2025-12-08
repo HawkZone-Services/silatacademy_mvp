@@ -16,7 +16,7 @@ import Login from "@/pages/Login";
 import ExamInterface from "@/pages/ExamInterface";
 import SilatHistory from "@/pages/SilatHistory";
 import Events from "@/pages/Events";
-import StudentDashboard from "@/pages/StudentDashboard";
+import StudentDashboard from "../features/student/dashboard/pages/StudentDashboard";
 import InstructorDashboard from "@/pages/InstructorDashboard";
 import Dashboard from "@/pages/Dashboard";
 import Certificates from "@/pages/Certificates";
@@ -27,6 +27,7 @@ import ApiPlayground from "@/pages/ApiPlayground";
 import StudentLessonsPage from "@/features/lessons/pages/StudentLessonsPage";
 import LessonDetailPage from "@/features/lessons/pages/LessonDetailPage";
 import LessonQuizPage from "@/features/lessons/pages/LessonQuizPage";
+import AdminLessonQuizPage from "@/features/lessonQuiz/pages/AdminLessonQuizPage";
 
 // Exams
 import StudentExamListPage from "@/features/exams/pages/StudentExamListPage";
@@ -57,6 +58,8 @@ export const appRoutes = [
   // Player
   { path: "/player/:id", element: <PlayerProfile /> },
   { path: "/player/:id/certificate", element: <Certificates /> },
+  //Certificates
+  { path: "/certificate/:id", element: <Certificates /> },
 
   // Lessons (Student)
   { path: "/student/lessons", element: <StudentLessonsPage /> },
@@ -126,6 +129,15 @@ export const appRoutes = [
       </ProtectedRoute>
     ),
   },
+  {
+    path: "/admin/lessons/:lessonId/quiz",
+    element: (
+      <ProtectedRoute requiredRole="admin">
+        <AdminLessonQuizPage />
+      </ProtectedRoute>
+    ),
+  },
+
   {
     path: "/admin-dashboard",
     element: (

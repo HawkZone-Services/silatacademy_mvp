@@ -85,10 +85,10 @@ export const adminCreatePlayerProfile = asyncHandler(async (req, res) => {
     role = "student",
     phone,
     avatar,
-    playerData,
+    playerData = {},
     gender,
     dob,
-    profile,
+    profile = {},
   } = req.body;
 
   if (!name || !nationalId || !password || !gender) {
@@ -149,11 +149,16 @@ export const adminCreatePlayerProfile = asyncHandler(async (req, res) => {
     coach: playerData?.coach,
     trainingStartDate: playerData?.trainingStartDate,
     trainingYears: playerData?.trainingYears || 0,
-    stats: playerData?.stats,
+    stats: playerData.stats || {
+      power: 0,
+      flexibility: 0,
+      endurance: 0,
+      speed: 0,
+    },
     currentFocus: playerData?.currentFocus,
-    achievements: playerData?.achievements,
-    health: playerData?.health,
-    trainingLogs: playerData?.trainingLogs,
+    achievements: playerData.achievements || [],
+    health: playerData.health || {},
+    trainingLogs: playerData.trainingLogs || [],
   });
 
   res.status(201).json({
@@ -285,13 +290,26 @@ export const adminUpdatePlayer = asyncHandler(async (req, res) => {
 export const adminDeletePlayer = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  // Player.user = userId
   const player = await Player.findOne({ user: id });
   if (!player) {
     return res.status(404).json({ message: "Player not found" });
   }
 
+  // Delete Player
   await Player.deleteOne({ user: id });
+  console.log("Deleting profile for user:", id);
+
+  const checkProfile = await Profile.findOne({ user: id });
+  console.log("FOUND PROFILE:", checkProfile);
+  // Delete Profile (THIS must work)
+  await Profile.deleteOne({ user: id });
+
+  // Delete User
   await User.findByIdAndDelete(id);
 
-  res.status(200).json({ message: "Player and user deleted successfully" });
+  res.status(200).json({
+    success: true,
+    message: "Player, profile, and user deleted successfully",
+  });
 });

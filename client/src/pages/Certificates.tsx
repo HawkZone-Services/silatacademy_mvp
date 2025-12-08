@@ -1,26 +1,29 @@
-import React from "react";
-import { Button } from "@/components/ui/button";
-import { API_BASE_URL } from "@/lib/apiClient";
+import React, { useEffect, useState } from "react";
+import certificateService from "@/services/certificateService";
+import { useParams } from "react-router-dom";
+import CertificateView from "@/components/certificate/CertificateView";
+import { downloadCertificateAsPDF } from "@/hooks/useDownloadCertificate";
 
-const Certificates = () => {
-  const openServerCertificates = () => {
-    window.location.href = `${API_BASE_URL}/certificates/my`;
-  };
+export default function CertificatePage() {
+  const { id } = useParams(); // params: /cert/:id
+  const [cert, setCert] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const res = await certificateService.getCertificate(id);
+      setCert(res.data.certificate);
+    };
+    load();
+  }, [id]);
+
+  if (!cert) return <p>Loading certificate...</p>;
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-8">
-      <div className="max-w-xl w-full text-center space-y-4">
-        <h1 className="text-3xl font-bold">Certificates</h1>
-        <p className="text-muted-foreground">
-          Certificates are issued by the server. Download your issued
-          certificates directly from the secure endpoint below.
-        </p>
-        <Button onClick={openServerCertificates}>
-          Open My Certificates
-        </Button>
-      </div>
+    <div className="flex justify-center py-10 bg-muted">
+      <CertificateView
+        certificate={cert}
+        onDownload={() => downloadCertificateAsPDF()}
+      />
     </div>
   );
-};
-
-export default Certificates;
+}

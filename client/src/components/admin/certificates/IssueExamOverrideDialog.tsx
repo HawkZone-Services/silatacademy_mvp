@@ -36,19 +36,31 @@ export default function IssueExamOverrideDialog({
   const [examId, setExamId] = useState("");
   const [loading, setLoading] = useState(false);
 
+  /* =======================================================
+      LOAD PLAYERS + EXAMS WHEN DIALOG OPENS
+  ======================================================= */
   useEffect(() => {
     if (!open) return;
 
     const load = async () => {
       try {
-        const playersRes = await adminService.getPlayers();
-        const examsRes = await examService.getAllExams();
+        const playersRes = await adminService.getPlayers(); // axios
+        const examsRes = await examService.getAllExams(); // axios
 
-        const playersJson = (await playersRes.json()) || [];
-        const examsJson = (await examsRes.json()) || {};
+        // Normalize players
+        const players =
+          playersRes?.data?.players || playersRes?.data || playersRes || [];
 
-        setStudents(playersJson);
-        setExams(examsJson.exams || examsJson || []);
+        setStudents(Array.isArray(players) ? players : []);
+
+        // Normalize exams
+        const examsList =
+          examsRes?.data?.data?.exams ||
+          examsRes?.data?.exams ||
+          examsRes?.data ||
+          [];
+
+        setExams(Array.isArray(examsList) ? examsList : []);
       } catch (err) {
         console.error("IssueExamOverrideDialog load error:", err);
       }
@@ -57,13 +69,21 @@ export default function IssueExamOverrideDialog({
     load();
   }, [open]);
 
+  /* =======================================================
+      ISSUE OVERRIDE CERTIFICATE
+  ======================================================= */
   const handleIssue = async () => {
     if (!examId || !studentId) return;
 
     try {
       setLoading(true);
+
       const res = await certificateService.issueExamOverride(examId, studentId);
-      if (!res.ok) console.error("IssueExamOverride error:", res);
+
+      if (!res?.data?.success) {
+        console.error("IssueExamOverride error:", res);
+      }
+
       onIssued();
       setOpen(false);
     } catch (err) {
@@ -73,6 +93,8 @@ export default function IssueExamOverrideDialog({
     }
   };
 
+  /* ======================================================= */
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent>
@@ -81,6 +103,7 @@ export default function IssueExamOverrideDialog({
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
+          {/* Select Exam */}
           <Select value={examId} onValueChange={setExamId}>
             <SelectTrigger>
               <SelectValue placeholder="Select exam" />
@@ -94,19 +117,21 @@ export default function IssueExamOverrideDialog({
             </SelectContent>
           </Select>
 
+          {/* Select Student */}
           <Select value={studentId} onValueChange={setStudentId}>
             <SelectTrigger>
               <SelectValue placeholder="Select student" />
             </SelectTrigger>
             <SelectContent>
               {students.map((s: any) => (
-                <SelectItem key={s._id} value={s._id}>
-                  {s.name || s.fullName || s.email}
+                <SelectItem key={s._id} value={s.user?._id || s._id}>
+                  {s.name || s.user?.name || s.fullName || s.email}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
+          {/* Issue Button */}
           <Button
             className="w-full"
             variant="destructive"

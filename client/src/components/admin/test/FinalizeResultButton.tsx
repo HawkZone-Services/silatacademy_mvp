@@ -17,9 +17,11 @@ export function FinalizeResultButton({
   onFinalized,
 }: Props) {
   const { toast } = useToast();
+
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<boolean>(Boolean(finalPassed));
 
+  // Sync external finalPassed changes
   useEffect(() => {
     setDone(Boolean(finalPassed));
   }, [finalPassed]);
@@ -30,52 +32,57 @@ export function FinalizeResultButton({
     setLoading(true);
 
     try {
-      // 1) FINALIZE EXAM RESULT
+      // Axios returns: { data: { success, data:{ finalResult, certificate } } }
       const res = await examService.finalizeExam({ examId, studentId });
 
-      const data = await res.json();
+      const data = res?.data;
 
-      if (!res.ok || !data?.success) {
-        toast({
-          variant: "destructive",
-          title: "Finalize Failed",
-          description: data.message || "Could not finalize result.",
-        });
-        return;
+      if (!data?.success) {
+        throw new Error(data?.message || "Could not finalize result.");
       }
+
+      const cert = data?.data?.certificate;
 
       toast({
         title: "Result Finalized",
-        description: data?.certificate
+        description: cert
           ? "Certificate created successfully."
           : "Scores saved. Certificate pending.",
       });
 
-      // 3) refresh admin submissions
+      // mark done so UI updates
       setDone(true);
+
+      // trigger parent refresh
       onFinalized?.();
 
-      // 4) notify student dashboard
+      // notify student dashboard if they are logged in later
       localStorage.setItem("refreshResults", "1");
       localStorage.setItem("refreshCertificates", "1");
     } catch (err: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Finalize operation failed.",
+        description: err?.message || "Finalize operation failed.",
       });
     }
 
     setLoading(false);
   };
 
+  const isDisabled = loading || done || finalPassed || !studentId || !examId;
+
   return (
     <Button
       onClick={finalize}
-      disabled={loading || done || finalPassed || !studentId || !examId}
+      disabled={isDisabled}
       className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-4"
     >
-      {loading ? "Finalizing..." : done || finalPassed ? "Finalized" : "Finalize Result"}
+      {loading
+        ? "Finalizing..."
+        : done || finalPassed
+        ? "Finalized"
+        : "Finalize Result"}
     </Button>
   );
 }

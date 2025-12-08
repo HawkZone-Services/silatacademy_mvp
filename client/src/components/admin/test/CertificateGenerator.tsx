@@ -21,22 +21,19 @@ export function CertificateGenerator({
 }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [certificateExists, setCertificateExists] = useState(false);
+  const [certificateExists, setCertificateExists] = useState<boolean>(false);
 
-  // ============================
-  // CHECK CERT STATUS
-  // ============================
+  // ============================================
+  // CHECK CERTIFICATE STATUS (ADMIN)
+  // ============================================
   const checkCertificate = async () => {
     if (!studentId || !examId) return;
 
     try {
-      const res = await certificateService.checkCertificate(
-        examId,
-        studentId
-      );
+      const res = await certificateService.checkCertificate(examId, studentId);
 
-      const data = await res.json();
-      setCertificateExists(data.exists);
+      const exists = res?.data?.data?.exists ?? false;
+      setCertificateExists(exists);
     } catch (err) {
       console.error("Certificate check failed:", err);
     }
@@ -46,35 +43,39 @@ export function CertificateGenerator({
     checkCertificate();
   }, [studentId, examId]);
 
-  // ============================
-  // GENERATE / DOWNLOAD CERT PDF
-  // ============================
+  // ============================================
+  // GENERATE / DOWNLOAD CERTIFICATE PDF
+  // ============================================
   const generate = async () => {
     if (!studentId || !examId) return;
     setLoading(true);
 
     try {
+      // If certificate does not exist → generate it first
       if (!certificateExists) {
         const createRes = await certificateService.generateCertificate({
           examId,
           studentId,
         });
-        const createJson = await createRes.json();
-        if (!createRes.ok || !createJson?.success) {
-          throw new Error(createJson?.message || "Finalize required");
+
+        if (!createRes?.data?.success) {
+          throw new Error(
+            createRes?.data?.message || "Could not generate certificate"
+          );
         }
+
         setCertificateExists(true);
       }
 
+      // Open PDF
       window.open(
         `${API_BASE_URL}/certificates/admin/pdf/${examId}/${studentId}`,
         "_blank"
       );
-    } catch (err) {
+    } catch (err: any) {
       toast({
         title: "Error",
-        description:
-          err instanceof Error ? err.message : "Failed to generate certificate.",
+        description: err?.message || "Failed to generate certificate.",
         variant: "destructive",
       });
     } finally {
@@ -82,12 +83,16 @@ export function CertificateGenerator({
     }
   };
 
-  if (!certificateExists)
+  // ============================================
+  // UI — final result must be ready
+  // ============================================
+  if (!certificateExists) {
     return (
       <Button disabled className="w-full mt-4 bg-gray-400 text-white">
         Finalize Result to Unlock Certificate
       </Button>
     );
+  }
 
   return (
     <Button

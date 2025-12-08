@@ -6,14 +6,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 import programService from "@/services/programService";
 
-export function AddProgramDialog({ onProgramAdded }: any) {
+export function AddProgramDialog({ onProgramAdded }) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -22,14 +25,44 @@ export function AddProgramDialog({ onProgramAdded }: any) {
     classSchedule: "",
   });
 
-  const handleChange = (e: any) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    setForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  const resetForm = () => {
+    setForm({
+      title: "",
+      description: "",
+      duration: "",
+      targetAudience: "",
+      classSchedule: "",
+    });
   };
 
   const handleSubmit = async () => {
-    await programService.createProgram(form);
-    setOpen(false);
-    onProgramAdded && onProgramAdded();
+    if (!form.title.trim()) {
+      alert("Title is required");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await programService.createProgram(form);
+
+      // refresh list outside
+      if (onProgramAdded) onProgramAdded();
+
+      resetForm();
+      setOpen(false);
+    } catch (err) {
+      console.error("AddProgram error:", err);
+      alert("Failed to create program");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -46,31 +79,40 @@ export function AddProgramDialog({ onProgramAdded }: any) {
         <Input
           name="title"
           placeholder="Program Title"
-          onChange={handleChange}
-        />
-        <Textarea
-          name="description"
-          placeholder="Program Description"
-          onChange={handleChange}
-        />
-        <Input
-          name="duration"
-          placeholder="Duration (e.g., 3-6 months)"
-          onChange={handleChange}
-        />
-        <Input
-          name="targetAudience"
-          placeholder="Target Audience"
-          onChange={handleChange}
-        />
-        <Input
-          name="classSchedule"
-          placeholder="Class Schedule"
+          value={form.title}
           onChange={handleChange}
         />
 
-        <Button className="w-full" onClick={handleSubmit}>
-          Save Program
+        <Textarea
+          name="description"
+          placeholder="Program Description"
+          value={form.description}
+          onChange={handleChange}
+        />
+
+        <Input
+          name="duration"
+          placeholder="Duration (e.g. 3–6 months)"
+          value={form.duration}
+          onChange={handleChange}
+        />
+
+        <Input
+          name="targetAudience"
+          placeholder="Target Audience"
+          value={form.targetAudience}
+          onChange={handleChange}
+        />
+
+        <Input
+          name="classSchedule"
+          placeholder="Class Schedule"
+          value={form.classSchedule}
+          onChange={handleChange}
+        />
+
+        <Button className="w-full" disabled={loading} onClick={handleSubmit}>
+          {loading ? "Saving..." : "Save Program"}
         </Button>
       </DialogContent>
     </Dialog>

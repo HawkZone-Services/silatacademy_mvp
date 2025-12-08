@@ -5,115 +5,91 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import React, { useState } from "react";
-import { AddPlayerDialog } from "../AddPlayerDialog";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-import adminService from "@/services/adminService";
 
-const LessonsScreen = ({
-  fetchDashboardData,
-  searchQuery,
-  setSearchQuery,
-  players,
-}) => {
-  const [editPlayerOpen, setEditPlayerOpen] = useState(false);
+import { AddLessonDialog } from "../AddLessonDialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
-  const navigate = useNavigate();
-  const filteredPlayers = players.filter((player: any) => {
-    const q = searchQuery.toLowerCase();
-    return (
-      player.name?.toLowerCase().includes(q) ||
-      player.email?.toLowerCase().includes(q) ||
-      player.national_id?.toLowerCase().includes(q)
-    );
-  });
-  const fetchOlayers = async () => {
+import lessonService from "@/services/lessonService";
+import { useEffect, useState } from "react";
+
+const LessonsScreen = ({ token }) => {
+  const [lessons, setLessons] = useState<any[]>([]);
+
+  const fetchLessons = async () => {
     try {
-      const res = await adminService.getPlayers();
+      const res = await lessonService.getLessons();
+      const list = res?.data?.lessons || res?.lessons || res?.data || res || [];
 
-      const list = Array.isArray(res?.modules)
-        ? res.modules
-        : Array.isArray(res)
-        ? res
-        : [];
-
-      setModules(list);
+      setLessons(list);
+      console.log("Fetched Lessons:", list);
     } catch (err) {
-      console.error("Fetch Modules Error:", err);
-      setModules([]);
+      console.error("Fetch Lessons Error:", err);
+      setLessons([]);
     }
   };
-  const handleEditPlayer = (player: any) => {
-    editPlayerOpen(player);
-    setEditPlayerOpen(true);
-  };
+
+  useEffect(() => {
+    fetchLessons();
+  }, [token]);
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Player Management</CardTitle>
-            <CardDescription>Manage academy players</CardDescription>
+            <CardTitle>Lessons</CardTitle>
+            <CardDescription>
+              Manage all lessons and training material
+            </CardDescription>
           </div>
-          <AddPlayerDialog onPlayerAdded={fetchDashboardData} />
+          <AddLessonDialog onLessonAdded={fetchLessons} />
         </div>
       </CardHeader>
 
       <CardContent>
-        <Input
-          placeholder="Search by name, email, or ID..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="mb-4"
-        />
+        <div className="overflow-x-auto border border-border/40 rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Lesson</TableHead>
+                <TableHead>Program</TableHead>
+                <TableHead>Module</TableHead>
+                <TableHead>Order</TableHead>
+                <TableHead>Created</TableHead>
+              </TableRow>
+            </TableHeader>
 
-        <div className="space-y-3 max-h-[600px] overflow-y-auto">
-          {filteredPlayers.map((player: any) => (
-            <div
-              key={player._id}
-              className="flex items-center justify-between p-4 bg-accent/10 rounded-lg hover:bg-accent/20 transition"
-            >
-              <div>
-                <h4 className="font-semibold">{player.name}</h4>
-                <p className="text-sm">{player.email}</p>
+            <TableBody>
+              {lessons.map((lesson) => (
+                <TableRow key={lesson._id}>
+                  <TableCell>{lesson.title}</TableCell>
 
-                <div className="flex gap-2 mt-2">
-                  <Badge variant="outline" className="capitalize">
-                    {player.beltLevel || "white"}
-                  </Badge>
-                  <Badge variant="secondary">{player.status || "active"}</Badge>
-                </div>
-              </div>
+                  <TableCell>
+                    {lesson.program
+                      ? `${lesson.program.title} (Level ${lesson.program.level})`
+                      : "—"}
+                  </TableCell>
 
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/player/${player._id}?mode=cert`)}
-                >
-                  Generate Cert
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleEditPlayer(player)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/player/${player._id}?mode=view`)}
-                >
-                  View Details
-                </Button>
-              </div>
-            </div>
-          ))}
+                  <TableCell>{lesson.module?.title || "—"}</TableCell>
+
+                  <TableCell>{lesson.order ?? "—"}</TableCell>
+
+                  <TableCell>
+                    {lesson.createdAt
+                      ? new Date(lesson.createdAt).toLocaleDateString()
+                      : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>

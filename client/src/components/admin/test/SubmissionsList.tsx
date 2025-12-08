@@ -6,12 +6,13 @@ interface SubmissionsListProps {
   onSelect: (studentId: string, examId: string) => void;
 }
 
-export function SubmissionsList({ list, onSelect }: SubmissionsListProps) {
+export function SubmissionsList({ list = [], onSelect }: SubmissionsListProps) {
+  // Filter out finalized
   const filtered = Array.isArray(list)
-    ? list.filter((s) => !s?.finalPassed) // hide finalized
+    ? list.filter((s) => !Boolean(s?.finalPassed))
     : [];
 
-  if (!filtered || filtered.length === 0) {
+  if (!filtered.length) {
     return (
       <p className="text-muted-foreground text-sm">
         No theory submissions yet.
@@ -22,29 +23,49 @@ export function SubmissionsList({ list, onSelect }: SubmissionsListProps) {
   return (
     <div className="space-y-3">
       {filtered.map((sub) => {
-        const studentObj = sub?.student || {};
+        /** =========================
+         *  Normalize Fields
+         *  ========================= */
+
+        const student =
+          sub?.student && typeof sub.student === "object" ? sub.student : {};
+
         const studentId =
-          studentObj?._id || sub?.studentId || sub?.student || "";
+          student?._id || sub?.studentId || sub?.student || null;
+
         const examId =
-          (sub?.exam && typeof sub.exam === "object" && sub.exam._id) ||
-          sub?.exam ||
-          "";
+          (typeof sub.exam === "object" && sub.exam?._id) || sub?.exam || null;
+
         const isFinal = Boolean(sub?.finalPassed);
 
-        const displayName =
-          studentObj?.name || sub?.studentName || "Student";
+        /** =========================
+         *  Display Name
+         *  ========================= */
+        const name =
+          student?.name ||
+          sub?.studentName ||
+          (studentId ? `Student ${String(studentId).slice(-4)}` : "Unknown");
 
+        /** =========================
+         *  Scores (Theoretical)
+         *  ========================= */
+        const theoryScore = sub?.theoryScore ?? sub?.autoScore ?? 0;
+
+        /** =========================
+         *  Render Item
+         *  ========================= */
         return (
           <Card
             key={sub?._id || `${examId}-${studentId}`}
             className="p-4 flex items-center justify-between hover:bg-accent/10 transition"
           >
+            {/* LEFT SIDE */}
             <div>
-              <p className="font-semibold text-lg">{displayName}</p>
+              <p className="font-semibold text-lg">{name}</p>
 
-              {studentObj?.email && (
+              {student?.email && (
                 <p className="text-sm text-muted-foreground">
-                  Email: {studentObj.email}
+                  Email: {student.email}
                 </p>
               )}
 
@@ -56,7 +77,7 @@ export function SubmissionsList({ list, onSelect }: SubmissionsListProps) {
               </p>
 
               <p className="text-xs text-muted-foreground">
-                Auto Score: <strong>{sub?.autoScore ?? 0}</strong>
+                Auto Score: <strong>{theoryScore}</strong>
               </p>
 
               {isFinal && (
@@ -66,11 +87,16 @@ export function SubmissionsList({ list, onSelect }: SubmissionsListProps) {
               )}
             </div>
 
+            {/* RIGHT SIDE */}
             <Button
               size="sm"
               variant={isFinal ? "secondary" : "default"}
               disabled={!studentId || !examId || isFinal}
-              onClick={() => onSelect(String(studentId), String(examId))}
+              onClick={() =>
+                studentId &&
+                examId &&
+                onSelect(String(studentId), String(examId))
+              }
             >
               {isFinal ? "Finalized" : "Evaluate Practical"}
             </Button>

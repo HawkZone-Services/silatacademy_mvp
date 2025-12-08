@@ -116,7 +116,6 @@ export const listLessons = asyncHandler(async (req, res) => {
     return res.json({ success: true, lessons });
   }
 
-  // attach progress
   const lessonIds = lessons.map((l) => l._id);
   const progresses = await LessonProgress.find({
     lesson: { $in: lessonIds },
@@ -124,9 +123,7 @@ export const listLessons = asyncHandler(async (req, res) => {
   }).lean();
 
   const map = new Map();
-  progresses.forEach((p) => {
-    map.set(p.lesson.toString(), p);
-  });
+  progresses.forEach((p) => map.set(p.lesson.toString(), p));
 
   const enriched = lessons.map((l) => ({
     ...l,
@@ -137,10 +134,14 @@ export const listLessons = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   GET SINGLE LESSON (with progress)
+   GET SINGLE LESSON (supports both admin/student routes)
 ===================================================== */
 export const getLesson = asyncHandler(async (req, res) => {
-  const lessonId = assertObjectId(req.params.id, "lessonId");
+  const lessonIdRaw = req.params.lessonId || req.params.id;
+
+  if (!lessonIdRaw) throw httpError(400, "Lesson ID is required");
+
+  const lessonId = assertObjectId(lessonIdRaw, "lessonId");
   const userId = req.user?._id;
 
   const lesson = await Lesson.findById(lessonId)
@@ -158,7 +159,7 @@ export const getLesson = asyncHandler(async (req, res) => {
     }).lean();
   }
 
-  res.json({
+  return res.json({
     success: true,
     lesson,
     progress,
@@ -198,10 +199,12 @@ export const updateLesson = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   SAVE PROGRESS (WATCHING + QUIZ)
+   SAVE PROGRESS
 ===================================================== */
 export const saveProgress = asyncHandler(async (req, res) => {
-  const lessonId = assertObjectId(req.params.id);
+  const lessonIdRaw = req.params.lessonId || req.params.id;
+  const lessonId = assertObjectId(lessonIdRaw, "lessonId");
+
   const userId = assertObjectId(req.user._id);
 
   const lesson = await Lesson.findById(lessonId);
@@ -235,7 +238,6 @@ export const saveProgress = asyncHandler(async (req, res) => {
     { new: true, upsert: true }
   );
 
-  // FIRST TIME COMPLETION → send notification + unlock exams
   if (progress.completed && !existing?.completed) {
     await Notification.create({
       user: userId,
@@ -265,7 +267,7 @@ export const saveProgress = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   STUDENT AVAILABLE LESSONS (Eligibility)
+   STUDENT AVAILABLE LESSONS
 ===================================================== */
 export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
@@ -274,44 +276,58 @@ export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
   const player = await getPlayerForUser(userId);
   if (!player) throw httpError(404, "Player profile not found");
 
-  // Attendance gate
+  // 1) attendance logic
   const attendanceSummary = await getAttendanceSummary(player._id);
-  const attendanceOK = hasMinimumAttendance(attendanceSummary);
+  const attendanceCount = attendanceSummary?.total || 0;
 
-  // get lessons
+  // 🔥 Unlock 3 lessons per every 5 attendance
+  const lessonsUnlocked = Math.floor(attendanceCount / 5) * 3;
+
+  // 2) get all lessons in order
   const lessons = await Lesson.find({ isActive: true })
     .populate("program", "title level")
     .populate("module", "title")
     .sort({ program: 1, module: 1, order: 1, createdAt: 1 })
     .lean();
 
+  // 3) get progress map
   const lessonIds = lessons.map((l) => l._id);
-
   const progresses = await LessonProgress.find({
     user: userId,
     lesson: { $in: lessonIds },
   }).lean();
 
   const progressMap = new Map();
-  const prereq = new Set();
-
   progresses.forEach((p) => {
     progressMap.set(p.lesson.toString(), p);
-    if (p.completed) prereq.add(p.lesson.toString());
   });
 
-  const formatted = lessons.map((l) =>
-    mapLessonEligibility(l, {
-      progressMap,
-      prereqSet: prereq,
-      attendanceOK,
-    })
-  );
+  // 4) apply unlock logic
+  const formatted = lessons.map((lesson, index) => {
+    const unlocked = index < lessonsUnlocked;
+
+    const progress = progressMap.get(lesson._id.toString());
+    const isCompleted = progress?.completed || false;
+
+    return {
+      ...lesson,
+      unlocked,
+      locked: !unlocked,
+      lockedReason: !unlocked
+        ? `Requires more attendance. Need ${
+            Math.ceil((index + 1) / 3) * 5
+          } attendances.`
+        : null,
+      progress,
+      completed: isCompleted,
+    };
+  });
 
   res.json({
     success: true,
     data: {
       attendance: attendanceSummary,
+      lessonsUnlocked,
       lessons: formatted,
     },
   });
@@ -377,12 +393,28 @@ export const getStudentLessonProgress = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   SUBMIT LESSON QUIZ
+   GET LESSON QUIZ
+===================================================== */
+export const getLessonQuiz = asyncHandler(async (req, res) => {
+  const lessonId = assertObjectId(req.params.lessonId, "lessonId");
+  const lesson = await Lesson.findById(lessonId).lean();
+  if (!lesson) throw httpError(404, "Lesson not found");
+
+  res.json({
+    success: true,
+    data: {
+      quiz: lesson.quiz || [],
+      lessonTitle: lesson.title,
+    },
+  });
+});
+
+/* =====================================================
+   SUBMIT QUIZ
 ===================================================== */
 export const submitLessonQuiz = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
   const lessonId = assertObjectId(req.params.lessonId);
-
   const { answers = [] } = req.body;
 
   const lesson = await Lesson.findById(lessonId);
@@ -411,10 +443,35 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    data: {
-      score,
-      passed,
-      progress,
+    data: { score, passed, progress },
+  });
+});
+
+/* =====================================================
+   COMPLETE LESSON
+===================================================== */
+export const completeStudentLesson = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+  const lessonId = assertObjectId(req.params.lessonId);
+
+  const lesson = await Lesson.findById(lessonId);
+  if (!lesson) throw httpError(404, "Lesson not found");
+
+  const progress = await LessonProgress.findOneAndUpdate(
+    { user: userId, lesson: lessonId },
+    {
+      $set: {
+        completed: true,
+        lastAccessedAt: new Date(),
+        updatedAt: new Date(),
+      },
+      $setOnInsert: { createdAt: new Date() },
     },
+    { new: true, upsert: true }
+  );
+
+  res.json({
+    success: true,
+    data: { progress },
   });
 });
