@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TabsContent } from "@/components/ui/tabs";
 import { AttendanceSummary } from "../types";
+import { getProgressColor } from "@/shared/lib/getProgressColor";
 
 interface Props {
   attendance: AttendanceSummary | null;
@@ -21,13 +22,17 @@ export default function AttendanceTab({
   attendance,
   attendanceRecords,
 }: Props) {
+  const requiredSessions = attendance?.requiredSessions;
+  const minRate = attendance?.minRate ?? 0;
+  const passed = attendance?.passed;
+
   return (
     <TabsContent value="attendance">
       <Card>
         <CardHeader>
           <CardTitle>Attendance Details</CardTitle>
           <CardDescription>
-            Your session attendance, trends, and daily logs.
+            Your training attendance and progress toward belt requirements.
           </CardDescription>
         </CardHeader>
 
@@ -36,50 +41,76 @@ export default function AttendanceTab({
           {attendance ? (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="p-3 border rounded-lg bg-accent/10">
-                  <p className="text-xs text-muted-foreground">
-                    Total Sessions
-                  </p>
-                  <p className="text-xl font-semibold">
-                    {attendance.totalSessions}
-                  </p>
-                </div>
-
-                <div className="p-3 border rounded-lg bg-accent/10">
-                  <p className="text-xs text-muted-foreground">Attended</p>
-                  <p className="text-xl font-semibold">
-                    {attendance.attendedSessions}
-                  </p>
-                </div>
-
-                <div className="p-3 border rounded-lg bg-accent/10">
-                  <p className="text-xs text-muted-foreground">Absent</p>
-                  <p className="text-xl font-semibold">
-                    {attendance.absentSessions}
-                  </p>
-                </div>
-
-                <div className="p-3 border rounded-lg bg-accent/10">
-                  <p className="text-xs text-muted-foreground">Last Session</p>
-                  <p className="text-sm font-medium">
-                    {attendance.lastSessionDate
+                <SummaryItem
+                  label="Total Sessions"
+                  value={attendance.totalSessions}
+                />
+                <SummaryItem
+                  label="Attended"
+                  value={attendance.attendedSessions}
+                />
+                <SummaryItem label="Absent" value={attendance.absentSessions} />
+                <SummaryItem
+                  label="Last Session"
+                  value={
+                    attendance.lastSessionDate
                       ? new Date(
                           attendance.lastSessionDate
                         ).toLocaleDateString()
-                      : "-"}
-                  </p>
-                </div>
+                      : "—"
+                  }
+                />
               </div>
 
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">
-                  Attendance Rate
-                </p>
-                <Progress value={attendance.attendanceRate} />
+              {/* RATE */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Attendance Rate</span>
+
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">
+                      {attendance.attendanceRate}%
+                    </span>
+
+                    {typeof passed === "boolean" && (
+                      <Badge variant={passed ? "default" : "destructive"}>
+                        {passed ? "Eligible" : "Not Eligible"}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative h-2 rounded-full overflow-hidden bg-muted">
+                  {/* Background */}
+                  <div className="absolute inset-0 bg-muted" />
+
+                  {/* Colored progress (real percentage) */}
+                  <div
+                    className="absolute top-0 left-0 h-full transition-all"
+                    style={{
+                      width: `${attendance.attendanceRate}%`,
+                      backgroundColor: getProgressColor(
+                        attendance.attendanceRate
+                      ),
+                    }}
+                  />
+                </div>
+
+                {/* Belt Requirement */}
+                {requiredSessions && (
+                  <p className="text-xs text-muted-foreground">
+                    Required for belt:{" "}
+                    <strong>
+                      {attendance.attendedSessions} / {requiredSessions}
+                    </strong>{" "}
+                    sessions
+                    {minRate > 0 && ` (min ${minRate}%)`}
+                  </p>
+                )}
               </div>
             </>
           ) : (
-            <p>No attendance summary yet.</p>
+            <p className="text-muted-foreground">No attendance summary yet.</p>
           )}
 
           {/* RECORDS TABLE */}
@@ -109,19 +140,24 @@ export default function AttendanceTab({
                       <td className="px-3 py-2">
                         {new Date(log.sessionDate).toLocaleDateString()}
                       </td>
+
                       <td className="px-3 py-2">
                         <Badge
                           variant="outline"
                           className={`capitalize ${
                             log.status === "present"
                               ? "text-green-600 border-green-600"
+                              : log.status === "late"
+                              ? "text-yellow-600 border-yellow-600"
                               : "text-red-600 border-red-600"
                           }`}
                         >
                           {log.status}
                         </Badge>
                       </td>
-                      <td className="px-3 py-2">{log.coachName || "—"}</td>
+
+                      <td className="px-3 py-2">{log.coach?.name || "—"}</td>
+
                       <td className="px-3 py-2 text-muted-foreground">
                         {log.notes || "—"}
                       </td>
@@ -134,5 +170,17 @@ export default function AttendanceTab({
         </CardContent>
       </Card>
     </TabsContent>
+  );
+}
+
+/* =======================
+   SMALL HELPER
+======================= */
+function SummaryItem({ label, value }: { label: string; value: any }) {
+  return (
+    <div className="p-3 border rounded-lg bg-accent/10">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xl font-semibold">{value}</p>
+    </div>
   );
 }

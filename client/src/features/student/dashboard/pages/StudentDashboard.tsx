@@ -1,11 +1,8 @@
-// src/features/student/dashboard/pages/StudentDashboard.tsx
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import OverviewHeader from "../components/OverviewHeader";
@@ -14,16 +11,18 @@ import LearningTab from "../components/LearningTab";
 import ExamsTab from "../components/ExamsTab";
 import CertificatesTab from "../components/CertificatesTab";
 import AttendanceTab from "../components/AttendanceTab";
+import BeltProgressCard from "../components/BeltProgressCard";
 
 import {
-  getAttendanceRecords,
-  getAttendanceSummary,
   getStudentAttempts,
   getStudentCertificates,
   getStudentExams,
   getStudentLessonsList,
   getStudentOverview,
 } from "../api/api";
+
+import { getMyBeltProgress } from "../api/getMyBeltProgress";
+import attendanceService from "@/services/attendanceService";
 
 import {
   AttendanceSummary,
@@ -43,12 +42,12 @@ export default function StudentDashboard() {
 
   const [student, setStudent] = useState<StudentInfo | null>(null);
   const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
   const [lessons, setLessons] = useState<LessonItem[]>([]);
   const [exams, setExams] = useState<ExamItem[]>([]);
   const [attempts, setAttempts] = useState<AttemptItem[]>([]);
   const [certificates, setCertificates] = useState<CertificateItem[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
-
+  const [beltProgress, setBeltProgress] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const beltLevel: BeltLevel = (student?.beltLevel || "white") as BeltLevel;
@@ -69,33 +68,44 @@ export default function StudentDashboard() {
     const loadAll = async () => {
       setLoading(true);
 
-      const [
-        studentInfo,
-        attendanceSummary,
-        lessonsList,
-        examsList,
-        attemptsList,
-        certs,
-        attendanceLogs,
-      ] = await Promise.all([
-        getStudentOverview(),
-        getAttendanceSummary(),
-        getStudentLessonsList(),
-        getStudentExams(beltLevel),
-        getStudentAttempts(),
-        getStudentCertificates(),
-        getAttendanceRecords(),
-      ]);
+      try {
+        const [
+          studentInfo,
+          lessonsList,
+          examsList,
+          attemptsList,
+          certs,
+          beltProgressRes,
+          attendanceLogsRes,
+        ] = await Promise.all([
+          getStudentOverview(),
+          getStudentLessonsList(),
+          getStudentExams(beltLevel),
+          getStudentAttempts(),
+          getStudentCertificates(),
+          getMyBeltProgress(),
+          attendanceService.getMyAttendanceDashboard(),
+        ]);
 
-      setStudent(studentInfo);
-      setAttendance(attendanceSummary);
-      setLessons(lessonsList);
-      setExams(examsList);
-      setAttempts(attemptsList);
-      setCertificates(certs);
-      setAttendanceRecords(attendanceLogs);
+        setLessons(lessonsList);
+        setExams(examsList);
+        setAttempts(attemptsList);
+        setCertificates(certs);
 
-      setLoading(false);
+        const beltData = beltProgressRes?.data || null;
+        setBeltProgress(beltData);
+        setStudent(beltData);
+
+        // ✅ Attendance summary جاي من belt progress
+        setAttendance(beltData?.attendance || null);
+
+        // ✅ Attendance logs منفصلة
+        setAttendanceRecords(attendanceLogsRes?.data?.attendance || []);
+      } catch (err) {
+        console.error("Dashboard load failed", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadAll();
@@ -127,6 +137,8 @@ export default function StudentDashboard() {
           exams={exams}
           certificates={certificates}
         />
+
+        <BeltProgressCard data={beltProgress} />
 
         <Tabs defaultValue="learning" className="space-y-6">
           <TabsList>

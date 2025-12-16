@@ -12,6 +12,7 @@ import {
   promotePlayer,
   addExamToPlayer,
   getEligibility,
+  getMyBeltProgress,
 } from "../controllers/playerController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/authMiddleware.js";
@@ -85,6 +86,13 @@ router.post(
   protect,
   validate([check("id").isMongoId().withMessage("invalid player id")]),
   addExamToPlayer
+);
+
+router.get(
+  "/my/belt-progress",
+  protect,
+  checkRole("student"),
+  getMyBeltProgress
 );
 
 export default router;

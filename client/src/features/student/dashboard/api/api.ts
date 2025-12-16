@@ -21,6 +21,7 @@ import { getAvailableExams } from "./getAvailableExams";
 import { getMyAttempts } from "@/features/exams/api/getMyAttempts";
 import { startAttempt } from "./startAttempt";
 import { myCertificates } from "./myCertificates";
+import apiClient from "@/shared/api/apiClient";
 
 // ============ Student / Overview ============
 export const getStudentOverview = async (): Promise<StudentInfo | null> => {
@@ -194,4 +195,10 @@ export const getStudentCertificates = async (): Promise<CertificateItem[]> => {
     console.error("Certificates fetch error:", error);
     return [];
   }
+};
+
+// Belt Progress (Attendance + Lessons + Exam eligibility)
+export const getBeltProgress = async () => {
+  const res = await apiClient.get("/players/me/belt-progress");
+  return res?.data?.data;
 };

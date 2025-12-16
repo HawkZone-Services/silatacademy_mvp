@@ -21,3 +21,17 @@ export const eligibleByBelt = asyncHandler(async (req, res) => {
   );
   res.json(players);
 });
+
+export const updateRank = asyncHandler(async (req, res) => {
+  const rank = await Ranking.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+  });
+  if (!rank) throw httpError(404, "Rank not found");
+  res.json(rank);
+});
+
+export const deleteRank = asyncHandler(async (req, res) => {
+  const rank = await Ranking.findByIdAndDelete(req.params.id);
+  if (!rank) throw httpError(404, "Rank not found");
+  res.json(rank);
+});

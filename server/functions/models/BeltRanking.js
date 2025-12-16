@@ -2,13 +2,22 @@ import mongoose from "mongoose";
 
 const BeltRankingSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true }, // "White Belt"
-    color: { type: String, required: true }, // hex
-    level: { type: String, required: true }, // Beginner / Intermediate / ...
-    duration: String, // "3–6 months"
+    name: String, // White Belt
+    level: String, // Beginner
+    order: Number,
+
+    attendance: {
+      requiredSessions: Number, // مثال: 15 يوم
+      requiredHours: Number, // مثال: 30 ساعة
+      minRate: Number, // 70%
+    },
+
+    lessons: {
+      totalLessons: Number, // مثال: 30
+      unlockEvery: Number, // كل 5 حضور يفتح 3 دروس
+    },
+
     requirements: [String],
-    testingCriteria: String,
-    order: { type: Number, default: 0 },
   },
   { collection: "beltRankings", timestamps: true }
 );

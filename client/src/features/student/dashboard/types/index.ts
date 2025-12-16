@@ -19,9 +19,15 @@ export interface StudentInfo {
 export interface AttendanceSummary {
   totalSessions: number;
   attendedSessions: number;
-  absentSessions: number;
-  attendanceRate: number; // 0–100
-  lastSessionDate?: string;
+
+  // 🆕 من BeltRanking
+  requiredSessions: number;
+  minRate: number;
+
+  attendanceRate: number; // محسوبة مقابل requiredSessions
+  eligible: boolean;
+
+  lastSessionDate?: string | null;
 }
 
 export interface LessonItem {
@@ -77,7 +83,7 @@ export interface CertificateItem {
 // ======================
 export const beltLabel = (belt?: BeltLevel) => {
   if (!belt) return "Unranked";
-  return `${belt.charAt(0).toUpperCase()}${belt.slice(1)} Belt`;
+  return `${belt.charAt(0).toUpperCase()}${belt.slice(1)}`;
 };
 
 export const beltColorClass = (belt?: BeltLevel) => {
@@ -98,3 +104,11 @@ export const beltColorClass = (belt?: BeltLevel) => {
       return "bg-muted text-foreground";
   }
 };
+
+export interface BeltAttendanceProgress {
+  attendedSessions: number;
+  requiredSessions: number;
+  minRate: number;
+  attendanceRate: number;
+  eligible: boolean;
+}

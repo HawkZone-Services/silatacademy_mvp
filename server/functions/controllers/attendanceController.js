@@ -4,7 +4,14 @@ import { assertObjectId, httpError } from "../utils/validation.js";
 import { awardXpForEvent } from "../utils/xp.js";
 import LessonProgress from "../models/LessonProgress.js";
 import Player from "../models/Player.js";
+import { computeAttendanceProgress } from "../services/beltEligibilityService.js";
 // داخل addAttendance / markAttendance بعد الإنشاء:
+
+const getMyPlayerId = async (userId) => {
+  const player = await Player.findOne({ user: userId }).select("_id");
+  if (!player) throw httpError(404, "Player profile not found");
+  return player._id;
+};
 
 export const addAttendance = asyncHandler(async (req, res) => {
   const { player, coach, status, sessionDate, sessionId, notes } = req.body;
@@ -58,9 +65,13 @@ export const stats = asyncHandler(async (req, res) => {
 export const myAttendanceLogs = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
   if (!userId) throw httpError(401, "Unauthorized");
-  const logs = await Attendance.find({ player: userId }).sort({
+
+  const playerId = await getMyPlayerId(userId);
+
+  const logs = await Attendance.find({ player: playerId }).sort({
     sessionDate: -1,
   });
+
   res.json({ success: true, attendance: logs });
 });
 
@@ -68,10 +79,13 @@ export const myAttendanceSummary = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
   if (!userId) throw httpError(401, "Unauthorized");
 
+  const playerId = await getMyPlayerId(userId);
+
   const [total, present] = await Promise.all([
-    Attendance.countDocuments({ player: userId }),
-    Attendance.countDocuments({ player: userId, status: "present" }),
+    Attendance.countDocuments({ player: playerId }),
+    Attendance.countDocuments({ player: playerId, status: "present" }),
   ]);
+
   const ratio = total > 0 ? Math.round((present / total) * 100) : 0;
 
   res.json({
@@ -89,13 +103,17 @@ export const myAttendance = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
   if (!userId) throw httpError(401, "Unauthorized");
 
-  const [logs, total, present] = await Promise.all([
-    Attendance.find({ player: userId }).sort({ sessionDate: -1 }),
-    Attendance.countDocuments({ player: userId }),
-    Attendance.countDocuments({ player: userId, status: "present" }),
-  ]);
-  const ratio = total > 0 ? Math.round((present / total) * 100) : 0;
+  const player = await Player.findOne({ user: userId }).select("_id");
+  if (!player) throw httpError(404, "Player profile not found");
 
+  const [logs, total, present] = await Promise.all([
+    Attendance.find({ player: player._id }).sort({ sessionDate: -1 }),
+    Attendance.countDocuments({ player: player._id }),
+    Attendance.countDocuments({ player: player._id, status: "present" }),
+  ]);
+
+  const ratio = total > 0 ? Math.round((present / total) * 100) : 0;
+  const beltProgress = await computeAttendanceProgress(userId);
   res.json({
     success: true,
     data: {
@@ -105,6 +123,7 @@ export const myAttendance = asyncHandler(async (req, res) => {
         attendedSessions: present,
         absentSessions: total - present,
         attendanceRate: ratio,
+        beltProgress,
       },
     },
   });

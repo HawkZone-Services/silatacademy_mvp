@@ -76,6 +76,8 @@ import Module from "module";
 import ModulesScreen from "@/components/admin/tabs/ModulesScreen";
 import AnalyticsScreen from "@/components/admin/tabs/AnalyticsScreen";
 import AdminLessonsPage from "@/features/admin/lessons/pages/AdminLessonsPage";
+import AttendanceScreen from "@/components/admin/tabs/AttendanceScreen";
+import AdminBeltRankingTab from "@/features/belt-ranking/pages/AdminBeltRankingTab";
 
 export const Table = ({ ...props }) => (
   <table className="w-full text-sm text-left" {...props} />
@@ -347,6 +349,8 @@ export default function Dashboard() {
             <TabsTrigger value="modules">Modules</TabsTrigger>
             <TabsTrigger value="certificates">Certificates</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="belt-ranking">Belt Rankings</TabsTrigger>{" "}
             <TabsTrigger value="api-playground">APIs</TabsTrigger>
           </TabsList>
 
@@ -383,6 +387,14 @@ export default function Dashboard() {
           {/* ANALYTICS */}
           <TabsContent value="analytics">
             <AnalyticsScreen />
+          </TabsContent>
+          {/* ATTENDANCE */}
+          <TabsContent value="attendance">
+            <AttendanceScreen />
+          </TabsContent>
+          {/* BELT RANKINGS */}
+          <TabsContent value="belt-ranking" className="space-y-4">
+            <AdminBeltRankingTab />
           </TabsContent>
           {/* API PLAYGROUND */}
           <TabsContent value="api-playground">

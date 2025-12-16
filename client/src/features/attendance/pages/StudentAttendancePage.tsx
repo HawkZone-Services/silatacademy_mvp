@@ -29,11 +29,15 @@ export default function StudentAttendancePage() {
               {logs.map((log: any) => (
                 <tr key={log._id} className="border-t">
                   <td className="px-3 py-2">
-                    {log.sessionDate ? new Date(log.sessionDate).toLocaleDateString() : "—"}
+                    {log.sessionDate
+                      ? new Date(log.sessionDate).toLocaleDateString()
+                      : "—"}
                   </td>
                   <td className="px-3 py-2 capitalize">{log.status}</td>
                   <td className="px-3 py-2">{log.coachName || "—"}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{log.notes || "—"}</td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {log.notes || "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>

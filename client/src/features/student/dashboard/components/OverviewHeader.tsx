@@ -22,7 +22,9 @@ export default function OverviewHeader({ student, attendance }: Props) {
       <div>
         <h1 className="text-3xl sm:text-4xl font-bold flex items-center gap-3">
           Welcome back,
-          <span className="text-secondary">{student?.name || "Student"}</span>
+          <span className="text-secondary">
+            {student?.player?.name || "Student"}
+          </span>
         </h1>
         <p className="text-muted-foreground mt-2">
           Track your training, attendance, lessons, and exams in one place.
@@ -35,7 +37,7 @@ export default function OverviewHeader({ student, attendance }: Props) {
             student?.beltLevel
           )}`}
         >
-          {beltLabel(student?.beltLevel)}
+          {beltLabel(student?.belt?.level)}
         </Badge>
 
         {attendance && (
