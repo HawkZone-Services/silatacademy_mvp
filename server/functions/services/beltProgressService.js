@@ -1,52 +1,81 @@
+// services/beltProgressService.js
 import Attendance from "../models/Attendance.js";
-import LessonProgress from "../models/LessonProgress.js";
+import Player from "../models/Player.js";
 import BeltRanking from "../models/BeltRanking.js";
+import LessonProgress from "../models/LessonProgress.js";
+import { httpError } from "../utils/validation.js";
 
-export const computeBeltProgress = async (player) => {
-  const belt = await BeltRanking.findOne({ name: player.beltLabel });
-  if (!belt) return null;
+export const getMyBeltProgress = async (userId) => {
+  const player = await Player.findOne({ user: userId }).lean();
+  if (!player) throw httpError(404, "Player not found");
+
+  const belt = await BeltRanking.findOne({
+    name: new RegExp(player.beltLabel || player.beltLevel, "i"),
+  }).lean();
+
+  if (!belt) throw httpError(404, "Belt ranking not found");
 
   // Attendance
-  const totalAttendance = await Attendance.countDocuments({
-    player: player._id,
-  });
-
-  const presentAttendance = await Attendance.countDocuments({
+  const presentSessions = await Attendance.countDocuments({
     player: player._id,
     status: "present",
   });
 
+  const requiredSessions = belt.attendance.requiredSessions;
+  const minRate = belt.attendance.minRate;
+
   const attendanceRate =
-    totalAttendance > 0
-      ? Math.round((presentAttendance / totalAttendance) * 100)
+    requiredSessions > 0
+      ? Math.round((presentSessions / requiredSessions) * 100)
       : 0;
 
+  const attendancePassed = attendanceRate >= minRate;
+
   // Lessons
-  const lessonsCompleted = await LessonProgress.countDocuments({
-    user: player.user,
+  const totalLessons = belt.lessons.totalLessons;
+  const unlockEvery = belt.lessons.unlockEvery;
+
+  const unlockedLessons = Math.min(
+    Math.floor(presentSessions / unlockEvery) * 3,
+    totalLessons
+  );
+
+  const completedLessons = await LessonProgress.countDocuments({
+    user: userId,
     completed: true,
   });
+
+  const lessonsPassed = completedLessons >= totalLessons;
+
+  // Exam
+  const examEligible = attendancePassed && lessonsPassed;
 
   return {
     belt: belt.name,
     level: belt.level,
 
     attendance: {
-      attended: presentAttendance,
-      required: belt.attendance.requiredSessions,
-      rate: attendanceRate,
-      minRate: belt.attendance.minRate,
-      passed:
-        attendanceRate >= belt.attendance.minRate &&
-        presentAttendance >= belt.attendance.requiredSessions,
+      attendedSessions: presentSessions,
+      requiredSessions,
+      minRate,
+      attendanceRate,
+      passed: attendancePassed,
     },
 
     lessons: {
-      completed: lessonsCompleted,
-      required: belt.lessons.totalLessons,
-      passed: lessonsCompleted >= belt.lessons.totalLessons,
+      completed: completedLessons,
+      unlocked: unlockedLessons,
+      required: totalLessons,
+      passed: lessonsPassed,
     },
 
-    eligibleForExam: false, // نحسبها في الخطوة الجاية
+    exams: {
+      eligible: examEligible,
+      lockedReason: !attendancePassed
+        ? "Attendance requirement not met"
+        : !lessonsPassed
+        ? "Lessons not completed"
+        : null,
+    },
   };
 };

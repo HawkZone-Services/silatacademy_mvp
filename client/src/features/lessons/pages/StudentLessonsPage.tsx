@@ -49,8 +49,8 @@ export default function StudentLessonsPage() {
       ) : (
         <CardContent>
           {lessons.map((lesson, index) => {
-            const completed = lesson.progress?.completed;
-            const unlocked = lesson.unlocked;
+            const completed = lesson.completed;
+            const unlocked = !lesson.locked;
             const lockedReason = lesson.lockedReason;
 
             return (

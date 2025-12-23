@@ -125,9 +125,8 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
     try {
       const res = await examService.createExamAdmin(payload);
 
-      const data = await res.json();
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.message || "Failed to create exam");
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.message || "Failed to create exam");
       }
 
       setOpen(false);
@@ -270,10 +269,6 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
             {/* ========================= */}
             <div className="space-y-2 mt-6">
               <p className="font-semibold text-lg">Questions</p>
-
-              <Button variant="outline" onClick={addQuestion}>
-                + Add Question
-              </Button>
 
               <div className="space-y-4">
                 {questions.map((q, i) => (
@@ -439,20 +434,23 @@ export function CreateExamDialog({ onCreated }: { onCreated: () => void }) {
                         />
                       </div>
                     )}
-                    <p className="text-xs text-muted-foreground">
-                      Total points from questions:{" "}
-                      <strong>{totalQuestionScore}</strong>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Max Theory Score (exam): <strong>{maxTheoryScore}</strong>
-                      {totalQuestionScore !== maxTheoryScore && (
-                        <span className="text-red-500 ml-2">
-                          ⚠ Mismatch – exam max score ≠ sum of questions
-                        </span>
-                      )}
-                    </p>
                   </Card>
                 ))}
+                <p className="text-xs text-muted-foreground">
+                  Total points from questions:{" "}
+                  <strong>{totalQuestionScore}</strong>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Max Theory Score (exam): <strong>{maxTheoryScore}</strong>
+                  {totalQuestionScore !== maxTheoryScore && (
+                    <span className="text-red-500 ml-2">
+                      ⚠ Mismatch – exam max score ≠ sum of questions
+                    </span>
+                  )}
+                </p>
+                <Button variant="outline" onClick={addQuestion}>
+                  + Add Question
+                </Button>
               </div>
             </div>
 

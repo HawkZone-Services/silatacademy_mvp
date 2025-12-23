@@ -123,7 +123,15 @@ export default function StudentDashboard() {
       </div>
     );
   }
-
+  // ✅ refresh exams (يستدعي api بالبيلت الحالي ويعمل setExams)
+  const refreshExams = async () => {
+    try {
+      const examsList = await getStudentExams(beltLevel);
+      setExams(examsList);
+    } catch (e) {
+      console.error("refreshExams failed", e);
+    }
+  };
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -149,7 +157,11 @@ export default function StudentDashboard() {
           </TabsList>
 
           <LearningTab />
-          <ExamsTab exams={exams} attempts={attempts} />
+          <ExamsTab
+            exams={exams}
+            attempts={attempts}
+            onRefreshExams={refreshExams}
+          />
           <CertificatesTab certificates={certificates} />
           <AttendanceTab
             attendance={attendance}

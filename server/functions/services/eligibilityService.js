@@ -4,8 +4,14 @@ import LessonProgress from "../models/LessonProgress.js";
 import Program from "../models/Program.js";
 import Player from "../models/Player.js";
 import ExamRegistration from "../models/ExamRegistration.js";
+import ExamAttempt from "../models/ExamAttempt.js";
+import FinalExamResult from "../models/FinalExamResult.js";
 import { toObjectId } from "../utils/validation.js";
+import Exam from "../models/Exam.js";
 
+/* =========================
+   HELPERS
+========================= */
 export const beltToProgramLevel = (belt) => {
   if (["white", "yellow"].includes(belt)) return "beginner";
   if (["blue", "brown"].includes(belt)) return "intermediate";
@@ -83,15 +89,21 @@ export const lessonCompletionForBelt = async (userId, beltLevel) => {
   };
 };
 
+/* =========================
+   CORE ELIGIBILITY (PATCHED)
+========================= */
 export const buildExamEligibility = async ({
   exam,
   userId,
   registration,
-  enforceRegistration = false,
+  attempt,
+  finalResult,
 }) => {
   const player = await getPlayerForUser(userId);
+
   const attendanceSummary = await getAttendanceSummary(player?._id);
   const attendanceOK = hasMinimumAttendance(attendanceSummary);
+
   const lessonStatus = await lessonCompletionForBelt(userId, exam?.beltLevel);
 
   const lockedReasons = [];
@@ -104,54 +116,82 @@ export const buildExamEligibility = async ({
     lockedReasons.push("INSUFFICIENT_ATTENDANCE");
   }
 
-  if (enforceRegistration && registration && registration.status !== "approved") {
-    lockedReasons.push("REGISTRATION_NOT_APPROVED");
-  }
-
+  const locked = lockedReasons.length > 0;
   const lockedReason = lockedReasons[0] || null;
 
+  // ✅ نظري
+  const theorySubmitted = Boolean(attempt?.submittedAt);
+  const theoryScore = attempt?.theoryScore ?? attempt?.autoScore ?? null;
+  const theoryPassed = typeof attempt?.pass === "boolean" ? attempt.pass : null;
+
+  // ✅ Finalized
+  const finalized = Boolean(finalResult?._id);
+
   return {
-    locked: lockedReasons.length > 0,
-    isEligible: lockedReasons.length === 0,
+    locked,
+    isEligible: !locked,
     lockedReason,
     reasonIfNotEligible: lockedReason,
     lockedReasons,
-    attendanceSummary,
     lessonsRequired: lessonStatus.total,
     lessonsCompleted: lessonStatus.completed,
+
+    // ✅ Registration
     registrationStatus: registration?.status || null,
+    registrationId: registration?._id || null,
+
+    // ✅ Theory state
+    attemptId: attempt?._id || null,
+    theorySubmitted,
+    theoryScore,
+    theoryPassed,
+
+    // ✅ Final state
+    finalized,
   };
 };
 
-export const attachExamEligibility = async (
-  exams = [],
-  userId,
-  options = { enforceRegistration: false }
-) => {
-  if (!userId) {
-    return exams.map((exam) => ({
-      ...(exam?.toObject ? { ...exam.toObject(), _id: exam._id } : exam),
-      locked: false,
-      isEligible: true,
-      reasonIfNotEligible: null,
-      lockedReason: null,
-      lockedReasons: [],
-      lessonsRequired: exam.lessonsRequired ?? 0,
-      lessonsCompleted: exam.lessonsCompleted ?? 0,
-    }));
-  }
-
+export const attachExamEligibility = async (exams = [], userId) => {
   const normalized = exams.map((exam) =>
     exam?.toObject ? { ...exam.toObject(), _id: exam._id } : exam
   );
+
+  const player = await Player.findOne({ user: userId }).lean();
+
+  const examIds = normalized.map((e) => e?._id).filter(Boolean);
+
+  const [registrations, attempts, finals] = await Promise.all([
+    player
+      ? ExamRegistration.find({
+          player: player._id,
+          exam: { $in: examIds },
+        }).lean()
+      : [],
+    ExamAttempt.find({ student: userId, exam: { $in: examIds } })
+      .sort({ submittedAt: -1, createdAt: -1, _id: -1 })
+      .lean(),
+    FinalExamResult.find({ student: userId, exam: { $in: examIds } }).lean(),
+  ]);
+
+  const regMap = new Map(registrations.map((r) => [String(r.exam), r]));
+
+  // latest attempt per exam
+  const attemptMap = new Map();
+  for (const a of attempts) {
+    const k = String(a.exam);
+    if (!attemptMap.has(k)) attemptMap.set(k, a);
+  }
+
+  const finalMap = new Map(finals.map((f) => [String(f.exam), f]));
 
   return Promise.all(
     normalized.map(async (exam) => {
       const eligibility = await buildExamEligibility({
         exam,
         userId,
-        registration: options.registrationMap?.get(exam._id?.toString?.() || exam._id),
-        enforceRegistration: options.enforceRegistration,
+        registration: regMap.get(String(exam._id)),
+        attempt: attemptMap.get(String(exam._id)) || null,
+        finalResult: finalMap.get(String(exam._id)) || null,
       });
 
       return {
@@ -162,6 +202,9 @@ export const attachExamEligibility = async (
   );
 };
 
+/* =========================
+   LESSON ELIGIBILITY (UNCHANGED)
+========================= */
 export const mapLessonEligibility = (
   lesson,
   { progressMap = new Map(), prereqSet = new Set(), attendanceOK = true } = {}
@@ -210,9 +253,27 @@ export const mapLessonEligibility = (
   };
 };
 
+/* =========================
+   FIXED: registration lookup uses Player._id
+========================= */
 export const getRegistrationForExam = async (examId, userId) => {
   const examObj = toObjectId(examId);
-  const playerObj = toObjectId(userId);
-  if (!examObj || !playerObj) return null;
-  return ExamRegistration.findOne({ exam: examObj, player: playerObj });
+  const userObj = toObjectId(userId);
+  if (!examObj || !userObj) return null;
+
+  const player = await Player.findOne({ user: userObj }).select("_id").lean();
+  if (!player?._id) return null;
+
+  return ExamRegistration.findOne({ exam: examObj, player: player._id });
+};
+
+/* =========================
+   (legacy) getStudentEligibility — leave as-is if you still use it elsewhere
+========================= */
+export const getStudentEligibility = async ({ userId, beltLevel }) => {
+  const exam = await Exam.findOne({ beltLevel, isActive: true });
+  return {
+    exam: { examId: exam?._id || null, status: "locked" },
+    eligibleForBelt: false,
+  };
 };

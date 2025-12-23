@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -8,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Timer } from "lucide-react";
+
 import { getExamById } from "@/features/exams/api/getExamById";
 import { getMyAttempts } from "@/features/exams/api/getMyAttempts";
 import { submitAttempt as submitAttemptApi } from "@/features/exams/api/submitAttempt";
@@ -19,15 +21,20 @@ export default function ExamInterface() {
   const [params] = useSearchParams();
   const attemptId = params.get("attempt");
 
-  const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+  const token =
+    localStorage.getItem("token") || sessionStorage.getItem("token");
 
   const [answers, setAnswers] = useState<any>({});
   const [focusLosses, setFocusLosses] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
   const [forcedSubmit, setForcedSubmit] = useState(false);
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qc = useQueryClient();
 
+  /* =========================
+     BASIC ACCESS GUARD
+  ========================= */
   useEffect(() => {
     if (!attemptId || !examId) {
       toast({
@@ -39,18 +46,36 @@ export default function ExamInterface() {
     }
   }, [attemptId, examId, navigate, toast]);
 
-  const examQuery = useQuery(["exam", examId], () => getExamById(examId as string), {
+  /* =========================
+     FETCH EXAM
+  ========================= */
+  const examQuery = useQuery({
+    queryKey: ["exam", examId],
+    queryFn: () => getExamById(examId as string),
     enabled: !!examId && !!token,
   });
 
-  const attemptsQuery = useQuery(["my-attempts"], getMyAttempts, {
+  /* =========================
+     FETCH MY ATTEMPTS
+  ========================= */
+  const attemptsQuery = useQuery({
+    queryKey: ["my-attempts"],
+    queryFn: getMyAttempts,
     enabled: !!attemptId && !!token,
   });
 
-  const exam = (examQuery.data?.data?.exam || examQuery.data?.data) ?? null;
-  const attempts = attemptsQuery.data?.data?.attempts || attemptsQuery.data?.data || [];
+  const exam = examQuery.data?.data?.exam ?? examQuery.data?.data ?? null;
+
+  const attempts =
+    attemptsQuery.data?.data?.attempts ?? attemptsQuery.data?.data ?? [];
+
   const attempt = attempts.find((a: any) => a?._id === attemptId);
 
+  const readOnly = Boolean(attempt?.submittedAt);
+
+  /* =========================
+     VALIDATE ATTEMPT
+  ========================= */
   useEffect(() => {
     if (!attempt && attemptsQuery.isSuccess) {
       toast({
@@ -60,15 +85,11 @@ export default function ExamInterface() {
       });
       navigate("/student-dashboard");
     }
-    if (attempt?.submittedAt) {
-      toast({
-        variant: "destructive",
-        title: "Exam already submitted",
-      });
-      navigate("/student-dashboard");
-    }
   }, [attempt, attemptsQuery.isSuccess, navigate, toast]);
 
+  /* =========================
+     INIT TIMER
+  ========================= */
   useEffect(() => {
     if (exam?.timeLimit) {
       setTimeLeft(exam.timeLimit * 60);
@@ -82,7 +103,8 @@ export default function ExamInterface() {
   }, []);
 
   useEffect(() => {
-    if (!exam?.timeLimit || forcedSubmit) return;
+    if (!exam?.timeLimit || forcedSubmit || readOnly) return;
+
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -93,21 +115,29 @@ export default function ExamInterface() {
         return prev - 1;
       });
     }, 1000);
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [exam?.timeLimit, forcedSubmit]);
+  }, [exam?.timeLimit, forcedSubmit, readOnly]);
 
-  const submitMutation = useMutation(submitAttemptApi, {
+  /* =========================
+     SUBMIT MUTATION
+  ========================= */
+  const submitMutation = useMutation({
+    mutationFn: submitAttemptApi,
     onSuccess: () => {
-      qc.invalidateQueries(["my-attempts"]);
+      qc.invalidateQueries({ queryKey: ["my-attempts"] });
+
       localStorage.setItem("refreshResults", "1");
+
       toast({
         title: "Exam submitted",
         description: forcedSubmit
           ? "Time expired. Your answers were submitted automatically."
           : "Your theory exam has been submitted successfully.",
       });
+
       navigate("/student-dashboard");
     },
     onError: (err: any) => {
@@ -120,21 +150,39 @@ export default function ExamInterface() {
     },
   });
 
+  /* =========================
+     ANSWERS HANDLERS
+  ========================= */
   const handleMCQ = (qId: string, index: number) => {
-    setAnswers({ ...answers, [qId]: { selectedIndex: index } });
+    if (readOnly) return;
+    setAnswers((prev: any) => ({
+      ...prev,
+      [qId]: { selectedIndex: index },
+    }));
   };
 
   const handleTrueFalse = (qId: string, value: boolean) => {
-    setAnswers({ ...answers, [qId]: { booleanAnswer: value } });
+    if (readOnly) return;
+    setAnswers((prev: any) => ({
+      ...prev,
+      [qId]: { booleanAnswer: value },
+    }));
   };
 
   const handleEssay = (qId: string, text: string) => {
-    setAnswers({ ...answers, [qId]: { essayText: text } });
+    if (readOnly) return;
+    setAnswers((prev: any) => ({
+      ...prev,
+      [qId]: { essayText: text },
+    }));
   };
 
+  /* =========================
+     SUBMIT HANDLER
+  ========================= */
   const handleSubmit = useCallback(
     (autoForced = false) => {
-      if (!exam || submitMutation.isLoading) return;
+      if (!exam || submitMutation.isPending || readOnly) return;
 
       const formattedAnswers = exam.questions.map((q: any) => ({
         questionId: q._id,
@@ -150,6 +198,7 @@ export default function ExamInterface() {
       }));
 
       setForcedSubmit(autoForced);
+
       submitMutation.mutate({
         attemptId: attemptId as string,
         answers: formattedAnswers,
@@ -157,7 +206,7 @@ export default function ExamInterface() {
         forcedSubmitReason: autoForced ? "TIME_EXPIRED" : null,
       });
     },
-    [answers, attemptId, exam, focusLosses, submitMutation]
+    [answers, attemptId, exam, focusLosses, submitMutation, readOnly]
   );
 
   const formatTime = (seconds: number) => {
@@ -167,6 +216,9 @@ export default function ExamInterface() {
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
+  /* =========================
+     LOADING STATE
+  ========================= */
   if (examQuery.isLoading || attemptsQuery.isLoading || !exam) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -175,6 +227,9 @@ export default function ExamInterface() {
     );
   }
 
+  /* =========================
+     RENDER
+  ========================= */
   return (
     <div className="min-h-screen p-6">
       <Card className="mx-auto max-w-3xl shadow-xl">
@@ -189,6 +244,12 @@ export default function ExamInterface() {
               </Badge>
             </span>
           </CardTitle>
+
+          {readOnly && (
+            <Badge variant="secondary" className="mx-auto mt-2 block w-fit">
+              Exam already submitted (read-only)
+            </Badge>
+          )}
         </CardHeader>
 
         <CardContent className="space-y-6">
@@ -204,10 +265,21 @@ export default function ExamInterface() {
               </div>
 
               {q.type === "mcq" && (
-                <RadioGroup onValueChange={(v) => handleMCQ(q._id, Number(v))}>
+                <RadioGroup
+                  value={
+                    answers[q._id]?.selectedIndex !== undefined
+                      ? String(answers[q._id].selectedIndex)
+                      : undefined
+                  }
+                  onValueChange={(v) => handleMCQ(q._id, Number(v))}
+                >
                   {q.choices.map((choice: string, i: number) => (
                     <div key={i} className="flex items-center space-x-2">
-                      <RadioGroupItem value={String(i)} id={`${q._id}-${i}`} />
+                      <RadioGroupItem
+                        value={String(i)}
+                        id={`${q._id}-${i}`}
+                        disabled={readOnly}
+                      />
                       <label htmlFor={`${q._id}-${i}`}>{choice}</label>
                     </div>
                   ))}
@@ -223,6 +295,7 @@ export default function ExamInterface() {
                         : "outline"
                     }
                     onClick={() => handleTrueFalse(q._id, true)}
+                    disabled={readOnly}
                   >
                     True
                   </Button>
@@ -234,6 +307,7 @@ export default function ExamInterface() {
                         : "outline"
                     }
                     onClick={() => handleTrueFalse(q._id, false)}
+                    disabled={readOnly}
                   >
                     False
                   </Button>
@@ -243,7 +317,9 @@ export default function ExamInterface() {
               {q.type === "essay" && (
                 <Textarea
                   placeholder="Write your answer..."
+                  value={answers[q._id]?.essayText || ""}
                   onChange={(e) => handleEssay(q._id, e.target.value)}
+                  disabled={readOnly}
                 />
               )}
             </div>
@@ -252,9 +328,9 @@ export default function ExamInterface() {
           <Button
             className="w-full py-6 text-lg"
             onClick={() => handleSubmit(false)}
-            disabled={submitMutation.isLoading}
+            disabled={submitMutation.isPending || readOnly}
           >
-            Submit Exam
+            {readOnly ? "Exam Submitted" : "Submit Exam"}
           </Button>
         </CardContent>
       </Card>

@@ -14,37 +14,36 @@ import {
   mapLessonEligibility,
   lessonCompletionForBelt as computeLessonCompletionForBelt,
 } from "../services/eligibilityService.js";
+import { getMyBeltProgress } from "../services/beltProgressService.js";
 
+/* =====================================================
+   QUIZ SCORING
+===================================================== */
 /* =====================================================
    QUIZ SCORING
 ===================================================== */
 const computeQuizScore = (lesson, answers = []) => {
   if (!lesson?.quiz?.length) return { score: 0, answers: [] };
 
-  const normalized = answers.map((ans, idx) => ({
-    questionIndex:
-      typeof ans.questionIndex === "number" ? ans.questionIndex : idx,
-    selectedIndex:
-      typeof ans.selectedIndex === "number" ? ans.selectedIndex : null,
-  }));
+  let correct = 0;
 
-  let correctCount = 0;
+  const computedAnswers = answers.map((ans, idx) => {
+    const q = lesson.quiz[idx];
+    const isCorrect =
+      q && typeof ans.selectedIndex === "number"
+        ? ans.selectedIndex === q.correctIndex
+        : false;
 
-  const computedAnswers = normalized.map((ans) => {
-    const q = lesson.quiz[ans.questionIndex];
-    if (!q) return { ...ans, correct: false };
+    if (isCorrect) correct++;
 
-    const correct =
-      typeof ans.selectedIndex === "number" &&
-      ans.selectedIndex === q.correctIndex;
-
-    if (correct) correctCount++;
-
-    return { ...ans, correct };
+    return {
+      questionIndex: idx,
+      selectedIndex: ans.selectedIndex ?? null,
+      correct: isCorrect,
+    };
   });
 
-  const score = Math.round((correctCount / lesson.quiz.length) * 100);
-
+  const score = Math.round((correct / lesson.quiz.length) * 100);
   return { score, answers: computedAnswers };
 };
 
@@ -54,76 +53,43 @@ const computeQuizScore = (lesson, answers = []) => {
 export const createLesson = asyncHandler(async (req, res) => {
   const {
     title,
-    summary,
-    videoUrl,
-    content,
-    technicalContent,
-    medicalContent,
-    psychologyContent,
-    resources = [],
-    durationMinutes,
     moduleId,
     programId,
-    quiz = [],
     order = 0,
+    quiz = [],
+    ...rest
   } = req.body;
-
   if (!title) throw httpError(400, "title is required");
 
   const lesson = await Lesson.create({
     title,
-    summary,
-    videoUrl,
-    content,
-    technicalContent,
-    medicalContent,
-    psychologyContent,
-    resources,
-    durationMinutes,
-    module: toObjectId(moduleId),
-    program: toObjectId(programId),
+    ...rest,
     quiz,
     order,
+    module: toObjectId(moduleId),
+    program: toObjectId(programId),
   });
 
-  res.status(201).json({
-    success: true,
-    lesson,
-  });
+  res.status(201).json({ success: true, lesson });
 });
-
 /* =====================================================
-   LIST LESSONS (with optional progress)
+   LIST LESSONS (ADMIN / OPTIONAL PROGRESS)
 ===================================================== */
 export const listLessons = asyncHandler(async (req, res) => {
-  const moduleId = req.query.moduleId ? toObjectId(req.query.moduleId) : null;
-  const programId = req.query.programId
-    ? toObjectId(req.query.programId)
-    : null;
-  const userId = req.user?._id ? toObjectId(req.user?._id) : null;
+  const userId = req.user?._id;
 
-  const filter = {};
-  if (moduleId) filter.module = moduleId;
-  if (programId) filter.program = programId;
-
-  const lessons = await Lesson.find(filter)
+  const lessons = await Lesson.find({})
     .populate("module", "title")
     .populate("program", "title level")
-    .sort({ order: 1, createdAt: -1 })
+    .sort({ order: 1 })
     .lean();
 
   if (!userId) {
     return res.json({ success: true, lessons });
   }
 
-  const lessonIds = lessons.map((l) => l._id);
-  const progresses = await LessonProgress.find({
-    lesson: { $in: lessonIds },
-    user: userId,
-  }).lean();
-
-  const map = new Map();
-  progresses.forEach((p) => map.set(p.lesson.toString(), p));
+  const progresses = await LessonProgress.find({ user: userId }).lean();
+  const map = new Map(progresses.map((p) => [p.lesson.toString(), p]));
 
   const enriched = lessons.map((l) => ({
     ...l,
@@ -134,14 +100,10 @@ export const listLessons = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   GET SINGLE LESSON (supports both admin/student routes)
+   GET SINGLE LESSON (LOCKED-AWARE)
 ===================================================== */
 export const getLesson = asyncHandler(async (req, res) => {
-  const lessonIdRaw = req.params.lessonId || req.params.id;
-
-  if (!lessonIdRaw) throw httpError(400, "Lesson ID is required");
-
-  const lessonId = assertObjectId(lessonIdRaw, "lessonId");
+  const lessonId = assertObjectId(req.params.lessonId || req.params.id);
   const userId = req.user?._id;
 
   const lesson = await Lesson.findById(lessonId)
@@ -151,17 +113,33 @@ export const getLesson = asyncHandler(async (req, res) => {
 
   if (!lesson) throw httpError(404, "Lesson not found");
 
-  let progress = null;
-  if (userId) {
-    progress = await LessonProgress.findOne({
-      lesson: lessonId,
-      user: userId,
-    }).lean();
+  if (!userId) {
+    return res.json({
+      success: true,
+      lesson: { _id: lesson._id, title: lesson.title, locked: true },
+    });
   }
 
-  return res.json({
+  const beltProgress = await getMyBeltProgress(userId);
+  const unlockedLessons = beltProgress.lessons.unlocked;
+
+  const locked = lesson.order >= unlockedLessons;
+
+  if (locked) {
+    return res.json({
+      success: true,
+      lesson: { _id: lesson._id, title: lesson.title, locked: true },
+    });
+  }
+
+  const progress = await LessonProgress.findOne({
+    user: userId,
+    lesson: lessonId,
+  }).lean();
+
+  res.json({
     success: true,
-    lesson,
+    lesson: { ...lesson, locked: false },
     progress,
   });
 });
@@ -267,72 +245,72 @@ export const saveProgress = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   STUDENT AVAILABLE LESSONS
+   STUDENT AVAILABLE LESSONS (FINAL – FIXED)
 ===================================================== */
 export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
-  const userId = req.user?._id;
-  if (!userId) throw httpError(401, "Unauthorized");
+  const userId = req.user._id;
 
-  const player = await getPlayerForUser(userId);
-  if (!player) throw httpError(404, "Player profile not found");
+  const beltProgress = await getMyBeltProgress(userId);
+  const unlockedCount = beltProgress.lessons.unlocked;
 
-  // 1) attendance logic
-  const attendanceSummary = await getAttendanceSummary(player._id);
-  const attendanceCount = attendanceSummary?.total || 0;
-
-  // 🔥 Unlock 3 lessons per every 5 attendance
-  const lessonsUnlocked = Math.floor(attendanceCount / 5) * 3;
-
-  // 2) get all lessons in order
   const lessons = await Lesson.find({ isActive: true })
     .populate("program", "title level")
     .populate("module", "title")
-    .sort({ program: 1, module: 1, order: 1, createdAt: 1 })
+    .sort({ order: 1 })
     .lean();
 
-  // 3) get progress map
-  const lessonIds = lessons.map((l) => l._id);
-  const progresses = await LessonProgress.find({
-    user: userId,
-    lesson: { $in: lessonIds },
-  }).lean();
+  const progresses = await LessonProgress.find({ user: userId }).lean();
+  const progressMap = new Map(progresses.map((p) => [p.lesson.toString(), p]));
 
-  const progressMap = new Map();
-  progresses.forEach((p) => {
-    progressMap.set(p.lesson.toString(), p);
-  });
+  const formattedLessons = lessons.map((lesson) => {
+    const progress = progressMap.get(lesson._id.toString()) || null;
+    const completed = progress?.completed || false;
 
-  // 4) apply unlock logic
-  const formatted = lessons.map((lesson, index) => {
-    const unlocked = index < lessonsUnlocked;
+    const locked = lesson.order >= unlockedCount;
 
-    const progress = progressMap.get(lesson._id.toString());
-    const isCompleted = progress?.completed || false;
+    let quiz = {
+      available: false,
+      locked: true,
+      reason: "Lesson not completed",
+    };
+
+    if (locked) {
+      quiz.reason = "Lesson locked by attendance";
+    } else if (completed) {
+      quiz = {
+        available: true,
+        locked: false,
+        score: progress?.quizScore ?? null,
+        passed:
+          typeof progress?.quizScore === "number"
+            ? progress.quizScore >= 60
+            : false,
+      };
+    }
 
     return {
       ...lesson,
-      unlocked,
-      locked: !unlocked,
-      lockedReason: !unlocked
-        ? `Requires more attendance. Need ${
-            Math.ceil((index + 1) / 3) * 5
-          } attendances.`
+      completed,
+      locked,
+      unlocked: !locked,
+      lockedReason: locked
+        ? `Attend ${
+            beltProgress.attendance.requiredSessions -
+            beltProgress.attendance.attendedSessions
+          } more sessions to unlock`
         : null,
-      progress,
-      completed: isCompleted,
+      quiz,
     };
   });
 
   res.json({
     success: true,
     data: {
-      attendance: attendanceSummary,
-      lessonsUnlocked,
-      lessons: formatted,
+      beltProgress,
+      lessons: formattedLessons,
     },
   });
 });
-
 /* =====================================================
    STUDENT LESSON PROGRESS SUMMARY
 ===================================================== */
@@ -393,27 +371,37 @@ export const getStudentLessonProgress = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   GET LESSON QUIZ
+   GET LESSON QUIZ (NO DEADLOCK)
 ===================================================== */
 export const getLessonQuiz = asyncHandler(async (req, res) => {
-  const lessonId = assertObjectId(req.params.lessonId, "lessonId");
+  const lessonId = assertObjectId(req.params.lessonId);
+  const userId = req.user?._id;
+  if (!userId) throw httpError(401, "Unauthorized");
+
   const lesson = await Lesson.findById(lessonId).lean();
   if (!lesson) throw httpError(404, "Lesson not found");
 
+  const progress = await LessonProgress.findOne({
+    user: userId,
+    lesson: lessonId,
+  }).lean();
+
+  if (!progress) {
+    throw httpError(403, "Start lesson first to unlock quiz");
+  }
+
   res.json({
     success: true,
-    data: {
-      quiz: lesson.quiz || [],
-      lessonTitle: lesson.title,
-    },
+    data: { quiz: lesson.quiz || [], lessonTitle: lesson.title },
   });
 });
-
 /* =====================================================
-   SUBMIT QUIZ
+   SUBMIT QUIZ (FINAL)
 ===================================================== */
 export const submitLessonQuiz = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
+  if (!userId) throw httpError(401, "Unauthorized");
+
   const lessonId = assertObjectId(req.params.lessonId);
   const { answers = [] } = req.body;
 
@@ -421,9 +409,8 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
   if (!lesson) throw httpError(404, "Lesson not found");
 
   const { score, answers: computed } = computeQuizScore(lesson, answers);
-
-  const now = new Date();
   const passed = score >= 60;
+  const now = new Date();
 
   const progress = await LessonProgress.findOneAndUpdate(
     { user: userId, lesson: lessonId },
@@ -431,7 +418,6 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
       $set: {
         quizAnswers: computed,
         quizScore: score,
-        quizMax: 100,
         completed: passed,
         lastAccessedAt: now,
         updatedAt: now,
@@ -443,7 +429,14 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    data: { score, passed, progress },
+    data: {
+      score,
+      passed,
+      progress,
+      message: passed
+        ? "Quiz passed successfully"
+        : "Quiz submitted but not passed",
+    },
   });
 });
 

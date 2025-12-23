@@ -1,19 +1,30 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/shared/api/apiClient";
+
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
 import examService from "@/services/examService";
 
 export default function MyExamResultsPage() {
   const navigate = useNavigate();
-  const { data, isLoading } = useQuery(["my-exam-results"], () =>
-    examService.getMyAttempts()
-  );
+
+  /* =========================
+     FETCH MY EXAM RESULTS
+     (React Query v5 – Object syntax only)
+  ========================= */
+  const { data, isLoading } = useQuery({
+    queryKey: ["my-exam-results"],
+    queryFn: () => examService.getMyAttempts(),
+  });
+
   const attempts = data?.data?.attempts || data?.attempts || data?.data || [];
 
+  /* =========================
+     LOADING
+  ========================= */
   if (isLoading) {
     return (
       <div className="flex justify-center py-20 text-lg">
@@ -22,9 +33,14 @@ export default function MyExamResultsPage() {
     );
   }
 
+  /* =========================
+     RENDER
+  ========================= */
   return (
     <div className="container py-10 space-y-8">
-      <h1 className="text-3xl font-bold flex items-center gap-2">My Exam Results</h1>
+      <h1 className="text-3xl font-bold flex items-center gap-2">
+        My Exam Results
+      </h1>
 
       {!attempts.length ? (
         <p className="text-muted-foreground">No exam attempts found.</p>
@@ -33,19 +49,32 @@ export default function MyExamResultsPage() {
           {attempts.map((a: any) => {
             const exam = a.exam || {};
             const certificate = a.certificate;
-            const theoryScore = a.theoryScore ?? 0;
+
+            const theoryScore = a.theoryScore ?? a.autoScore ?? "-";
             const finalScore = a.finalTotalScore ?? null;
+
+            const finalized = Boolean(
+              a.finalizedAt || a.finalTotalScore !== null
+            );
+
             const passed = a.finalPassed ?? false;
-            const statusLabel = passed
-              ? "Passed"
-              : a.submittedAt && !passed
-              ? "Failed"
+
+            const statusLabel = finalized
+              ? passed
+                ? "Passed"
+                : "Failed"
+              : a.submittedAt
+              ? "Waiting Practical"
               : "Pending";
-            const statusColor = passed
-              ? "bg-green-600"
-              : a.submittedAt && !passed
-              ? "bg-red-600"
-              : "bg-yellow-600";
+
+            const statusColor = finalized
+              ? passed
+                ? "bg-green-600"
+                : "bg-red-600"
+              : a.submittedAt
+              ? "bg-yellow-600"
+              : "bg-gray-500";
+
             const issuedAt =
               certificate?.issuedAt &&
               new Date(certificate.issuedAt).toLocaleDateString();
@@ -58,13 +87,43 @@ export default function MyExamResultsPage() {
                 <CardHeader>
                   <CardTitle className="flex justify-between items-center">
                     <div>
-                      <p className="text-lg font-bold">{exam.title}</p>
-                      <p className="text-muted-foreground text-sm capitalize">
-                        Belt Level: {exam.beltLevel}
+                      <p className="text-lg font-bold">
+                        {exam.title || "Exam"}
                       </p>
+                      <p className="text-muted-foreground text-sm capitalize">
+                        Belt Level: {exam.beltLevel || "-"}
+                      </p>
+
+                      {/* THEORY RESULT */}
+                      <div className="text-sm mt-1">
+                        <span className="font-medium">Theory:</span>{" "}
+                        {theoryScore}{" "}
+                        {typeof a.pass === "boolean" ? (
+                          a.pass ? (
+                            <span className="text-green-600 font-semibold">
+                              Passed
+                            </span>
+                          ) : (
+                            <span className="text-red-600 font-semibold">
+                              Failed
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </div>
+
+                      {/* FINAL STATE */}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {finalized
+                          ? "Finalized"
+                          : "Waiting Practical Evaluation"}
+                      </div>
                     </div>
 
-                    <Badge className={`${statusColor} text-white`}>{statusLabel}</Badge>
+                    <Badge className={`${statusColor} text-white`}>
+                      {statusLabel}
+                    </Badge>
                   </CardTitle>
                 </CardHeader>
 
@@ -95,7 +154,8 @@ export default function MyExamResultsPage() {
                     </div>
                   </div>
 
-                  {passed && certificate && (
+                  {/* CERTIFICATE */}
+                  {finalized && passed && certificate && (
                     <div className="pt-4 border-t">
                       <p className="font-medium">Certificate Issued</p>
                       <p className="text-sm text-muted-foreground">
@@ -117,10 +177,13 @@ export default function MyExamResultsPage() {
                     </div>
                   )}
 
+                  {/* VIEW ATTEMPT */}
                   <Button
                     variant="ghost"
                     className="flex items-center gap-2"
-                    onClick={() => navigate(`/student/exams/${exam._id}`)}
+                    onClick={() =>
+                      navigate(`/student/exams/results?attempt=${a._id}`)
+                    }
                   >
                     View Attempt
                   </Button>

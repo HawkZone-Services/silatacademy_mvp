@@ -16,7 +16,6 @@ import FinalExamResult from "../models/FinalExamResult.js";
 import PracticalEvaluation from "../models/PracticalEvaluation.js";
 import ExamRegistration from "../models/ExamRegistration.js";
 import Certificate from "../models/Certificate.js";
-import User from "../models/User.js";
 import Player from "../models/Player.js";
 
 import { awardXpForEvent } from "../utils/xp.js";
@@ -64,45 +63,27 @@ const computeFinalPassMark = (exam) => {
 };
 
 const mapPracticalScores = (body = {}) => {
-  const scores = body.scores || body;
+  const s = body.scores || {};
   return {
-    morality: asNumber(scores.discipline ?? scores.morality),
-    practicalMethod: asNumber(scores.performance ?? scores.practicalMethod),
-    technique: asNumber(scores.technique),
-    physical: asNumber(scores.physical ?? 0),
-    mental: asNumber(scores.mental ?? 0),
+    morality: asNumber(s.morality),
+    practicalMethod: asNumber(s.practicalMethod),
+    technique: asNumber(s.technique),
+    physical: asNumber(s.physical),
+    mental: asNumber(s.mental),
   };
 };
 
-const findCompletedExamIdsForStudent = async (studentId) => {
-  const [finalized, submittedAttempts] = await Promise.all([
-    FinalExamResult.find({ student: studentId }).select("exam"),
-    ExamAttempt.find({
-      student: studentId,
-      submittedAt: { $ne: null },
-    }).select("exam"),
-  ]);
-
-  const ids = [...finalized, ...submittedAttempts]
-    .map((item) => toObjectId(item.exam))
-    .filter(Boolean);
-
-  return Array.from(new Set(ids.map((id) => id.toString()))).map(
-    (id) => new ObjectId(id)
-  );
-};
-
 // =====================================================
-//   STUDENT - MY ATTEMPTS (WITH FINAL RESULT)
+//   STUDENT - MY ATTEMPTS (WITH THEORY + FINAL)
 // =====================================================
 export const getMyAttempts = asyncHandler(async (req, res) => {
-  const studentId = assertObjectId(req.user._id, "studentId");
+  const userId = assertObjectId(req.user._id, "userId");
 
-  const attempts = await ExamAttempt.find({ student: studentId })
-    .sort({ submittedAt: -1 })
+  const attempts = await ExamAttempt.find({ student: userId })
+    .sort({ submittedAt: -1, createdAt: -1 })
     .populate({
       path: "exam",
-      select: "title beltLevel timeLimit maxTheoryScore",
+      select: "title beltLevel timeLimit maxTheoryScore passMark",
     })
     .lean();
 
@@ -114,7 +95,7 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
 
   const finalResults = await FinalExamResult.find({
     exam: { $in: examIds },
-    student: studentId,
+    student: userId,
   })
     .sort({ finalizedAt: -1, date: -1, _id: -1 })
     .lean();
@@ -124,7 +105,7 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
   );
 
   const certificates = await Certificate.find({
-    user: studentId,
+    user: userId,
     examId: { $in: examIds },
   })
     .sort({ issuedAt: -1, createdAt: -1, _id: -1 })
@@ -139,20 +120,35 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
     const final = finalResultsMap.get(eid) || null;
     const cert = certificateMap.get(eid) || null;
 
+    const theoryScore = attempt.theoryScore ?? attempt.autoScore ?? null;
+    const theoryPassed =
+      typeof attempt.pass === "boolean" ? attempt.pass : null;
+
+    const theoryPassMark =
+      attempt.exam?.passMark ?? computeTheoryPassMark(attempt.exam || {});
+
     return {
       _id: attempt._id,
       exam: attempt.exam,
+
+      // ✅ THEORY
       autoScore: attempt.autoScore,
       manualScore: attempt.manualScore,
-      theoryScore: attempt.theoryScore,
-      pass: attempt.pass,
+      theoryScore,
+      theoryPassed,
+      theoryPassMark,
+      maxTheoryScore: attempt.exam?.maxTheoryScore ?? null,
+
       submittedAt: attempt.submittedAt,
       answers: attempt.answers,
+
+      // ✅ FINAL (may be null until admin finalizes)
       finalPracticalScores: final?.practicalScores || null,
       finalMethodTotal: final?.methodTotal ?? null,
       finalTotalScore: final?.totalScore ?? null,
       finalPassed: final?.passed ?? null,
       finalizedAt: final?.finalizedAt ?? final?.date ?? null,
+
       certificate: cert
         ? {
             _id: cert._id,
@@ -170,15 +166,19 @@ export const getMyAttempts = asyncHandler(async (req, res) => {
 });
 
 // =====================================================
-//   REGISTRATION STATUS (STUDENT)
+//   REGISTRATION STATUS (STUDENT) — FIXED
 // =====================================================
 export const getRegistrationStatus = asyncHandler(async (req, res) => {
   const examId = assertObjectId(req.params.examId, "examId");
-  const studentId = assertObjectId(req.user?._id, "studentId");
+  const userId = assertObjectId(req.user?._id, "userId");
+
+  const player = await Player.findOne({ user: userId }).select("_id").lean();
 
   const [registration, finalResult] = await Promise.all([
-    ExamRegistration.findOne({ exam: examId, player: studentId }).lean(),
-    FinalExamResult.findOne({ exam: examId, student: studentId }).lean(),
+    player?._id
+      ? ExamRegistration.findOne({ exam: examId, player: player._id }).lean()
+      : null,
+    FinalExamResult.findOne({ exam: examId, student: userId }).lean(),
   ]);
 
   res.json({
@@ -208,10 +208,7 @@ export const createExam = asyncHandler(async (req, res) => {
     throw httpError(400, "title and beltLevel are required");
   }
 
-  const creatorId = assertObjectId(
-    req.user?._id || req.body.createdBy,
-    "createdBy"
-  );
+  const creatorId = assertObjectId(req.user?._id, "createdBy");
 
   const questionsWithMeta = normalizeQuestions(questions);
   const computedMaxTheory = computeMaxTheoryScore(
@@ -243,25 +240,27 @@ export const createExam = asyncHandler(async (req, res) => {
 });
 
 // =====================================================
-//   LIST EXAMS — with eligibility
+//   LIST EXAMS — student includes eligibility
 // =====================================================
 export const listExams = asyncHandler(async (req, res) => {
   let filter = {};
 
   if (req.user?.role === "student") {
-    const studentId = assertObjectId(req.user._id, "studentId");
-    const excludedIds = await findCompletedExamIdsForStudent(studentId);
+    filter.status = "published";
 
-    filter = {
-      status: "published",
-      ...(excludedIds.length ? { _id: { $nin: excludedIds } } : {}),
-    };
+    const userId = assertObjectId(req.user._id, "userId");
+    const exams = await Exam.find(filter).sort({ createdAt: -1 }).lean();
+
+    const enriched = await attachExamEligibility(exams, userId);
+
+    return res.json({
+      success: true,
+      data: { exams: enriched },
+    });
   }
 
   const exams = await Exam.find(filter).sort({ createdAt: -1 }).lean();
-  const enriched = await attachExamEligibility(exams, req.user?._id);
-
-  res.json({ success: true, data: { exams: enriched } });
+  res.json({ success: true, data: { exams } });
 });
 
 // =====================================================
@@ -320,46 +319,47 @@ export const publishExam = asyncHandler(async (req, res) => {
 // =====================================================
 export const getExamsByBeltLevel = asyncHandler(async (req, res) => {
   const beltLevel = req.params.beltLevel;
-  const studentId = assertObjectId(req.user?._id, "studentId");
-
-  const excludedIds = await findCompletedExamIdsForStudent(studentId);
+  const userId = assertObjectId(req.user?._id, "userId");
 
   const exams = await Exam.find({
     beltLevel,
     status: "published",
-    ...(excludedIds.length ? { _id: { $nin: excludedIds } } : {}),
   })
     .sort({ createdAt: -1 })
     .lean();
 
-  const enriched = await attachExamEligibility(exams, studentId);
+  const enriched = await attachExamEligibility(exams, userId);
 
-  res.json({ success: true, data: { exams: enriched } });
+  res.json({
+    success: true,
+    data: { exams: enriched },
+  });
 });
 
 // =====================================================
-//   REGISTER FOR EXAM
+//   REGISTER FOR EXAM (STUDENT) — FIXED (Player._id)
 // =====================================================
 export const ExamRegisteration = asyncHandler(async (req, res) => {
   const examId = assertObjectId(req.body.examId, "examId");
-  const studentId = assertObjectId(
-    req.user?._id || req.body.playerId,
-    "studentId"
-  );
+
+  const userId = assertObjectId(req.user?._id || req.body.userId, "userId");
+
+  const player = await Player.findOne({ user: userId });
+  if (!player) throw httpError(404, "Player not found for this user");
 
   const exam = await Exam.findOne({ _id: examId, status: "published" });
   if (!exam) throw httpError(404, "Exam not found or not published");
 
   const finalResult = await FinalExamResult.findOne({
     exam: examId,
-    student: studentId,
+    student: userId,
   });
   if (finalResult)
     throw httpError(409, "Exam already finalized for this student");
 
   let existing = await ExamRegistration.findOne({
     exam: examId,
-    player: studentId,
+    player: player._id,
   });
 
   if (existing) {
@@ -378,7 +378,7 @@ export const ExamRegisteration = asyncHandler(async (req, res) => {
 
   const registration = await ExamRegistration.create({
     exam: examId,
-    player: studentId,
+    player: player._id,
     status: "pending",
     createdAt: new Date(),
   });
@@ -394,7 +394,7 @@ export const ExamRegisteration = asyncHandler(async (req, res) => {
 });
 
 // =====================================================
-//   LIST SUBMISSIONS (ADMIN)
+//   LIST SUBMISSIONS (ADMIN) — includes THEORY PASS/FAIL
 // =====================================================
 export const listSubmissions = asyncHandler(async (req, res) => {
   const examId = assertObjectId(req.params.examId, "examId");
@@ -409,7 +409,7 @@ export const listSubmissions = asyncHandler(async (req, res) => {
     })
     .populate({
       path: "exam",
-      select: "title beltLevel",
+      select: "title beltLevel passMark maxTheoryScore",
     })
     .sort({ submittedAt: -1 })
     .lean();
@@ -446,6 +446,11 @@ export const listSubmissions = asyncHandler(async (req, res) => {
     const final = finalMap.get(key) || null;
     const practical = practicalMap.get(key) || null;
 
+    const theoryScore = att.theoryScore ?? att.autoScore ?? 0;
+    const theoryPassed = Boolean(att.pass);
+    const theoryPassMark =
+      att.exam?.passMark ?? computeTheoryPassMark(att.exam || {});
+
     return {
       _id: att._id,
       exam: att.exam
@@ -453,6 +458,8 @@ export const listSubmissions = asyncHandler(async (req, res) => {
             _id: att.exam._id,
             title: att.exam.title,
             beltLevel: att.exam.beltLevel,
+            passMark: theoryPassMark,
+            maxTheoryScore: att.exam.maxTheoryScore ?? null,
           }
         : null,
       student: att.student
@@ -463,11 +470,12 @@ export const listSubmissions = asyncHandler(async (req, res) => {
             belt: att.student.beltLevel,
           }
         : null,
-      autoScore: att.autoScore,
-      manualScore: att.manualScore,
-      theoryScore: att.theoryScore,
-      pass: att.pass,
+
+      // ✅ THEORY visible to admin
+      theoryScore,
+      theoryPassed,
       submittedAt: att.submittedAt,
+
       practicalRecorded: Boolean(practical),
       finalPassed: final?.passed ?? null,
       finalTotalScore: final?.totalScore ?? null,
@@ -506,7 +514,6 @@ export const listRegistrations = asyncHandler(async (req, res) => {
 
   const resultsMap = {};
   const finalResults = await FinalExamResult.find({ exam: examId }).lean();
-
   finalResults.forEach((r) => {
     resultsMap[r.student.toString()] = r;
   });
@@ -540,7 +547,7 @@ export const listRegistrations = asyncHandler(async (req, res) => {
 });
 
 // =====================================================
-//   APPROVE REGISTRATION
+//   APPROVE / REJECT REGISTRATION
 // =====================================================
 export const approveRegistration = asyncHandler(async (req, res) => {
   const id = assertObjectId(req.params.id, "registrationId");
@@ -552,21 +559,17 @@ export const approveRegistration = asyncHandler(async (req, res) => {
         status: "approved",
         approvedAt: new Date(),
         updatedAt: new Date(),
+        approvedBy: req.user?._id,
       },
     },
     { new: true }
   );
 
-  if (!reg) {
-    throw httpError(404, "Registration not found or already processed");
-  }
+  if (!reg) throw httpError(404, "Registration not found or already processed");
 
   res.json({ success: true, data: { message: "Registration approved" } });
 });
 
-// =====================================================
-//   REJECT REGISTRATION
-// =====================================================
 export const rejectRegistration = asyncHandler(async (req, res) => {
   const id = assertObjectId(req.params.id, "registrationId");
 
@@ -582,32 +585,27 @@ export const rejectRegistration = asyncHandler(async (req, res) => {
     { new: true }
   );
 
-  if (!reg) {
-    throw httpError(404, "Registration not found or already processed");
-  }
+  if (!reg) throw httpError(404, "Registration not found or already processed");
 
   res.json({ success: true, data: { message: "Registration rejected" } });
 });
 
 // =====================================================
-//   START ATTEMPT (APPROVED STUDENTS)
+//   START ATTEMPT (STUDENT) — requires approved registration
 // =====================================================
 export const startAttempt = asyncHandler(async (req, res) => {
   const examId = assertObjectId(req.body.examId, "examId");
-  const studentId = assertObjectId(req.user._id, "studentId");
+  const userId = assertObjectId(req.user._id, "userId");
 
-  const exam = await Exam.findOne({
-    _id: examId,
-    status: "published",
-  }).lean();
+  const player = await Player.findOne({ user: userId });
+  if (!player) throw httpError(404, "Player not found for this user");
 
-  if (!exam) {
-    throw httpError(403, "Exam is not available to start");
-  }
+  const exam = await Exam.findOne({ _id: examId, status: "published" }).lean();
+  if (!exam) throw httpError(403, "Exam is not available to start");
 
   const registration = await ExamRegistration.findOne({
     exam: examId,
-    player: studentId,
+    player: player._id,
     status: "approved",
   });
 
@@ -619,34 +617,28 @@ export const startAttempt = asyncHandler(async (req, res) => {
 
   const existingFinal = await FinalExamResult.findOne({
     exam: examId,
-    student: studentId,
+    student: userId,
   });
-
-  if (existingFinal) {
-    throw httpError(409, "Exam already finalized for this student");
-  }
+  if (existingFinal) throw httpError(409, "Exam already finalized");
 
   const alreadySubmitted = await ExamAttempt.findOne({
     exam: examId,
-    student: studentId,
+    student: userId,
     submittedAt: { $ne: null },
   });
+  if (alreadySubmitted) throw httpError(400, "Attempt already submitted");
 
-  if (alreadySubmitted) {
-    throw httpError(400, "Attempt already submitted for this exam");
-  }
-
-  // create or reuse draft attempt
   let attempt = await ExamAttempt.findOne({
     exam: examId,
-    student: studentId,
+    student: userId,
     submittedAt: null,
   });
 
   if (!attempt) {
     attempt = await ExamAttempt.create({
       exam: examId,
-      student: studentId,
+      student: userId,
+      player: player._id,
       startedAt: new Date(),
       autoScore: 0,
       manualScore: 0,
@@ -666,6 +658,7 @@ export const startAttempt = asyncHandler(async (req, res) => {
         beltLevel: exam.beltLevel,
         timeLimit: exam.timeLimit,
         maxTheoryScore: exam.maxTheoryScore,
+        passMark: exam.passMark ?? computeTheoryPassMark(exam),
       },
       questions: exam.questions || [],
     },
@@ -677,33 +670,25 @@ export const startAttempt = asyncHandler(async (req, res) => {
 // =====================================================
 export const submitAttempt = asyncHandler(async (req, res) => {
   const attemptId = assertObjectId(req.body.attemptId, "attemptId");
-  const studentId = assertObjectId(req.user._id, "studentId");
+  const userId = assertObjectId(req.user._id, "userId");
 
   const answers = Array.isArray(req.body.answers) ? req.body.answers : [];
   const { focusLosses, forcedSubmitReason } = req.body;
 
-  if (!answers.length) {
-    throw httpError(400, "answers are required");
-  }
+  if (!answers.length) throw httpError(400, "answers are required");
 
   const attempt = await ExamAttempt.findById(attemptId);
   if (!attempt) throw httpError(404, "Attempt not found");
 
-  if (attempt.student.toString() !== studentId.toString()) {
+  if (String(attempt.student) !== String(userId))
     throw httpError(403, "Not your attempt");
-  }
-
-  if (attempt.submittedAt) {
-    throw httpError(400, "Attempt already submitted");
-  }
+  if (attempt.submittedAt) throw httpError(400, "Attempt already submitted");
 
   const existingFinal = await FinalExamResult.findOne({
     exam: attempt.exam,
-    student: studentId,
+    student: userId,
   });
-  if (existingFinal) {
-    throw httpError(409, "Exam already finalized for this student");
-  }
+  if (existingFinal) throw httpError(409, "Exam already finalized");
 
   const exam = await Exam.findById(attempt.exam).lean();
   if (!exam) throw httpError(404, "Exam not found");
@@ -746,14 +731,17 @@ export const submitAttempt = asyncHandler(async (req, res) => {
     data: {
       attemptId,
       theoryScore,
-      theoryPass: pass,
-      message: "Theory submitted. Awaiting practical evaluation.",
+      theoryPassed: pass,
+      passMark: computeTheoryPassMark(exam),
+      message: pass
+        ? "Theory submitted. Awaiting practical evaluation."
+        : "Theory submitted. You did not pass the theory stage.",
     },
   });
 });
 
 // =====================================================
-//   PRACTICAL SCORING
+//   PRACTICAL SCORING (ADMIN) — Option 3: require theory pass
 // =====================================================
 export const gradeManual2 = asyncHandler(async (req, res) => {
   const examId = assertObjectId(req.body.examId, "examId");
@@ -763,28 +751,29 @@ export const gradeManual2 = asyncHandler(async (req, res) => {
     exam: examId,
     student: studentId,
   });
-  if (existingFinal) {
-    throw httpError(409, "Result already finalized");
-  }
+  if (existingFinal) throw httpError(409, "Result already finalized");
 
   const attempt = await ExamAttempt.findOne({
     exam: examId,
     student: studentId,
     submittedAt: { $ne: null },
   });
+  if (!attempt) throw httpError(404, "Submitted theory attempt not found");
 
-  if (!attempt) {
-    throw httpError(404, "Submitted theory attempt not found");
+  // ✅ Option 3 gate
+  if (!attempt.pass) {
+    throw httpError(400, "Cannot grade practical: student did not pass theory");
   }
 
   const existingEval = await PracticalEvaluation.findOne({
     exam: examId,
     student: studentId,
   });
+  if (existingEval) throw httpError(409, "Practical evaluation already exists");
 
-  if (existingEval) {
-    throw httpError(409, "Practical evaluation already exists");
-  }
+  /* =========================
+     MAP PRACTICAL SCORES
+  ========================= */
 
   const practicalScores = mapPracticalScores(req.body);
 
@@ -806,7 +795,7 @@ export const gradeManual2 = asyncHandler(async (req, res) => {
 });
 
 // =====================================================
-//   COMBINE SCORES (FINAL RESULT)
+//   COMBINE SCORES (FINAL RESULT) — Option 3: require theory pass
 // =====================================================
 export const combineScores = asyncHandler(async (req, res) => {
   const examId = assertObjectId(req.body.examId, "examId");
@@ -816,10 +805,7 @@ export const combineScores = asyncHandler(async (req, res) => {
     exam: examId,
     student: studentId,
   });
-
-  if (existingFinal) {
-    throw httpError(409, "Result already finalized");
-  }
+  if (existingFinal) throw httpError(409, "Result already finalized");
 
   const attempt = await ExamAttempt.findOne({
     exam: examId,
@@ -827,23 +813,21 @@ export const combineScores = asyncHandler(async (req, res) => {
     submittedAt: { $ne: null },
   });
 
-  if (!attempt) {
-    throw httpError(404, "Theory attempt not found");
+  if (!attempt) throw httpError(404, "Theory attempt not found");
+
+  // ✅ Option 3 gate
+  if (!attempt.pass) {
+    throw httpError(400, "Cannot finalize: student did not pass theory");
   }
 
   const practical = await PracticalEvaluation.findOne({
     exam: examId,
     student: studentId,
   });
-
-  if (!practical) {
-    throw httpError(404, "Practical evaluation not found");
-  }
+  if (!practical) throw httpError(404, "Practical evaluation not found");
 
   const exam = await Exam.findById(examId).lean();
-  if (!exam) {
-    throw httpError(404, "Exam not found");
-  }
+  if (!exam) throw httpError(404, "Exam not found");
 
   const theoryScore = asNumber(attempt.theoryScore, 0);
   const theoryPass = theoryScore >= computeTheoryPassMark(exam);
@@ -859,7 +843,6 @@ export const combineScores = asyncHandler(async (req, res) => {
     practicalScores.mental;
 
   const passed = theoryPass && totalScore >= computeFinalPassMark(exam);
-
   const now = new Date();
 
   const finalResult = await FinalExamResult.create({
@@ -871,6 +854,7 @@ export const combineScores = asyncHandler(async (req, res) => {
     totalScore,
     passed,
     date: now,
+    finalizedAt: now,
   });
 
   if (passed) {
@@ -882,20 +866,7 @@ export const combineScores = asyncHandler(async (req, res) => {
     }
   }
 
-  await ExamAttempt.updateOne(
-    { _id: attempt._id },
-    {
-      $set: {
-        finalPassed: passed,
-        finalTotalScore: totalScore,
-        finalPracticalScores: practicalScores,
-        finalizedAt: now,
-      },
-    }
-  );
-
   let certificate = null;
-
   if (passed) {
     certificate = await Certificate.create({
       user: studentId,
@@ -911,10 +882,10 @@ export const combineScores = asyncHandler(async (req, res) => {
   try {
     await Notification.create({
       user: studentId,
-      title: passed ? "Exam Passed" : "Exam Graded",
+      title: passed ? "Exam Passed" : "Exam Result",
       message: passed
         ? "Congratulations! You passed your exam."
-        : "Your exam has been graded.",
+        : "Your final exam result is ready.",
       type: "result",
     });
 
@@ -932,52 +903,25 @@ export const combineScores = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    data: {
-      finalResult,
-      certificate,
-    },
+    data: { finalResult, certificate },
   });
 });
 
 // =====================================================
-//   GRADE ESSAY MANUALLY
+//   gradeManual
 // =====================================================
 export const gradeManual = asyncHandler(async (req, res) => {
-  const attemptId = assertObjectId(
-    req.params.id || req.body.attemptId,
-    "attemptId"
-  );
-
-  const manualScoreRaw =
-    req.body.manualScores ?? req.body.manualScore ?? req.body.score;
-
-  const manualScore = asNumber(manualScoreRaw, 0);
+  const attemptId = assertObjectId(req.params.id, "attemptId");
+  const score = asNumber(req.body.score, null);
 
   const attempt = await ExamAttempt.findById(attemptId);
-  if (!attempt) {
-    throw httpError(404, "Attempt not found");
-  }
+  if (!attempt) throw httpError(404, "Attempt not found");
 
-  const exam = await Exam.findById(attempt.exam).lean();
-  if (!exam) {
-    throw httpError(404, "Exam not found");
-  }
-
-  const finalScore = asNumber(attempt.autoScore, 0) + manualScore;
-  const pass = finalScore >= computeTheoryPassMark(exam);
-
-  attempt.manualScore = manualScore;
-  attempt.theoryScore = finalScore;
-  attempt.pass = pass;
-  attempt.updatedAt = new Date();
-
+  attempt.manualScore = score;
   await attempt.save();
 
   res.json({
     success: true,
-    data: {
-      finalScore,
-      pass,
-    },
+    data: attempt,
   });
 });

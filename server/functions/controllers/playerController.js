@@ -14,7 +14,7 @@ import BeltRanking from "../models/BeltRanking.js";
 import PDFDocument from "pdfkit";
 import { assertObjectId, httpError } from "../utils/validation.js";
 import { Types } from "mongoose";
-import { computeBeltProgress } from "../services/beltProgressService.js";
+import { getMyBeltProgress } from "../services/beltProgressService.js";
 
 /* ============================================================
    LIST PLAYERS
@@ -522,131 +522,142 @@ const beltNameByLevel = (beltLevel) => {
   return map[(beltLevel || "white").toLowerCase()] || "White Belt";
 };
 
-export const getMyBeltProgress = asyncHandler(async (req, res) => {
-  const userId = req.user?._id;
-  if (!userId) throw httpError(401, "Unauthorized");
+export const getMyBeltProgressTestLogicBeforeDeletion = asyncHandler(
+  async (req, res) => {
+    const userId = req.user?._id;
+    if (!userId) throw httpError(401, "Unauthorized");
 
-  // ✅ IMPORTANT: Attendance مربوط بـ Player._id (مش userId)
-  const player = await Player.findOne({ user: userId })
-    .populate("user", "name")
-    .lean();
-  if (!player) throw httpError(404, "Player profile not found");
+    // ✅ IMPORTANT: Attendance مربوط بـ Player._id (مش userId)
+    const player = await Player.findOne({ user: userId })
+      .populate("user", "name")
+      .lean();
+    if (!player) throw httpError(404, "Player profile not found");
 
-  const beltLevel = (player.beltLevel || "white").toLowerCase();
-  const beltName = beltNameByLevel(beltLevel);
+    const beltLevel = (player.beltLevel || "white").toLowerCase();
+    const beltName = beltNameByLevel(beltLevel);
 
-  // 1) Load belt ranking rules
-  let ranking =
-    (await BeltRanking.findOne({ name: beltName }).lean()) ||
-    (await BeltRanking.findOne({ order: 0 }).sort({ order: 1 }).lean()); // fallback
+    // 1) Load belt ranking rules
+    let ranking =
+      (await BeltRanking.findOne({ name: beltName }).lean()) ||
+      (await BeltRanking.findOne({ order: 0 }).sort({ order: 1 }).lean()); // fallback
 
-  if (!ranking) {
-    // لو لسه مفيش ranks في الداتابيز
-    ranking = {
-      name: beltName,
-      level: "Beginner",
-      attendance: { requiredSessions: 0, requiredHours: 0, minRate: 0 },
-      lessons: { totalLessons: 0, unlockEvery: 5 },
-      requirements: [],
-    };
+    if (!ranking) {
+      // لو لسه مفيش ranks في الداتابيز
+      ranking = {
+        name: beltName,
+        level: "Beginner",
+        attendance: { requiredSessions: 0, requiredHours: 0, minRate: 0 },
+        lessons: { totalLessons: 0, unlockEvery: 5 },
+        requirements: [],
+      };
+    }
+
+    const requiredSessions = ranking?.attendance?.requiredSessions ?? 0;
+    const minRate = ranking?.attendance?.minRate ?? 0;
+    const totalLessonsRule = ranking?.lessons?.totalLessons ?? 0;
+    const unlockEvery = ranking?.lessons?.unlockEvery ?? 5;
+
+    // 2) Attendance counts (present vs total)
+    const [totalSessions, attendedSessions, lastAttendance] = await Promise.all(
+      [
+        Attendance.countDocuments({ player: player._id }),
+        Attendance.countDocuments({ player: player._id, status: "present" }),
+        Attendance.findOne({ player: player._id })
+          .sort({ sessionDate: -1 })
+          .lean(),
+      ]
+    );
+
+    // ✅ Progress rate vs required sessions (مش vs total)
+    const progressRate =
+      requiredSessions > 0
+        ? Math.round((attendedSessions / requiredSessions) * 100)
+        : 0;
+
+    const attendanceEligible =
+      requiredSessions === 0 ? true : progressRate >= minRate;
+
+    // 3) Lessons progress (MVP)
+    // هنجيب عدد الدروس المتاحة (active) ونحدد unlocked طبقًا لقواعد الحزام
+    const unlockedLessons =
+      unlockEvery > 0
+        ? Math.min(
+            totalLessonsRule,
+            Math.floor(attendedSessions / unlockEvery) * 3
+          )
+        : totalLessonsRule;
+
+    // لو totalLessonsRule = 0، نقدر نfallback بعدّ الدروس الفعلية من DB
+    const totalLessonsFromDb = totalLessonsRule
+      ? totalLessonsRule
+      : await Lesson.countDocuments({ isActive: true });
+
+    // completed lessons (كل اللي الطالب خلصه)
+    const completedLessons = await LessonProgress.countDocuments({
+      user: userId,
+      completed: true,
+    });
+
+    // ✅ شرط الدروس: 70% من إجمالي دروس الحزام
+    const lessonsRequiredToUnlockExam =
+      totalLessonsFromDb > 0 ? Math.ceil(totalLessonsFromDb * 0.7) : 0;
+
+    const lessonsEligible =
+      lessonsRequiredToUnlockExam === 0
+        ? true
+        : completedLessons >= lessonsRequiredToUnlockExam;
+
+    // 4) Exam unlock decision (attendance + lessons)
+    const examUnlocked = attendanceEligible && lessonsEligible;
+
+    let examReason = null;
+    if (!attendanceEligible) {
+      examReason = `Attendance locked: ${progressRate}% (min ${minRate}%)`;
+    } else if (!lessonsEligible) {
+      examReason = `Lessons locked: ${completedLessons}/${lessonsRequiredToUnlockExam} required`;
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        player: {
+          playerId: player._id,
+          name: player.user?.name,
+          beltLevel,
+        },
+        belt: {
+          name: ranking.name,
+          level: ranking.level,
+          order: ranking.order ?? 0,
+          requirements: ranking.requirements || [],
+        },
+        attendance: {
+          totalSessions,
+          attendedSessions,
+          requiredSessions,
+          minRate,
+          attendanceRate: progressRate, // progress vs requirement
+          eligible: attendanceEligible,
+          lastSessionDate: lastAttendance?.sessionDate || null,
+        },
+        lessons: {
+          completed: completedLessons,
+          total: totalLessonsFromDb,
+          unlocked: unlockedLessons,
+          unlockEvery,
+          requiredToUnlockExam: lessonsRequiredToUnlockExam,
+          eligible: lessonsEligible,
+        },
+        exam: {
+          unlocked: examUnlocked,
+          reason: examReason,
+        },
+      },
+    });
   }
+);
 
-  const requiredSessions = ranking?.attendance?.requiredSessions ?? 0;
-  const minRate = ranking?.attendance?.minRate ?? 0;
-  const totalLessonsRule = ranking?.lessons?.totalLessons ?? 0;
-  const unlockEvery = ranking?.lessons?.unlockEvery ?? 5;
-
-  // 2) Attendance counts (present vs total)
-  const [totalSessions, attendedSessions, lastAttendance] = await Promise.all([
-    Attendance.countDocuments({ player: player._id }),
-    Attendance.countDocuments({ player: player._id, status: "present" }),
-    Attendance.findOne({ player: player._id }).sort({ sessionDate: -1 }).lean(),
-  ]);
-
-  // ✅ Progress rate vs required sessions (مش vs total)
-  const progressRate =
-    requiredSessions > 0
-      ? Math.round((attendedSessions / requiredSessions) * 100)
-      : 0;
-
-  const attendanceEligible =
-    requiredSessions === 0 ? true : progressRate >= minRate;
-
-  // 3) Lessons progress (MVP)
-  // هنجيب عدد الدروس المتاحة (active) ونحدد unlocked طبقًا لقواعد الحزام
-  const unlockedLessons =
-    unlockEvery > 0
-      ? Math.min(
-          totalLessonsRule,
-          Math.floor(attendedSessions / unlockEvery) * 3
-        )
-      : totalLessonsRule;
-
-  // لو totalLessonsRule = 0، نقدر نfallback بعدّ الدروس الفعلية من DB
-  const totalLessonsFromDb = totalLessonsRule
-    ? totalLessonsRule
-    : await Lesson.countDocuments({ isActive: true });
-
-  // completed lessons (كل اللي الطالب خلصه)
-  const completedLessons = await LessonProgress.countDocuments({
-    user: userId,
-    completed: true,
-  });
-
-  // ✅ شرط الدروس: 70% من إجمالي دروس الحزام
-  const lessonsRequiredToUnlockExam =
-    totalLessonsFromDb > 0 ? Math.ceil(totalLessonsFromDb * 0.7) : 0;
-
-  const lessonsEligible =
-    lessonsRequiredToUnlockExam === 0
-      ? true
-      : completedLessons >= lessonsRequiredToUnlockExam;
-
-  // 4) Exam unlock decision (attendance + lessons)
-  const examUnlocked = attendanceEligible && lessonsEligible;
-
-  let examReason = null;
-  if (!attendanceEligible) {
-    examReason = `Attendance locked: ${progressRate}% (min ${minRate}%)`;
-  } else if (!lessonsEligible) {
-    examReason = `Lessons locked: ${completedLessons}/${lessonsRequiredToUnlockExam} required`;
-  }
-
-  return res.json({
-    success: true,
-    data: {
-      player: {
-        playerId: player._id,
-        name: player.user?.name,
-        beltLevel,
-      },
-      belt: {
-        name: ranking.name,
-        level: ranking.level,
-        order: ranking.order ?? 0,
-        requirements: ranking.requirements || [],
-      },
-      attendance: {
-        totalSessions,
-        attendedSessions,
-        requiredSessions,
-        minRate,
-        attendanceRate: progressRate, // progress vs requirement
-        eligible: attendanceEligible,
-        lastSessionDate: lastAttendance?.sessionDate || null,
-      },
-      lessons: {
-        completed: completedLessons,
-        total: totalLessonsFromDb,
-        unlocked: unlockedLessons,
-        unlockEvery,
-        requiredToUnlockExam: lessonsRequiredToUnlockExam,
-        eligible: lessonsEligible,
-      },
-      exam: {
-        unlocked: examUnlocked,
-        reason: examReason,
-      },
-    },
-  });
+export const myBeltProgress = asyncHandler(async (req, res) => {
+  const data = await getMyBeltProgress(req.user._id);
+  res.json({ success: true, data });
 });

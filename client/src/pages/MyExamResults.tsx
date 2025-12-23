@@ -1,187 +1,95 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import examService from "@/services/examService";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, Award, FileText } from "lucide-react";
-import { API_BASE_URL } from "@/lib/apiClient";
+import { getMyAttempts } from "@/features/exams/api/getMyAttempts";
 
 export default function MyExamResults() {
-  const [loading, setLoading] = useState(true);
-  const [attempts, setAttempts] = useState([]);
   const navigate = useNavigate();
-
-  const loadAttempts = async () => {
-    try {
-      const res: any = await examService.getMyAttempts();
-      const data = res?.attempts || res?.data?.attempts || res || [];
-
-      setAttempts(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("MyExamResults fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [attempts, setAttempts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadAttempts();
+    const load = async () => {
+      setLoading(true);
+      try {
+        const res: any = await getMyAttempts();
+        const list =
+          res?.data?.attempts || res?.data?.data?.attempts || res?.data || [];
+        setAttempts(Array.isArray(list) ? list : []);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, []);
 
-  if (loading)
-    return (
-      <div className="flex justify-center py-20 text-lg">
-        Loading your exam results...
-      </div>
-    );
+  if (loading) return <div className="p-6">Loading...</div>;
 
   return (
-    <div className="container py-10 space-y-8">
-      <h1 className="text-3xl font-bold flex items-center gap-2">
-        <Award className="h-7 w-7 text-secondary" />
-        My Exam Results
-      </h1>
+    <div className="p-6 space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>My Exam Results</CardTitle>
+        </CardHeader>
 
-      {attempts.length === 0 && (
-        <p className="text-muted-foreground">No exam attempts found.</p>
-      )}
+        <CardContent className="space-y-3">
+          {attempts.map((a) => {
+            const exam = a.exam;
+            const theoryPassed = a.theoryPassed;
+            const finalized = Boolean(
+              a.finalizedAt || a.finalTotalScore !== null
+            );
 
-      <div className="space-y-6">
-        {attempts.map((a) => {
-          const exam = a.exam || {};
-          const certificate = a.certificate;
+            return (
+              <div
+                key={a._id}
+                className="border rounded-lg p-3 flex items-center justify-between"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{exam?.title || "Exam"}</p>
+                    <Badge variant="outline" className="capitalize">
+                      {exam?.beltLevel || "-"}
+                    </Badge>
 
-          const theoryScore = a.theoryScore ?? 0;
-          const finalScore = a.finalTotalScore ?? null;
-          const passed = a.finalPassed ?? false;
+                    {typeof theoryPassed === "boolean" && (
+                      <Badge className="capitalize" variant="outline">
+                        Theory: {theoryPassed ? "Passed" : "Failed"}
+                      </Badge>
+                    )}
 
-          const statusLabel = passed
-            ? "Passed"
-            : a.submittedAt && !passed
-            ? "Failed"
-            : "Pending";
+                    {finalized && <Badge variant="outline">Finalized</Badge>}
+                  </div>
 
-          const statusColor = passed
-            ? "bg-green-600"
-            : a.submittedAt && !passed
-            ? "bg-red-600"
-            : "bg-yellow-600";
+                  <p className="text-xs text-muted-foreground">
+                    Theory Score: {a.theoryScore ?? "-"} /{" "}
+                    {a.maxTheoryScore ?? "-"} — Pass Mark:{" "}
+                    {a.theoryPassMark ?? "-"}
+                  </p>
 
-          const issuedAt =
-            certificate?.issuedAt &&
-            new Date(certificate.issuedAt).toLocaleDateString();
-
-          return (
-            <Card
-              key={a._id}
-              className="border-border/40 shadow-sm hover:shadow transition"
-            >
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center">
-                  <div>
-                    <p className="text-lg font-bold">{exam.title}</p>
-                    <p className="text-muted-foreground text-sm capitalize">
-                      Belt Level: {exam.beltLevel}
+                  {!finalized && (
+                    <p className="text-xs text-muted-foreground">
+                      Status: Awaiting practical / finalization by admin
                     </p>
-                  </div>
-
-                  <Badge className={`${statusColor} text-white`}>
-                    {statusLabel}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <strong>Theory Score:</strong>
-                    <p>{theoryScore}</p>
-                  </div>
-
-                  <div>
-                    <strong>Practical Score:</strong>
-                    <p>{a.finalPracticalScores ? "Recorded" : "Pending"}</p>
-                  </div>
-
-                  <div>
-                    <strong>Total Score:</strong>
-                    <p>{finalScore ?? "-"}</p>
-                  </div>
-
-                  <div>
-                    <strong>Submitted:</strong>
-                    <p>
-                      {a.submittedAt
-                        ? new Date(a.submittedAt).toLocaleString()
-                        : "Not submitted"}
-                    </p>
-                  </div>
+                  )}
                 </div>
 
-                {/* PRACTICAL BREAKDOWN */}
-                {a.finalPracticalScores && (
-                  <div className="p-3 rounded bg-accent/30 border">
-                    <p className="font-medium text-sm mb-2">
-                      Practical Breakdown:
-                    </p>
-                    <ul className="text-sm space-y-1">
-                      <li>
-                        Morality: {a.finalPracticalScores.morality ?? "-"}
-                      </li>
-                      <li>
-                        Practical Method:{" "}
-                        {a.finalPracticalScores.practicalMethod ?? "-"}
-                      </li>
-                      <li>
-                        Technique: {a.finalPracticalScores.technique ?? "-"}
-                      </li>
-                      <li>
-                        Physical: {a.finalPracticalScores.physical ?? "-"}
-                      </li>
-                      <li>Mental: {a.finalPracticalScores.mental ?? "-"}</li>
-                    </ul>
-                  </div>
-                )}
-
-                {/* CERTIFICATE */}
-                {passed && certificate && (
-                  <div className="pt-4 border-t">
-                    <p className="font-medium">Certificate Issued</p>
-                    <p className="text-sm text-muted-foreground">
-                      Issued on: {issuedAt}
-                    </p>
-
-                    <Button
-                      className="mt-2"
-                      variant="outline"
-                      onClick={() =>
-                        window.open(
-                          `${API_BASE_URL}/certificates/pdf/${exam._id}/${a.student}`,
-                          "_blank"
-                        )
-                      }
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Download Certificate
-                    </Button>
-                  </div>
-                )}
-
-                {/* VIEW DETAILS */}
                 <Button
-                  variant="ghost"
-                  className="flex items-center gap-2"
-                  onClick={() => navigate(`/student/exams/${a._id}`)}
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    navigate(`/student/exams/results?attempt=${a._id}`)
+                  }
                 >
-                  View Attempt Details
-                  <ChevronRight className="h-4 w-4" />
+                  View
                 </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
     </div>
   );
 }

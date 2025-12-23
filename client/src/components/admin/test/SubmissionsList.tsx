@@ -1,104 +1,34 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
-interface SubmissionsListProps {
-  list?: any[];
-  onSelect: (studentId: string, examId: string) => void;
-}
-
-export function SubmissionsList({ list = [], onSelect }: SubmissionsListProps) {
-  // Filter out finalized
-  const filtered = Array.isArray(list)
-    ? list.filter((s) => !Boolean(s?.finalPassed))
-    : [];
-
-  if (!filtered.length) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        No theory submissions yet.
-      </p>
-    );
+export function SubmissionsList({ list = [], onSelect }) {
+  if (!list.length) {
+    return <p className="text-muted-foreground">No submissions</p>;
   }
 
   return (
-    <div className="space-y-3">
-      {filtered.map((sub) => {
-        /** =========================
-         *  Normalize Fields
-         *  ========================= */
+    <div className="space-y-2">
+      {list.map((sub) => {
+        const theoryPassed = Boolean(sub.theoryPassed);
 
-        const student =
-          sub?.student && typeof sub.student === "object" ? sub.student : {};
-
-        const studentId =
-          student?._id || sub?.studentId || sub?.student || null;
-
-        const examId =
-          (typeof sub.exam === "object" && sub.exam?._id) || sub?.exam || null;
-
-        const isFinal = Boolean(sub?.finalPassed);
-
-        /** =========================
-         *  Display Name
-         *  ========================= */
-        const name =
-          student?.name ||
-          sub?.studentName ||
-          (studentId ? `Student ${String(studentId).slice(-4)}` : "Unknown");
-
-        /** =========================
-         *  Scores (Theoretical)
-         *  ========================= */
-        const theoryScore = sub?.theoryScore ?? sub?.autoScore ?? 0;
-
-        /** =========================
-         *  Render Item
-         *  ========================= */
         return (
-          <Card
-            key={sub?._id || `${examId}-${studentId}`}
-            className="p-4 flex items-center justify-between hover:bg-accent/10 transition"
-          >
-            {/* LEFT SIDE */}
+          <Card key={sub._id} className="p-3 flex justify-between">
             <div>
-              <p className="font-semibold text-lg">{name}</p>
+              <p className="font-semibold">{sub.student?.name}</p>
+              <p className="text-xs">Score: {sub.theoryScore}</p>
 
-              {student?.email && (
-                <p className="text-sm text-muted-foreground">
-                  Email: {student.email}
-                </p>
-              )}
-
-              <p className="text-xs text-muted-foreground mt-1">
-                Submitted:{" "}
-                {sub?.submittedAt
-                  ? new Date(sub.submittedAt).toLocaleString()
-                  : "Pending"}
-              </p>
-
-              <p className="text-xs text-muted-foreground">
-                Auto Score: <strong>{theoryScore}</strong>
-              </p>
-
-              {isFinal && (
-                <p className="text-xs text-green-600 font-semibold mt-1">
-                  Finalized
-                </p>
-              )}
+              <Badge variant={theoryPassed ? "secondary" : "destructive"}>
+                {theoryPassed ? "Passed" : "Failed"}
+              </Badge>
             </div>
 
-            {/* RIGHT SIDE */}
             <Button
               size="sm"
-              variant={isFinal ? "secondary" : "default"}
-              disabled={!studentId || !examId || isFinal}
-              onClick={() =>
-                studentId &&
-                examId &&
-                onSelect(String(studentId), String(examId))
-              }
+              disabled={!theoryPassed}
+              onClick={() => theoryPassed && onSelect(sub.student._id)}
             >
-              {isFinal ? "Finalized" : "Evaluate Practical"}
+              {theoryPassed ? "Evaluate Practical" : "Blocked"}
             </Button>
           </Card>
         );

@@ -3,13 +3,13 @@ import { check } from "express-validator";
 
 import {
   listExams,
-  getExamsByBeltLevel,
   getExam,
+  getExamsByBeltLevel,
   ExamRegisteration,
   startAttempt,
   submitAttempt,
-  getRegistrationStatus,
   getMyAttempts,
+  getRegistrationStatus,
 } from "../../controllers/examController.js";
 
 import { protect, checkRole } from "../../middlewares/authMiddleware.js";
@@ -17,61 +17,54 @@ import { validate } from "../../middlewares/validate.js";
 
 const router = express.Router();
 
-// Student + Admin can list/view exams, but actions restricted
-router.use(protect, checkRole("student", "admin"));
+// 👨‍🎓 student only
+router.use(protect, checkRole("student", "admin", "instructor"));
 
 /* ================================
-   PUBLIC (Student/Admin)
+   EXAMS (with eligibility)
 ================================ */
 
-// Get all exams with eligibility
+// list exams (with eligibility attached)
 router.get("/", listExams);
 
-// Get exams for a belt level
-router.get("/available/:beltLevel", checkRole("student"), getExamsByBeltLevel);
+// list by belt
+router.get("/belt/:beltLevel", getExamsByBeltLevel);
 
-// Get my attempts
-router.get("/my-attempts", checkRole("student"), getMyAttempts);
-
-// Get single exam
+// single exam (published only)
 router.get("/:id", getExam);
 
 /* ================================
-   STUDENT ACTIONS
+   REGISTRATION
 ================================ */
 
-// Register for exam
 router.post(
   "/register",
-  checkRole("student"),
-  validate([check("examId").notEmpty().withMessage("examId is required")]),
+  validate([check("examId").notEmpty()]),
   ExamRegisteration
 );
 
-// Start an attempt
+// get my registration status for exam
+router.get("/registration/:examId", getRegistrationStatus);
+
+/* ================================
+   ATTEMPTS (THEORY)
+================================ */
+
+// start theory (requires approved registration)
 router.post(
   "/attempt/start",
-  checkRole("student"),
-  validate([check("examId").notEmpty().withMessage("examId is required")]),
+  validate([check("examId").notEmpty()]),
   startAttempt
 );
 
-// Submit attempt (theory)
+// submit theory
 router.post(
   "/attempt/submit",
-  checkRole("student"),
-  validate([
-    check("attemptId").notEmpty().withMessage("attemptId is required"),
-    check("answers").isArray({ min: 1 }).withMessage("answers array required"),
-  ]),
+  validate([check("attemptId").notEmpty()]),
   submitAttempt
 );
 
-// Registration status
-router.get(
-  "/registration/status/:examId",
-  checkRole("student"),
-  getRegistrationStatus
-);
+// my attempts + results
+router.get("/attempts/me", getMyAttempts);
 
 export default router;

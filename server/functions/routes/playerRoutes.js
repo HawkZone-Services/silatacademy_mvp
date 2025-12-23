@@ -12,7 +12,7 @@ import {
   promotePlayer,
   addExamToPlayer,
   getEligibility,
-  getMyBeltProgress,
+  myBeltProgress,
 } from "../controllers/playerController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/authMiddleware.js";
@@ -88,11 +88,6 @@ router.post(
   addExamToPlayer
 );
 
-router.get(
-  "/my/belt-progress",
-  protect,
-  checkRole("student"),
-  getMyBeltProgress
-);
+router.get("/my/belt-progress", protect, checkRole("student"), myBeltProgress);
 
 export default router;

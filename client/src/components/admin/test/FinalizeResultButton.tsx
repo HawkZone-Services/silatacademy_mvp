@@ -8,12 +8,14 @@ interface Props {
   examId: string;
   finalPassed?: boolean;
   onFinalized?: () => void;
+  practicalRecorded?: boolean;
 }
 
 export function FinalizeResultButton({
   studentId,
   examId,
   finalPassed,
+  practicalRecorded,
   onFinalized,
 }: Props) {
   const { toast } = useToast();
@@ -25,6 +27,8 @@ export function FinalizeResultButton({
   useEffect(() => {
     setDone(Boolean(finalPassed));
   }, [finalPassed]);
+
+  if (!practicalRecorded || finalPassed) return null;
 
   const finalize = async () => {
     if (!studentId || !examId || loading || done) return;

@@ -89,6 +89,7 @@ export default function StatsCards({
           {lessons.length ? (
             <>
               <div className="text-2xl font-bold">
+                {lessons.required === 0 ? "N/A" : " "}
                 {lessons.filter((l) => l.completed).length} / {lessons.length}
               </div>
               <p className="text-xs text-muted-foreground mt-1">

@@ -9,12 +9,10 @@ const examService = {
 
   getExam: (id) => apiClient.get(`/exams/${id}`),
 
-  getMyAttempts: () => apiClient.get("/exams/my-attempts"),
+  getMyAttempts: () => apiClient.get("/exams/attempts/me"),
 
   getAvailableExams: (beltLevel) =>
-    apiClient.get(
-      beltLevel ? `/exams/available/${beltLevel}` : `/exams/available`
-    ),
+    apiClient.get(beltLevel ? `/exams/belt/${beltLevel}` : `/exams/belt`),
 
   getRegistrationStatus: (examId) =>
     apiClient.get(`/exams/registration/status/${examId}`),

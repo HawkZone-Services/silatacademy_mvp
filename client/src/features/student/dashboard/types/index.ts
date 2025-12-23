@@ -53,6 +53,9 @@ export interface ExamItem {
   reasonIfNotEligible?: string | null;
   lessonsRequired?: number;
   lessonsCompleted?: number;
+  registrationStatus?: string | null;
+  attempts?: AttemptItem[];
+  attemptId?: string;
 }
 
 export interface AttemptItem {

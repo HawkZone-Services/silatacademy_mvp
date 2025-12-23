@@ -11,8 +11,8 @@ export default function BeltProgressCard({ data }: { data: any }) {
   const minRate = attendance?.minRate ?? 0;
   const attendanceRate = attendance.attendanceRate ?? 0;
   const lessonsRate =
-    lessons.requiredToUnlockExam > 0
-      ? Math.round((lessons.completed / lessons.requiredToUnlockExam) * 100)
+    lessons.required > 0
+      ? Math.round((lessons.completed / lessons.required) * 100)
       : 0;
   return (
     <Card>
@@ -59,7 +59,7 @@ export default function BeltProgressCard({ data }: { data: any }) {
           <div className="flex justify-between text-sm mb-1">
             <span>Lessons</span>
             <span>
-              {lessons.completed} / {lessons.requiredToUnlockExam}
+              {lessons.completed} / {lessons.required}
             </span>
           </div>
 

@@ -19,62 +19,48 @@ import { validate } from "../../middlewares/validate.js";
 
 const router = express.Router();
 
-// Only admin + instructor can access this module
+// 👨‍🏫 admin + instructor
 router.use(protect, checkRole("admin", "instructor"));
 
 /* ================================
-   REGISTRATION MANAGEMENT
+   REGISTRATIONS
 ================================ */
 
-// Approve
-router.patch("/registration/:id/approve", approveRegistration);
-
-// Reject
-router.patch("/registration/:id/reject", rejectRegistration);
-
-// List registrations
 router.get("/registrations/:examId", listRegistrations);
 
+router.patch("/registration/:id/approve", approveRegistration);
+router.patch("/registration/:id/reject", rejectRegistration);
+
 /* ================================
-   EXAM CRUD
+   EXAMS CRUD
 ================================ */
 
-// Create exam
 router.post(
   "/",
   validate([
-    check("title").notEmpty().withMessage("title is required"),
-    check("beltLevel")
-      .isIn(["white", "yellow", "blue", "brown", "red", "black"])
-      .withMessage("beltLevel invalid"),
+    check("title").notEmpty(),
+    check("beltLevel").isIn([
+      "white",
+      "yellow",
+      "blue",
+      "brown",
+      "red",
+      "black",
+    ]),
     check("questions").optional().isArray(),
   ]),
   createExam
 );
 
-// Publish exam
-router.patch(
-  "/:examId/publish",
-  validate([check("examId").notEmpty().withMessage("examId is required")]),
-  publishExam
-);
+router.patch("/:examId/publish", publishExam);
 
-// Update exam
-router.patch(
-  "/:id",
-  validate([
-    check("id").notEmpty().withMessage("id is required"),
-    check("beltLevel")
-      .optional()
-      .isIn(["white", "yellow", "blue", "brown", "red", "black"]),
-  ]),
-  updateExam
-);
+router.patch("/:id", validate([check("id").notEmpty()]), updateExam);
 
 /* ================================
-   SUBMISSIONS (ADMIN)
+   SUBMISSIONS (THEORY)
 ================================ */
 
+// list theory submissions + pass/fail
 router.get("/submissions/:examId", listSubmissions);
 
 /* ================================
@@ -86,15 +72,17 @@ router.post(
   validate([
     check("examId").notEmpty(),
     check("studentId").notEmpty(),
+    check("scores.morality").isNumeric(),
+    check("scores.practicalMethod").isNumeric(),
     check("scores.technique").isNumeric(),
-    check("scores.performance").isNumeric(),
-    check("scores.discipline").isNumeric(),
+    check("scores.physical").isNumeric(),
+    check("scores.mental").isNumeric(),
   ]),
   gradeManual2
 );
 
 /* ================================
-   FINALIZE (Combine theory + practical)
+   FINALIZE
 ================================ */
 
 router.post(
@@ -104,15 +92,12 @@ router.post(
 );
 
 /* ================================
-   GRADE ESSAY MANUAL
+   ESSAY MANUAL GRADE
 ================================ */
 
 router.post(
-  "/:id/grade",
-  validate([
-    check("id").notEmpty().withMessage("attempt id is required"),
-    check("score").optional().isNumeric(),
-  ]),
+  "/attempt/:id/grade",
+  validate([check("id").notEmpty(), check("score").optional().isNumeric()]),
   gradeManual
 );
 
