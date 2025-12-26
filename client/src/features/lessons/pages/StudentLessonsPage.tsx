@@ -14,16 +14,14 @@ import { useNavigate } from "react-router-dom";
 export default function StudentLessonsPage() {
   const [loading, setLoading] = useState(true);
   const [lessons, setLessons] = useState([]);
-  const [attendance, setAttendance] = useState(null);
   const navigate = useNavigate();
 
   const fetchData = async () => {
     setLoading(true);
     const res = await getStudentLessons();
 
-    if (res.success) {
-      setLessons(res.data.lessons);
-      setAttendance(res.data.attendance);
+    if (res?.success) {
+      setLessons(res.data.lessons || []);
     }
 
     setLoading(false);
@@ -32,7 +30,7 @@ export default function StudentLessonsPage() {
   useEffect(() => {
     fetchData();
   }, []);
-
+  console.log(lessons);
   return (
     <Card>
       <CardHeader>
@@ -41,22 +39,21 @@ export default function StudentLessonsPage() {
           Complete your lessons and quizzes before attempting belt exams.
         </CardDescription>
       </CardHeader>
-      {loading && loading ? (
+
+      {loading ? (
         <CardContent>
-          {" "}
-          <p>Loading...</p>{" "}
+          <p>Loading...</p>
         </CardContent>
       ) : (
-        <CardContent>
-          {lessons.map((lesson, index) => {
-            const completed = lesson.completed;
+        <CardContent className="space-y-3">
+          {lessons.map((lesson) => {
+            const completed = Boolean(lesson.completed);
             const unlocked = !lesson.locked;
-            const lockedReason = lesson.lockedReason;
 
             return (
               <Card
                 key={lesson._id}
-                className="border p-4 flex justify-between"
+                className="border p-4 flex justify-between items-center"
               >
                 <div>
                   <h3 className="font-semibold">{lesson.title}</h3>
@@ -65,9 +62,9 @@ export default function StudentLessonsPage() {
                     {lesson.module?.title} — {lesson.program?.title}
                   </p>
 
-                  {!unlocked && (
+                  {lesson.locked && lesson.lockedReason && (
                     <p className="text-red-500 text-xs mt-1">
-                      🔒 {lockedReason}
+                      🔒 {lesson.lockedReason}
                     </p>
                   )}
 
@@ -78,13 +75,14 @@ export default function StudentLessonsPage() {
                   )}
                 </div>
 
-                <div className="flex items-center">
+                <div>
                   {unlocked ? (
                     <Button
                       onClick={() => navigate(`/student/lessons/${lesson._id}`)}
                       className="flex items-center gap-2"
                     >
-                      <PlayCircle size={18} /> {completed ? "Review" : "Start"}
+                      <PlayCircle size={18} />
+                      {completed ? "Review" : "Start"}
                     </Button>
                   ) : (
                     <Button

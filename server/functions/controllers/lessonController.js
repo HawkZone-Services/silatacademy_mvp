@@ -15,10 +15,8 @@ import {
   lessonCompletionForBelt as computeLessonCompletionForBelt,
 } from "../services/eligibilityService.js";
 import { getMyBeltProgress } from "../services/beltProgressService.js";
+import BeltRanking from "../models/BeltRanking.js";
 
-/* =====================================================
-   QUIZ SCORING
-===================================================== */
 /* =====================================================
    QUIZ SCORING
 ===================================================== */
@@ -46,6 +44,12 @@ const computeQuizScore = (lesson, answers = []) => {
   const score = Math.round((correct / lesson.quiz.length) * 100);
   return { score, answers: computedAnswers };
 };
+
+/* =========================
+   Helpers
+========================= */
+const normalizeBeltName = (belt = "") =>
+  belt.toLowerCase().replace(" belt", "").trim();
 
 /* =====================================================
    CREATE LESSON
@@ -139,8 +143,7 @@ export const getLesson = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    lesson: { ...lesson, locked: false },
-    progress,
+    lesson: { ...lesson, locked: false, progress },
   });
 });
 
@@ -245,72 +248,112 @@ export const saveProgress = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   STUDENT AVAILABLE LESSONS (FINAL – FIXED)
+   STUDENT AVAILABLE LESSONS
 ===================================================== */
 export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
-  const beltProgress = await getMyBeltProgress(userId);
-  const unlockedCount = beltProgress.lessons.unlocked;
+  /* =========================
+     1️⃣ Player + Belt
+  ========================= */
+  const player = await Player.findOne({ user: userId }).select("beltLevel");
+  if (!player) throw httpError(404, "Player not found");
 
+  /* =========================
+     2️⃣ Attendance
+  ========================= */
+  const attendance = await getAttendanceSummary(player._id);
+  const presentSessions = attendance?.present || 0;
+
+  /* =========================
+     3️⃣ Belt ranking rules
+  ========================= */
+  const beltRanking = await BeltRanking.findOne({
+    name: player.beltLevel,
+  }).lean();
+
+  if (!beltRanking) {
+    throw httpError(
+      404,
+      `Belt ranking not configured for belt: ${player.beltLevel}`
+    );
+  }
+
+  const totalLessons = beltRanking.lessons?.totalLessons ?? 0;
+  const unlockEvery =
+    beltRanking.lessons?.unlockEvery && beltRanking.lessons.unlockEvery > 0
+      ? beltRanking.lessons.unlockEvery
+      : 1;
+
+  /* =========================
+     4️⃣ Calculate unlocked lessons
+     كل unlockEvery حضور → درس واحد
+  ========================= */
+  const unlockedLessons = Math.min(
+    totalLessons,
+    Math.floor(presentSessions / unlockEvery)
+  );
+
+  /* =========================
+     5️⃣ Fetch ALL lessons
+  ========================= */
   const lessons = await Lesson.find({ isActive: true })
     .populate("program", "title level")
     .populate("module", "title")
     .sort({ order: 1 })
     .lean();
 
-  const progresses = await LessonProgress.find({ user: userId }).lean();
+  /* =========================
+     6️⃣ Progress (belt scoped)
+  ========================= */
+  const progresses = await LessonProgress.find({
+    user: userId,
+    beltLevel: player.beltLevel,
+  }).lean();
+
   const progressMap = new Map(progresses.map((p) => [p.lesson.toString(), p]));
 
-  const formattedLessons = lessons.map((lesson) => {
+  /* =========================
+     7️⃣ Format lessons
+  ========================= */
+  const formattedLessons = lessons.map((lesson, index) => {
     const progress = progressMap.get(lesson._id.toString()) || null;
-    const completed = progress?.completed || false;
+    const completed = Boolean(progress?.completed);
 
-    const locked = lesson.order >= unlockedCount;
+    const locked = index >= unlockedLessons;
 
-    let quiz = {
-      available: false,
-      locked: true,
-      reason: "Lesson not completed",
-    };
-
+    let lockedReason = null;
     if (locked) {
-      quiz.reason = "Lesson locked by attendance";
-    } else if (completed) {
-      quiz = {
-        available: true,
-        locked: false,
-        score: progress?.quizScore ?? null,
-        passed:
-          typeof progress?.quizScore === "number"
-            ? progress.quizScore >= 60
-            : false,
-      };
+      const requiredSessions = (index + 1) * unlockEvery;
+      const remaining = requiredSessions - presentSessions;
+
+      lockedReason =
+        remaining > 0
+          ? `Attend ${remaining} more session${
+              remaining > 1 ? "s" : ""
+            } to unlock this lesson`
+          : null;
     }
 
     return {
       ...lesson,
+      progress, // ✅ مهم
       completed,
       locked,
       unlocked: !locked,
-      lockedReason: locked
-        ? `Attend ${
-            beltProgress.attendance.requiredSessions -
-            beltProgress.attendance.attendedSessions
-          } more sessions to unlock`
-        : null,
-      quiz,
+      lockedReason,
     };
   });
 
   res.json({
     success: true,
     data: {
-      beltProgress,
+      attendance,
       lessons: formattedLessons,
     },
   });
 });
+
 /* =====================================================
    STUDENT LESSON PROGRESS SUMMARY
 ===================================================== */
@@ -419,14 +462,14 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
     {
       user: userId,
       lesson: lessonId,
-      beltLevel: player.beltLevel, // 🔒 belt-scoped
+      beltLevel: player.beltLevel,
     },
     {
       $set: {
         quizAnswers: computed,
         quizScore: score,
         completed: passed,
-        lastAccessedAt: now,
+        lastVisitedAt: now,
         updatedAt: now,
       },
       $setOnInsert: {
@@ -434,7 +477,11 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
         beltLevel: player.beltLevel,
       },
     },
-    { new: true, upsert: true }
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    }
   );
 
   res.json({
@@ -471,12 +518,12 @@ export const completeStudentLesson = asyncHandler(async (req, res) => {
     {
       user: userId,
       lesson: lessonId,
-      beltLevel: player.beltLevel, // 🔒 belt-scoped
+      beltLevel: player.beltLevel,
     },
     {
       $set: {
         completed: true,
-        lastAccessedAt: now,
+        lastVisitedAt: now,
         updatedAt: now,
       },
       $setOnInsert: {

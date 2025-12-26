@@ -38,6 +38,14 @@ router.get(
   getStudentLessonProgress
 );
 
+// ✅ SAVE LESSON PROGRESS (student)
+router.post(
+  "/student/:lessonId/progress",
+  protect,
+  checkRole("student"),
+  saveProgress
+);
+
 // 3️⃣ static for quiz
 router.get(
   "/student/:lessonId/quiz",

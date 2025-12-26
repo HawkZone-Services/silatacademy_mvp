@@ -63,13 +63,11 @@ export const Navbar = () => {
   /* =========================
      Notifications
   ========================= */
-  const { data: notifications = [] } = useQuery(
-    ["notifications"],
-    getMyNotifications,
-    {
-      enabled: isAuthenticated,
-    }
-  );
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: getMyNotifications,
+    enabled: isAuthenticated,
+  });
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 

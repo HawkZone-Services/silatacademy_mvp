@@ -5,14 +5,15 @@ import { NotificationItem } from "./NotificationItem";
 export function NotificationCenter() {
   const queryClient = useQueryClient();
 
-  const { data: notifications = [] } = useQuery(
-    ["notifications"],
-    getMyNotifications
-  );
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: getMyNotifications,
+  });
 
-  const { mutate: markAsRead } = useMutation(markRead, {
+  const { mutate: markAsRead } = useMutation({
+    mutationFn: markRead,
     onSuccess: () => {
-      queryClient.invalidateQueries(["notifications"]);
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 

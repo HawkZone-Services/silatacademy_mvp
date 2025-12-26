@@ -24,10 +24,8 @@ const LessonProgressSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-LessonProgressSchema.index({ lesson: 1, user: 1 }, { unique: true });
-LessonProgressSchema.index({ user: 1, completed: 1 });
 LessonProgressSchema.index(
-  { user: 1, lesson: 1, beltLevel: 1 },
+  { user: 1, lesson: 1, completed: 1, beltLevel: 1 },
   { unique: true }
 );
 const LessonProgress = mongoose.model("LessonProgress", LessonProgressSchema);

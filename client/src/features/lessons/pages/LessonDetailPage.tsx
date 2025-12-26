@@ -379,11 +379,13 @@ export default function LessonDetailPage() {
                 <ArrowLeft size={16} /> Back
               </Button>
 
-              {/* SHOW “Mark Completed” IF THERE IS NO QUIZ AND LESSON NOT COMPLETED */}
+              {/* ===============================
+   NO QUIZ → MANUAL COMPLETE
+================================ */}
               {!hasQuiz && !lesson.progress?.completed && (
                 <Button onClick={handleCompleteLesson} disabled={completing}>
                   {completing ? (
-                    <Loader2 className="animate-spin mr-2" />
+                    <Loader2 className="mr-2 animate-spin" />
                   ) : (
                     <CheckCircle2 className="mr-2" />
                   )}
@@ -391,14 +393,30 @@ export default function LessonDetailPage() {
                 </Button>
               )}
 
-              {/* SHOW QUIZ BUTTON ONLY IF LESSON NOT COMPLETED */}
+              {/* ===============================
+   HAS QUIZ → START QUIZ
+================================ */}
               {hasQuiz && !lesson.progress?.completed && (
                 <Button
                   onClick={() => navigate(`/student/lessons/${lessonId}/quiz`)}
-                  className="gap-2"
+                  className="flex items-center gap-2"
                 >
                   <ListChecks size={16} />
                   Start Quiz
+                </Button>
+              )}
+
+              {/* ===============================
+   COMPLETED STATE (UX FEEDBACK)
+================================ */}
+              {lesson.progress?.completed && (
+                <Button
+                  variant="outline"
+                  disabled
+                  className="flex items-center gap-2"
+                >
+                  <CheckCircle2 size={16} />
+                  Lesson Completed
                 </Button>
               )}
 
