@@ -25,14 +25,31 @@ export const getPlayerForUser = async (userId) => {
 };
 
 export const getAttendanceSummary = async (playerId) => {
-  if (!playerId) return { total: 0, present: 0, ratio: 0 };
+  if (!playerId) {
+    return { total: 0, present: 0, ratio: 0 };
+  }
+
+  const player = await Player.findById(playerId).select("beltLevel");
+  if (!player) {
+    return { total: 0, present: 0, ratio: 0 };
+  }
+
+  const belt = player.beltLevel;
 
   const [total, present] = await Promise.all([
-    Attendance.countDocuments({ player: playerId }),
-    Attendance.countDocuments({ player: playerId, status: "present" }),
+    Attendance.countDocuments({
+      player: playerId,
+      beltLevel: belt,
+    }),
+    Attendance.countDocuments({
+      player: playerId,
+      status: "present",
+      beltLevel: belt,
+    }),
   ]);
 
   const ratio = total > 0 ? Math.round((present / total) * 100) : 0;
+
   return { total, present, ratio };
 };
 
@@ -210,6 +227,7 @@ export const mapLessonEligibility = (
   { progressMap = new Map(), prereqSet = new Set(), attendanceOK = true } = {}
 ) => {
   const progress = progressMap.get(lesson._id.toString());
+
   const completed = Boolean(progress?.completed);
   const quizScore = progress?.quizScore ?? null;
   const attempts = progress?.attempts ?? 0;
@@ -220,10 +238,12 @@ export const mapLessonEligibility = (
 
   const lockedReasons = [];
 
+  // 🔒 Prerequisite gate
   if (lesson.prerequisiteLesson && !hasPrereq) {
     lockedReasons.push("PREREQUISITE_NOT_COMPLETED");
   }
 
+  // 🔒 Attendance gate (belt-scoped)
   if (!attendanceOK) {
     lockedReasons.push("INSUFFICIENT_ATTENDANCE");
   }
@@ -238,13 +258,20 @@ export const mapLessonEligibility = (
     program: lesson.program,
     module: lesson.module,
     order: lesson.order || 0,
+
+    // 🎯 Belt / level awareness
     level: lesson.level || lesson.beltLevel || null,
+
     type: lesson.type || "theory",
     videoUrl: lesson.videoUrl,
     resources: lesson.resources || [],
+
+    // 📊 Progress
     completed,
     quizScore,
     attempts,
+
+    // 🔐 Eligibility
     locked,
     lockedReason,
     reasonIfNotEligible: lockedReason,

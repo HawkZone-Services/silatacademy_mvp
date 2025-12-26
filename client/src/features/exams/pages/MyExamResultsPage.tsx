@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { API_BASE_URL } from "@/shared/api/apiClient";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -10,17 +11,44 @@ import examService from "@/services/examService";
 
 export default function MyExamResultsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   /* =========================
      FETCH MY EXAM RESULTS
-     (React Query v5 – Object syntax only)
   ========================= */
   const { data, isLoading } = useQuery({
     queryKey: ["my-exam-results"],
     queryFn: () => examService.getMyAttempts(),
   });
 
-  const attempts = data?.data?.attempts || data?.attempts || data?.data || [];
+  const attempts = data?.data?.attempts || data?.attempts || [];
+
+  /* =========================
+     🔁 POST-FINALIZATION SYNC
+  ========================= */
+  const onExamFinalized = async (examId?: string) => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["me"] }),
+      queryClient.invalidateQueries({ queryKey: ["belt-progress"] }),
+      queryClient.invalidateQueries({ queryKey: ["lessons"] }),
+      queryClient.invalidateQueries({ queryKey: ["certificates"] }),
+      examId &&
+        queryClient.invalidateQueries({
+          queryKey: ["exam-registration", examId],
+        }),
+    ]);
+  };
+
+  // 🔔 Trigger refresh ONCE when a passed exam is finalized
+  useEffect(() => {
+    if (!attempts?.length) return;
+
+    const finalized = attempts.find((a: any) => a.finalizedAt && a.finalPassed);
+
+    if (finalized?.exam?._id) {
+      onExamFinalized(finalized.exam._id);
+    }
+  }, [attempts]);
 
   /* =========================
      LOADING
@@ -38,9 +66,7 @@ export default function MyExamResultsPage() {
   ========================= */
   return (
     <div className="container py-10 space-y-8">
-      <h1 className="text-3xl font-bold flex items-center gap-2">
-        My Exam Results
-      </h1>
+      <h1 className="text-3xl font-bold">My Exam Results</h1>
 
       {!attempts.length ? (
         <p className="text-muted-foreground">No exam attempts found.</p>
@@ -50,77 +76,33 @@ export default function MyExamResultsPage() {
             const exam = a.exam || {};
             const certificate = a.certificate;
 
-            const theoryScore = a.theoryScore ?? a.autoScore ?? "-";
+            const theoryScore = a.theoryScore ?? "-";
             const finalScore = a.finalTotalScore ?? null;
-
-            const finalized = Boolean(
-              a.finalizedAt || a.finalTotalScore !== null
-            );
-
-            const passed = a.finalPassed ?? false;
+            const finalized = Boolean(a.finalizedAt);
+            const passed = Boolean(a.finalPassed);
 
             const statusLabel = finalized
               ? passed
                 ? "Passed"
                 : "Failed"
-              : a.submittedAt
-              ? "Waiting Practical"
-              : "Pending";
+              : "Waiting Practical";
 
             const statusColor = finalized
               ? passed
                 ? "bg-green-600"
                 : "bg-red-600"
-              : a.submittedAt
-              ? "bg-yellow-600"
-              : "bg-gray-500";
-
-            const issuedAt =
-              certificate?.issuedAt &&
-              new Date(certificate.issuedAt).toLocaleDateString();
+              : "bg-yellow-600";
 
             return (
-              <Card
-                key={a._id}
-                className="border-border/40 shadow-sm hover:shadow transition"
-              >
+              <Card key={a._id}>
                 <CardHeader>
                   <CardTitle className="flex justify-between items-center">
                     <div>
-                      <p className="text-lg font-bold">
-                        {exam.title || "Exam"}
+                      <p className="font-bold">{exam.title}</p>
+                      <p className="text-sm text-muted-foreground capitalize">
+                        Belt: {exam.beltLevel}
                       </p>
-                      <p className="text-muted-foreground text-sm capitalize">
-                        Belt Level: {exam.beltLevel || "-"}
-                      </p>
-
-                      {/* THEORY RESULT */}
-                      <div className="text-sm mt-1">
-                        <span className="font-medium">Theory:</span>{" "}
-                        {theoryScore}{" "}
-                        {typeof a.pass === "boolean" ? (
-                          a.pass ? (
-                            <span className="text-green-600 font-semibold">
-                              Passed
-                            </span>
-                          ) : (
-                            <span className="text-red-600 font-semibold">
-                              Failed
-                            </span>
-                          )
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </div>
-
-                      {/* FINAL STATE */}
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {finalized
-                          ? "Finalized"
-                          : "Waiting Practical Evaluation"}
-                      </div>
                     </div>
-
                     <Badge className={`${statusColor} text-white`}>
                       {statusLabel}
                     </Badge>
@@ -130,17 +112,17 @@ export default function MyExamResultsPage() {
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <strong>Theory Score:</strong>
+                      <strong>Theory:</strong>
                       <p>{theoryScore}</p>
                     </div>
 
                     <div>
-                      <strong>Practical Score:</strong>
+                      <strong>Practical:</strong>
                       <p>{a.finalPracticalScores ? "Recorded" : "Pending"}</p>
                     </div>
 
                     <div>
-                      <strong>Total Score:</strong>
+                      <strong>Total:</strong>
                       <p>{finalScore ?? "-"}</p>
                     </div>
 
@@ -149,7 +131,7 @@ export default function MyExamResultsPage() {
                       <p>
                         {a.submittedAt
                           ? new Date(a.submittedAt).toLocaleString()
-                          : "Not submitted"}
+                          : "-"}
                       </p>
                     </div>
                   </div>
@@ -159,12 +141,13 @@ export default function MyExamResultsPage() {
                     <div className="pt-4 border-t">
                       <p className="font-medium">Certificate Issued</p>
                       <p className="text-sm text-muted-foreground">
-                        Issued on: {issuedAt}
+                        Issued on{" "}
+                        {new Date(certificate.issuedAt).toLocaleDateString()}
                       </p>
 
                       <Button
-                        className="mt-2"
                         variant="outline"
+                        className="mt-2"
                         onClick={() =>
                           window.open(
                             `${API_BASE_URL}/certificates/pdf/${exam._id}/${a.student}`,
@@ -177,10 +160,8 @@ export default function MyExamResultsPage() {
                     </div>
                   )}
 
-                  {/* VIEW ATTEMPT */}
                   <Button
                     variant="ghost"
-                    className="flex items-center gap-2"
                     onClick={() =>
                       navigate(`/student/exams/results?attempt=${a._id}`)
                     }

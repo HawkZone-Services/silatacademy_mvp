@@ -17,9 +17,10 @@ import PracticalEvaluation from "../models/PracticalEvaluation.js";
 import ExamRegistration from "../models/ExamRegistration.js";
 import Certificate from "../models/Certificate.js";
 import Player from "../models/Player.js";
-
 import { awardXpForEvent } from "../utils/xp.js";
 import { attachExamEligibility } from "../services/eligibilityService.js";
+import BeltHistory from "../models/BeltHistory.js";
+import { getNextBelt, normalizeBelt } from "../utils/belt.js";
 
 // =============================
 //  CONSTANTS & HELPERS
@@ -812,10 +813,9 @@ export const combineScores = asyncHandler(async (req, res) => {
     student: studentId,
     submittedAt: { $ne: null },
   });
-
   if (!attempt) throw httpError(404, "Theory attempt not found");
 
-  // ✅ Option 3 gate
+  // ✅ Gate: theory must be passed
   if (!attempt.pass) {
     throw httpError(400, "Cannot finalize: student did not pass theory");
   }
@@ -857,28 +857,103 @@ export const combineScores = asyncHandler(async (req, res) => {
     finalizedAt: now,
   });
 
+  let beltUpgradeRequest = null;
+  let player = null;
+
+  if (certificate && beltUpgradeRequest) {
+    await Certificate.findByIdAndUpdate(certificate._id, {
+      beltHistory: beltUpgradeRequest._id,
+    });
+  }
   if (passed) {
-    const player = await Player.findOne({ user: studentId });
+    player = await Player.findOne({ user: studentId });
     if (player) {
       player.totalExamsPassed = (player.totalExamsPassed || 0) + 1;
       await player.save();
       await awardXpForEvent(player._id, "EXAM_PASS");
+
+      // =========================
+      // BELT UPGRADE (PENDING)
+      // =========================
+      try {
+        const playerBelt = normalizeBelt(player.beltLevel || exam?.beltLevel);
+        const examBelt = normalizeBelt(exam?.beltLevel);
+
+        if (playerBelt && examBelt && playerBelt === examBelt) {
+          const nextBelt = getNextBelt(playerBelt);
+
+          if (nextBelt) {
+            const existingUpgrade = await BeltHistory.findOne({
+              player: player._id,
+              examId,
+              status: { $in: ["pending", "approved"] },
+            }).lean();
+
+            if (!existingUpgrade) {
+              beltUpgradeRequest = await BeltHistory.create({
+                player: player._id,
+                user: player.user,
+                fromBelt: playerBelt,
+                toBelt: nextBelt,
+                status: "pending",
+                examId,
+                attemptId: attempt._id,
+                note: `Auto-created after PASS in ${exam.title}`,
+              });
+
+              await Notification.create({
+                user: player.user,
+                title: "Belt Upgrade Pending",
+                message: `You passed your exam. Your upgrade to ${nextBelt} is pending coach approval.`,
+                type: "belt",
+              });
+            } else {
+              beltUpgradeRequest = existingUpgrade;
+            }
+          }
+        }
+      } catch (err) {
+        // ❗ Never block exam finalization
+        console.error("Failed to create pending belt upgrade", err);
+      }
     }
   }
 
+  // =========================
+  // CERTIFICATE (IDEMPOTENT)
+  // =========================
   let certificate = null;
-  if (passed) {
-    certificate = await Certificate.create({
-      user: studentId,
-      examId,
-      type: "exam",
-      title: `${exam.title} Certificate`,
-      description: `Passed final exam for ${exam.beltLevel} belt`,
-      issuedBy: req.user?._id,
-      issuedAt: now,
-    });
+
+  if (passed && player) {
+    const existingCert = await Certificate.findOne({
+      player: player._id,
+      exam: examId,
+    }).lean();
+
+    if (!existingCert) {
+      certificate = await Certificate.create({
+        player: player._id,
+        user: player.user,
+        exam: examId,
+        finalResult: finalResult._id,
+        beltLevel: exam.beltLevel || player.beltLevel,
+        beltHistory: beltUpgradeRequest?._id,
+      });
+
+      await Notification.create({
+        user: player.user,
+        title: "Certificate Issued",
+        message: `Your certificate for ${exam.title} has been issued.`,
+        type: "certificate",
+      });
+    } else {
+      certificate = existingCert;
+    }
   }
 
+  // =========================
+  // FINAL RESULT NOTIFICATION
+  // =========================
   try {
     await Notification.create({
       user: studentId,
@@ -888,22 +963,17 @@ export const combineScores = asyncHandler(async (req, res) => {
         : "Your final exam result is ready.",
       type: "result",
     });
-
-    if (certificate?._id) {
-      await Notification.create({
-        user: studentId,
-        title: "Certificate Ready",
-        message: "Your certificate is ready for download.",
-        type: "certificate",
-      });
-    }
   } catch (err) {
     console.error("Failed to send notifications", err);
   }
 
   res.json({
     success: true,
-    data: { finalResult, certificate },
+    data: {
+      finalResult,
+      certificate,
+      beltUpgradeRequest,
+    },
   });
 });
 

@@ -2,9 +2,13 @@ import mongoose from "mongoose";
 
 const LessonProgressSchema = new mongoose.Schema(
   {
-    lesson: { type: mongoose.Schema.Types.ObjectId, ref: "Lesson", required: true },
+    lesson: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Lesson",
+      required: true,
+    },
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-
+    beltLevel: { type: String, required: true },
     completed: { type: Boolean, default: false },
     positionSeconds: { type: Number, default: 0 },
     quizScore: { type: Number, default: 0 },
@@ -22,7 +26,10 @@ const LessonProgressSchema = new mongoose.Schema(
 
 LessonProgressSchema.index({ lesson: 1, user: 1 }, { unique: true });
 LessonProgressSchema.index({ user: 1, completed: 1 });
-
+LessonProgressSchema.index(
+  { user: 1, lesson: 1, beltLevel: 1 },
+  { unique: true }
+);
 const LessonProgress = mongoose.model("LessonProgress", LessonProgressSchema);
 
 export default LessonProgress;

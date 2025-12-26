@@ -10,7 +10,7 @@ import LessonProgress from "../models/LessonProgress.js";
 import ExamAttempt from "../models/ExamAttempt.js";
 import Lesson from "../models/Lesson.js";
 import Exam from "../models/Exam.js";
-
+import { normalizeBelt } from "../utils/belt.js";
 import { assertObjectId, httpError, toObjectId } from "../utils/validation.js";
 
 /* =====================================================
@@ -78,10 +78,23 @@ export const approveBeltUpgrade = asyncHandler(async (req, res) => {
   const history = await BeltHistory.findById(historyId);
   if (!history) throw httpError(404, "Upgrade request not found");
 
+  if (history.status !== "pending") {
+    throw httpError(409, "Upgrade request is not pending");
+  }
+
   const player = await Player.findById(history.player);
   if (!player) throw httpError(404, "Player not found");
 
-  const newBelt = toBelt || player.beltLevel;
+  const newBelt = toBelt || history.toBelt;
+  if (!newBelt) throw httpError(400, "Invalid target belt");
+
+  // 🛡 Guard: prevent silent target belt change
+  if (toBelt && normalizeBelt(toBelt) !== normalizeBelt(history.toBelt)) {
+    throw httpError(
+      400,
+      "Target belt differs from requested upgrade. Use an override flow if needed."
+    );
+  }
 
   // Update player
   player.beltLevel = newBelt;

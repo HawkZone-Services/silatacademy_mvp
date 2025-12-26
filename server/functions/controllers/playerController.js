@@ -15,6 +15,7 @@ import PDFDocument from "pdfkit";
 import { assertObjectId, httpError } from "../utils/validation.js";
 import { Types } from "mongoose";
 import { getMyBeltProgress } from "../services/beltProgressService.js";
+import { getNextBelt, normalizeBelt } from "../utils/belt.js";
 
 /* ============================================================
    LIST PLAYERS
@@ -251,11 +252,31 @@ export const markPendingUpgrade = asyncHandler(async (req, res) => {
   const player = await Player.findById(playerId);
   if (!player) throw httpError(404, "Player not found");
 
+  const fromBelt = normalizeBelt(player.beltLevel);
+  const toBelt = getNextBelt(fromBelt);
+  if (!toBelt) {
+    throw httpError(400, "No next belt available for this player");
+  }
+
+  // 🚫 Prevent duplicates for same exam
+  const existing = await BeltHistory.findOne({
+    player: playerId,
+    examId: examId ? assertObjectId(examId, "examId") : undefined,
+    status: { $in: ["pending", "approved"] },
+  }).lean();
+
+  if (existing) {
+    return res.json({
+      success: true,
+      data: { pendingUpgrade: existing },
+    });
+  }
+
   const entry = await BeltHistory.create({
     player: playerId,
     user: player.user,
-    fromBelt: player.beltLevel,
-    toBelt: player.beltLevel,
+    fromBelt,
+    toBelt,
     status: "pending",
     examId: examId ? assertObjectId(examId, "examId") : undefined,
     attemptId: attemptId ? assertObjectId(attemptId, "attemptId") : undefined,
@@ -282,10 +303,23 @@ export const approveUpgrade = asyncHandler(async (req, res) => {
   const history = await BeltHistory.findById(entryId);
   if (!history) throw httpError(404, "Upgrade request not found");
 
+  if (history.status !== "pending") {
+    throw httpError(409, "Upgrade request is not pending");
+  }
+
   const player = await Player.findById(history.player);
   if (!player) throw httpError(404, "Player not found");
 
-  const newBelt = toBelt || player.beltLevel;
+  const newBelt = toBelt || history.toBelt;
+  if (!newBelt) throw httpError(400, "Invalid target belt");
+
+  // 🛡 Guard against silent belt changes
+  if (toBelt && normalizeBelt(toBelt) !== normalizeBelt(history.toBelt)) {
+    throw httpError(
+      400,
+      "Target belt differs from requested upgrade. Use an override flow if needed."
+    );
+  }
 
   player.beltLevel = newBelt;
   await player.save();
@@ -299,9 +333,13 @@ export const approveUpgrade = asyncHandler(async (req, res) => {
 
   await Notification.create({
     user: player.user,
-    title: "Belt Upgraded",
-    message: `Your belt has been upgraded to ${newBelt}.`,
+    title: "Belt Upgrade Approved 🎉",
+    message: `Congratulations! You have been promoted to ${newBelt}.`,
     type: "belt",
+    meta: {
+      belt: newBelt,
+      historyId: history._id,
+    },
   });
 
   res.json({

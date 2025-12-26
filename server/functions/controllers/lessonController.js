@@ -396,7 +396,7 @@ export const getLessonQuiz = asyncHandler(async (req, res) => {
   });
 });
 /* =====================================================
-   SUBMIT QUIZ (FINAL)
+   SUBMIT LESSON QUIZ
 ===================================================== */
 export const submitLessonQuiz = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
@@ -408,12 +408,19 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
   const lesson = await Lesson.findById(lessonId);
   if (!lesson) throw httpError(404, "Lesson not found");
 
+  const player = await Player.findOne({ user: userId }).select("beltLevel");
+  if (!player) throw httpError(404, "Player not found");
+
   const { score, answers: computed } = computeQuizScore(lesson, answers);
   const passed = score >= 60;
   const now = new Date();
 
   const progress = await LessonProgress.findOneAndUpdate(
-    { user: userId, lesson: lessonId },
+    {
+      user: userId,
+      lesson: lessonId,
+      beltLevel: player.beltLevel, // 🔒 belt-scoped
+    },
     {
       $set: {
         quizAnswers: computed,
@@ -422,7 +429,10 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
         lastAccessedAt: now,
         updatedAt: now,
       },
-      $setOnInsert: { createdAt: now },
+      $setOnInsert: {
+        createdAt: now,
+        beltLevel: player.beltLevel,
+      },
     },
     { new: true, upsert: true }
   );
@@ -445,20 +455,34 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
 ===================================================== */
 export const completeStudentLesson = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
+  if (!userId) throw httpError(401, "Unauthorized");
+
   const lessonId = assertObjectId(req.params.lessonId);
 
   const lesson = await Lesson.findById(lessonId);
   if (!lesson) throw httpError(404, "Lesson not found");
 
+  const player = await Player.findOne({ user: userId }).select("beltLevel");
+  if (!player) throw httpError(404, "Player not found");
+
+  const now = new Date();
+
   const progress = await LessonProgress.findOneAndUpdate(
-    { user: userId, lesson: lessonId },
+    {
+      user: userId,
+      lesson: lessonId,
+      beltLevel: player.beltLevel, // 🔒 belt-scoped
+    },
     {
       $set: {
         completed: true,
-        lastAccessedAt: new Date(),
-        updatedAt: new Date(),
+        lastAccessedAt: now,
+        updatedAt: now,
       },
-      $setOnInsert: { createdAt: new Date() },
+      $setOnInsert: {
+        createdAt: now,
+        beltLevel: player.beltLevel,
+      },
     },
     { new: true, upsert: true }
   );

@@ -5,6 +5,7 @@ import {
   markRead,
 } from "../controllers/notificationController.js";
 import { protect, checkRole } from "../middlewares/authMiddleware.js";
+
 const router = express.Router();
 
 router.get("/", protect, myNotifications);

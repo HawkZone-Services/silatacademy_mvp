@@ -1,0 +1,1764 @@
+Reachable count: 258
+Unused count: 113
+
+# Importers by file
+
+client\src\App.tsx
+  <- client\src\main.tsx
+
+client\src\components\AboutSection.tsx
+  <- client\src\pages\Index.tsx
+
+client\src\components\CoachesSection.tsx
+  <- client\src\pages\Index.tsx
+
+client\src\components\ContactSection.tsx
+  <- client\src\pages\Index.tsx
+
+client\src\components\EligiblePlayersDialog.tsx
+  <- client\src\pages\Rankings.tsx
+
+client\src\components\Footer.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+  <- client\src\pages\Admin.tsx
+  <- client\src\pages\ArticlePage.tsx
+  <- client\src\pages\Coaches.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\Events.tsx
+  <- client\src\pages\Index.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+  <- client\src\pages\LessonCenter.tsx
+  <- client\src\pages\Library.tsx
+  <- client\src\pages\Login.tsx
+  <- client\src\pages\PlayerProfile.tsx
+  <- client\src\pages\Programs.tsx
+  <- client\src\pages\Rankings.tsx
+  <- client\src\pages\Signup.tsx
+  <- client\src\pages\SilatHistory.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\components\Hero.tsx
+  <- client\src\pages\Index.tsx
+
+client\src\components\LanguageToggle.tsx
+  <- client\src\components\Navbar.tsx
+
+client\src\components\Navbar.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+  <- client\src\pages\Admin.tsx
+  <- client\src\pages\ArticlePage.tsx
+  <- client\src\pages\Coaches.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\Events.tsx
+  <- client\src\pages\Index.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+  <- client\src\pages\LessonCenter.tsx
+  <- client\src\pages\Library.tsx
+  <- client\src\pages\Login.tsx
+  <- client\src\pages\PlayerProfile.tsx
+  <- client\src\pages\Programs.tsx
+  <- client\src\pages\Rankings.tsx
+  <- client\src\pages\Signup.tsx
+  <- client\src\pages\SilatHistory.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\components\PlayerCard.tsx
+  <- client\src\components\PlayerSection.tsx
+
+client\src\components\PlayerSection.tsx
+  <- client\src\pages\Index.tsx
+
+client\src\components\ProgramsSection.tsx
+  <- client\src\pages\Index.tsx
+
+client\src\components\ProtectedRoute.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\components\RankingsSection.tsx
+  <- client\src\pages\Index.tsx
+
+client\src\components\RegisterTestingDialog.tsx
+  <- client\src\pages\Rankings.tsx
+
+client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\tabs\LessonsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\AddModuleDialog.tsx
+  <- client\src\components\admin\tabs\ModulesScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\AddPlayerDialog.tsx
+  <- client\src\components\admin\tabs\PlayersScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\AddProgramDialog.tsx
+  <- client\src\components\admin\tabs\ProgramsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\AdminReports.jsx
+
+client\src\components\admin\AnalyticsDashboard.jsx
+  <- client\src\components\admin\AdminReports.jsx
+
+client\src\components\admin\CurriculumGenerator.jsx
+
+client\src\components\admin\EditModuleDialog.tsx
+  <- client\src\components\admin\tabs\ModulesScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\EditPlayerDialog.tsx
+  <- client\src\components\admin\tabs\PlayersScreen.tsx
+
+client\src\components\admin\EditProgramDialog.tsx
+  <- client\src\components\admin\tabs\ProgramsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\LessonEditor.jsx
+
+client\src\components\admin\certificates\CertificateCenter.jsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\certificates\IssueExamOverrideDialog.tsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+
+client\src\components\admin\certificates\IssueLessonDialog.tsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+
+client\src\components\admin\certificates\IssueManualDialog.tsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+
+client\src\components\admin\certificates\IssueModuleDialog.tsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+
+client\src\components\admin\certificates\IssuePerformanceDialog.tsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+
+client\src\components\admin\certificates\IssueProgramDialog.tsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+
+client\src\components\admin\tabs\AnalyticsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\tabs\CertificatesScreen.tsx
+
+client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\tabs\LessonsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\tabs\ModulesScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\tabs\PlayersScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\tabs\ProgramsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\test\CertificateGenerator.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\test\CreateExamDialog.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\test\ExamList.tsx
+
+client\src\components\admin\test\FinalizeResultButton.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\test\PracticalScoreDialog.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\test\RegistrationList.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\admin\test\SubmissionsList.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\certificate\CertificateView.tsx
+  <- client\src\pages\Certificates.tsx
+
+client\src\components\certificate\StudentCertificateBack.tsx
+  <- client\src\components\exam\StudentCertificateCard.tsx
+
+client\src\components\certificate\StudentCertificateFront.tsx
+  <- client\src\components\exam\StudentCertificateCard.tsx
+
+client\src\components\charts\AdminCharts.tsx
+
+client\src\components\charts\InstructorCharts.tsx
+
+client\src\components\charts\StudentCharts.tsx
+
+client\src\components\coach\Approvals.jsx
+  <- client\src\components\coach\CoachDashboard.jsx
+
+client\src\components\coach\CoachDashboard.jsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\components\coach\PlayerProgress.jsx
+  <- client\src\components\coach\CoachDashboard.jsx
+
+client\src\components\dev\DevNavigatorUltra.tsx
+  <- client\src\App.tsx
+  <- client\src\main.tsx
+
+client\src\components\exam\CertificateDownloadButton.tsx
+
+client\src\components\exam\ExamCard.tsx
+
+client\src\components\exam\ExamResultCard.tsx
+
+client\src\components\exam\StudentCertificateCard.tsx
+
+client\src\components\player\BeltStatus.jsx
+
+client\src\components\player\NotificationsBell.jsx
+
+client\src\components\player\NotificationsList.jsx
+
+client\src\components\player\PlayerAchievements.tsx
+  <- client\src\pages\PlayerProfile.tsx
+
+client\src\components\player\PlayerAttendance.tsx
+  <- client\src\pages\PlayerProfile.tsx
+
+client\src\components\player\PlayerHeader.tsx
+  <- client\src\pages\PlayerProfile.tsx
+
+client\src\components\player\PlayerHealth.tsx
+  <- client\src\pages\PlayerProfile.tsx
+
+client\src\components\player\PlayerStats.tsx
+  <- client\src\pages\PlayerProfile.tsx
+
+client\src\components\player\PlayerTraining.tsx
+  <- client\src\pages\PlayerProfile.tsx
+
+client\src\components\player\StudentCertificates.tsx
+
+client\src\components\player\StudentExamList.tsx
+
+client\src\components\player\lessons\LessonList.jsx
+  <- client\src\pages\LessonCenter.tsx
+
+client\src\components\player\lessons\LessonViewer.jsx
+  <- client\src\pages\LessonCenter.tsx
+
+client\src\components\player\lessons\Quiz.jsx
+  <- client\src\components\player\lessons\LessonViewer.jsx
+
+client\src\components\ui\accordion.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\components\ui\alert-dialog.tsx
+
+client\src\components\ui\alert.tsx
+
+client\src\components\ui\aspect-ratio.tsx
+
+client\src\components\ui\avatar.tsx
+
+client\src\components\ui\badge.tsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\components\admin\tabs\PlayersScreen.tsx
+  <- client\src\components\admin\test\ExamList.tsx
+  <- client\src\components\admin\test\RegistrationList.tsx
+  <- client\src\components\admin\test\SubmissionsList.tsx
+  <- client\src\components\CoachesSection.tsx
+  <- client\src\components\EligiblePlayersDialog.tsx
+  <- client\src\components\exam\ExamCard.tsx
+  <- client\src\components\player\lessons\LessonList.jsx
+  <- client\src\components\player\PlayerAchievements.tsx
+  <- client\src\components\player\PlayerAttendance.tsx
+  <- client\src\components\player\PlayerHeader.tsx
+  <- client\src\components\player\PlayerHealth.tsx
+  <- client\src\components\player\PlayerTraining.tsx
+  <- client\src\components\player\StudentCertificates.tsx
+  <- client\src\components\player\StudentExamList.tsx
+  <- client\src\components\PlayerCard.tsx
+  <- client\src\features\admin\lessons\components\LessonsTable.tsx
+  <- client\src\features\belt-ranking\components\BeltRankingTable.tsx
+  <- client\src\features\certificates\components\CertificateCard.tsx
+  <- client\src\features\exams\pages\MyExamResultsPage.tsx
+  <- client\src\features\lessonQuiz\pages\AdminLessonQuizPage.tsx
+  <- client\src\features\lessons\components\LearningPathSection.tsx
+  <- client\src\features\lessons\components\LessonCard.tsx
+  <- client\src\features\lessons\pages\LessonDetailPage.tsx
+  <- client\src\features\lessons\pages\LessonQuizPage.tsx
+  <- client\src\features\student\dashboard\components\AttendanceTab.tsx
+  <- client\src\features\student\dashboard\components\BeltProgressCard.tsx
+  <- client\src\features\student\dashboard\components\CertificatesTab.tsx
+  <- client\src\features\student\dashboard\components\ExamsTab.tsx
+  <- client\src\features\student\dashboard\components\OverviewHeader.tsx
+  <- client\src\pages\Admin.tsx
+  <- client\src\pages\Coaches.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\Events.tsx
+  <- client\src\pages\ExamInterface.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+  <- client\src\pages\MyExamResults.tsx
+  <- client\src\pages\MyLessonsProgress.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\components\ui\breadcrumb.tsx
+
+client\src\components\ui\button.tsx
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\AddModuleDialog.tsx
+  <- client\src\components\admin\AddPlayerDialog.tsx
+  <- client\src\components\admin\AddProgramDialog.tsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+  <- client\src\components\admin\certificates\IssueExamOverrideDialog.tsx
+  <- client\src\components\admin\certificates\IssueLessonDialog.tsx
+  <- client\src\components\admin\certificates\IssueManualDialog.tsx
+  <- client\src\components\admin\certificates\IssueModuleDialog.tsx
+  <- client\src\components\admin\certificates\IssuePerformanceDialog.tsx
+  <- client\src\components\admin\certificates\IssueProgramDialog.tsx
+  <- client\src\components\admin\CurriculumGenerator.jsx
+  <- client\src\components\admin\EditModuleDialog.tsx
+  <- client\src\components\admin\EditPlayerDialog.tsx
+  <- client\src\components\admin\EditProgramDialog.tsx
+  <- client\src\components\admin\LessonEditor.jsx
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\components\admin\tabs\ModulesScreen.tsx
+  <- client\src\components\admin\tabs\PlayersScreen.tsx
+  <- client\src\components\admin\tabs\ProgramsScreen.tsx
+  <- client\src\components\admin\test\CertificateGenerator.tsx
+  <- client\src\components\admin\test\CreateExamDialog.tsx
+  <- client\src\components\admin\test\ExamList.tsx
+  <- client\src\components\admin\test\FinalizeResultButton.tsx
+  <- client\src\components\admin\test\PracticalScoreDialog.tsx
+  <- client\src\components\admin\test\RegistrationList.tsx
+  <- client\src\components\admin\test\SubmissionsList.tsx
+  <- client\src\components\certificate\CertificateView.tsx
+  <- client\src\components\coach\Approvals.jsx
+  <- client\src\components\coach\CoachDashboard.jsx
+  <- client\src\components\coach\PlayerProgress.jsx
+  <- client\src\components\CoachesSection.tsx
+  <- client\src\components\ContactSection.tsx
+  <- client\src\components\exam\CertificateDownloadButton.tsx
+  <- client\src\components\exam\ExamCard.tsx
+  <- client\src\components\exam\StudentCertificateCard.tsx
+  <- client\src\components\Hero.tsx
+  <- client\src\components\LanguageToggle.tsx
+  <- client\src\components\Navbar.tsx
+  <- client\src\components\player\lessons\LessonList.jsx
+  <- client\src\components\player\lessons\LessonViewer.jsx
+  <- client\src\components\player\lessons\Quiz.jsx
+  <- client\src\components\player\NotificationsList.jsx
+  <- client\src\components\player\StudentCertificates.tsx
+  <- client\src\components\player\StudentExamList.tsx
+  <- client\src\components\PlayerCard.tsx
+  <- client\src\components\ProgramsSection.tsx
+  <- client\src\components\RegisterTestingDialog.tsx
+  <- client\src\components\ui\alert-dialog.tsx
+  <- client\src\components\ui\calendar.tsx
+  <- client\src\components\ui\carousel.tsx
+  <- client\src\components\ui\pagination.tsx
+  <- client\src\components\ui\sidebar.tsx
+  <- client\src\features\admin\lessons\components\AddLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\EditLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+  <- client\src\features\admin\lessons\components\LessonsTable.tsx
+  <- client\src\features\attendance\pages\CoachAttendancePage.tsx
+  <- client\src\features\belt-ranking\components\BeltRankingForm.tsx
+  <- client\src\features\belt-ranking\components\BeltRankingTable.tsx
+  <- client\src\features\belt-ranking\pages\AdminBeltRankingTab.tsx
+  <- client\src\features\certificates\components\CertificateCard.tsx
+  <- client\src\features\exams\components\AdminExamForm.tsx
+  <- client\src\features\exams\components\ExamCard.tsx
+  <- client\src\features\exams\pages\AdminExamEditPage.tsx
+  <- client\src\features\exams\pages\AdminExamListPage.tsx
+  <- client\src\features\exams\pages\MyExamResultsPage.tsx
+  <- client\src\features\lessonQuiz\components\LessonsScreen.tsx
+  <- client\src\features\lessonQuiz\pages\AdminLessonQuizPage.tsx
+  <- client\src\features\lessons\components\LearningPathSection.tsx
+  <- client\src\features\lessons\components\LessonQuizView.tsx
+  <- client\src\features\lessons\pages\LessonDetailPage.tsx
+  <- client\src\features\lessons\pages\LessonQuizPage.tsx
+  <- client\src\features\lessons\pages\StudentLessonsPage.tsx
+  <- client\src\features\student\dashboard\components\CertificatesTab.tsx
+  <- client\src\features\student\dashboard\components\ExamsTab.tsx
+  <- client\src\pages\Admin.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\ArticlePage.tsx
+  <- client\src\pages\Coaches.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\Events.tsx
+  <- client\src\pages\ExamInterface.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+  <- client\src\pages\Library.tsx
+  <- client\src\pages\Login.tsx
+  <- client\src\pages\MyExamResults.tsx
+  <- client\src\pages\MyLessonsProgress.tsx
+  <- client\src\pages\PlayerProfile.tsx
+  <- client\src\pages\Programs.tsx
+  <- client\src\pages\Rankings.tsx
+  <- client\src\pages\Signup.tsx
+  <- client\src\pages\SilatHistory.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\components\ui\calendar.tsx
+
+client\src\components\ui\card.tsx
+  <- client\src\components\admin\AdminReports.jsx
+  <- client\src\components\admin\AnalyticsDashboard.jsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+  <- client\src\components\admin\CurriculumGenerator.jsx
+  <- client\src\components\admin\LessonEditor.jsx
+  <- client\src\components\admin\tabs\AnalyticsScreen.tsx
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\components\admin\tabs\LessonsScreen.tsx
+  <- client\src\components\admin\tabs\ModulesScreen.tsx
+  <- client\src\components\admin\tabs\PlayersScreen.tsx
+  <- client\src\components\admin\tabs\ProgramsScreen.tsx
+  <- client\src\components\admin\test\CreateExamDialog.tsx
+  <- client\src\components\admin\test\ExamList.tsx
+  <- client\src\components\admin\test\RegistrationList.tsx
+  <- client\src\components\admin\test\SubmissionsList.tsx
+  <- client\src\components\charts\AdminCharts.tsx
+  <- client\src\components\charts\InstructorCharts.tsx
+  <- client\src\components\charts\StudentCharts.tsx
+  <- client\src\components\coach\Approvals.jsx
+  <- client\src\components\coach\CoachDashboard.jsx
+  <- client\src\components\coach\PlayerProgress.jsx
+  <- client\src\components\CoachesSection.tsx
+  <- client\src\components\ContactSection.tsx
+  <- client\src\components\EligiblePlayersDialog.tsx
+  <- client\src\components\exam\ExamCard.tsx
+  <- client\src\components\exam\ExamResultCard.tsx
+  <- client\src\components\player\lessons\LessonList.jsx
+  <- client\src\components\player\lessons\LessonViewer.jsx
+  <- client\src\components\player\lessons\Quiz.jsx
+  <- client\src\components\player\NotificationsList.jsx
+  <- client\src\components\player\PlayerAchievements.tsx
+  <- client\src\components\player\PlayerAttendance.tsx
+  <- client\src\components\player\PlayerHeader.tsx
+  <- client\src\components\player\PlayerHealth.tsx
+  <- client\src\components\player\PlayerStats.tsx
+  <- client\src\components\player\PlayerTraining.tsx
+  <- client\src\components\player\StudentCertificates.tsx
+  <- client\src\components\player\StudentExamList.tsx
+  <- client\src\components\PlayerCard.tsx
+  <- client\src\components\ProgramsSection.tsx
+  <- client\src\components\RankingsSection.tsx
+  <- client\src\features\admin\lessons\pages\AdminLessonsPage.tsx
+  <- client\src\features\belt-ranking\components\BeltRankingForm.tsx
+  <- client\src\features\exams\components\ExamCard.tsx
+  <- client\src\features\exams\pages\MyExamResultsPage.tsx
+  <- client\src\features\lessonQuiz\components\LessonsScreen.tsx
+  <- client\src\features\lessonQuiz\pages\AdminLessonQuizPage.tsx
+  <- client\src\features\lessons\components\LessonCard.tsx
+  <- client\src\features\lessons\pages\LessonDetailPage.tsx
+  <- client\src\features\lessons\pages\LessonQuizPage.tsx
+  <- client\src\features\lessons\pages\StudentLessonsPage.tsx
+  <- client\src\features\student\dashboard\components\AttendanceTab.tsx
+  <- client\src\features\student\dashboard\components\BeltProgressCard.tsx
+  <- client\src\features\student\dashboard\components\CertificatesTab.tsx
+  <- client\src\features\student\dashboard\components\ExamsTab.tsx
+  <- client\src\features\student\dashboard\components\StatsCards.tsx
+  <- client\src\pages\Admin.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Coaches.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\Events.tsx
+  <- client\src\pages\ExamInterface.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+  <- client\src\pages\Library.tsx
+  <- client\src\pages\Login.tsx
+  <- client\src\pages\MyExamResults.tsx
+  <- client\src\pages\MyLessonsProgress.tsx
+  <- client\src\pages\Programs.tsx
+  <- client\src\pages\Rankings.tsx
+  <- client\src\pages\Signup.tsx
+  <- client\src\pages\SilatHistory.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\components\ui\carousel.tsx
+  <- client\src\pages\Coaches.tsx
+
+client\src\components\ui\chart.tsx
+  <- client\src\components\charts\AdminCharts.tsx
+  <- client\src\components\charts\InstructorCharts.tsx
+  <- client\src\components\charts\StudentCharts.tsx
+
+client\src\components\ui\checkbox.tsx
+  <- client\src\pages\Login.tsx
+
+client\src\components\ui\collapsible.tsx
+
+client\src\components\ui\command.tsx
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+
+client\src\components\ui\context-menu.tsx
+
+client\src\components\ui\dialog.tsx
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\AddModuleDialog.tsx
+  <- client\src\components\admin\AddPlayerDialog.tsx
+  <- client\src\components\admin\AddProgramDialog.tsx
+  <- client\src\components\admin\certificates\IssueExamOverrideDialog.tsx
+  <- client\src\components\admin\certificates\IssueLessonDialog.tsx
+  <- client\src\components\admin\certificates\IssueManualDialog.tsx
+  <- client\src\components\admin\certificates\IssueModuleDialog.tsx
+  <- client\src\components\admin\certificates\IssuePerformanceDialog.tsx
+  <- client\src\components\admin\certificates\IssueProgramDialog.tsx
+  <- client\src\components\admin\EditModuleDialog.tsx
+  <- client\src\components\admin\EditPlayerDialog.tsx
+  <- client\src\components\admin\EditProgramDialog.tsx
+  <- client\src\components\admin\test\CreateExamDialog.tsx
+  <- client\src\components\admin\test\PracticalScoreDialog.tsx
+  <- client\src\components\EligiblePlayersDialog.tsx
+  <- client\src\components\RegisterTestingDialog.tsx
+  <- client\src\components\ui\command.tsx
+  <- client\src\features\admin\lessons\components\AddLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\EditLessonDialog.tsx
+  <- client\src\pages\Events.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+
+client\src\components\ui\drawer.tsx
+
+client\src\components\ui\dropdown-menu.tsx
+
+client\src\components\ui\form.tsx
+
+client\src\components\ui\hover-card.tsx
+
+client\src\components\ui\input-otp.tsx
+
+client\src\components\ui\input.tsx
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\AddModuleDialog.tsx
+  <- client\src\components\admin\AddPlayerDialog.tsx
+  <- client\src\components\admin\AddProgramDialog.tsx
+  <- client\src\components\admin\EditModuleDialog.tsx
+  <- client\src\components\admin\EditPlayerDialog.tsx
+  <- client\src\components\admin\EditProgramDialog.tsx
+  <- client\src\components\admin\LessonEditor.jsx
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\components\admin\tabs\PlayersScreen.tsx
+  <- client\src\components\admin\test\CreateExamDialog.tsx
+  <- client\src\components\admin\test\PracticalScoreDialog.tsx
+  <- client\src\components\coach\CoachDashboard.jsx
+  <- client\src\components\coach\PlayerProgress.jsx
+  <- client\src\components\ContactSection.tsx
+  <- client\src\components\EligiblePlayersDialog.tsx
+  <- client\src\components\PlayerSection.tsx
+  <- client\src\components\RegisterTestingDialog.tsx
+  <- client\src\components\ui\sidebar.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+  <- client\src\features\attendance\pages\CoachAttendancePage.tsx
+  <- client\src\features\belt-ranking\components\BeltRankingForm.tsx
+  <- client\src\features\exams\components\AdminExamForm.tsx
+  <- client\src\features\exams\pages\AdminExamEditPage.tsx
+  <- client\src\features\lessonQuiz\pages\AdminLessonQuizPage.tsx
+  <- client\src\pages\Admin.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\Events.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+  <- client\src\pages\Library.tsx
+  <- client\src\pages\Login.tsx
+  <- client\src\pages\Signup.tsx
+
+client\src\components\ui\label.tsx
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\AddPlayerDialog.tsx
+  <- client\src\components\RegisterTestingDialog.tsx
+  <- client\src\components\ui\form.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+  <- client\src\features\belt-ranking\components\BeltRankingForm.tsx
+  <- client\src\pages\Events.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+  <- client\src\pages\Login.tsx
+  <- client\src\pages\Signup.tsx
+
+client\src\components\ui\menubar.tsx
+
+client\src\components\ui\navigation-menu.tsx
+
+client\src\components\ui\pagination.tsx
+
+client\src\components\ui\popover.tsx
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+
+client\src\components\ui\progress.tsx
+  <- client\src\components\player\PlayerAttendance.tsx
+  <- client\src\components\player\PlayerStats.tsx
+  <- client\src\components\PlayerCard.tsx
+  <- client\src\features\student\dashboard\components\AttendanceTab.tsx
+  <- client\src\features\student\dashboard\components\BeltProgressCard.tsx
+  <- client\src\features\student\dashboard\components\LockedItem.tsx
+  <- client\src\features\student\dashboard\components\StatsCards.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\components\ui\radio-group.tsx
+  <- client\src\components\player\lessons\Quiz.jsx
+  <- client\src\features\lessons\components\LessonQuizView.tsx
+  <- client\src\pages\ExamInterface.tsx
+
+client\src\components\ui\resizable.tsx
+
+client\src\components\ui\scroll-area.tsx
+
+client\src\components\ui\select.tsx
+  <- client\src\components\admin\certificates\IssueExamOverrideDialog.tsx
+  <- client\src\components\admin\certificates\IssueLessonDialog.tsx
+  <- client\src\components\admin\certificates\IssueManualDialog.tsx
+  <- client\src\components\admin\certificates\IssueModuleDialog.tsx
+  <- client\src\components\admin\certificates\IssuePerformanceDialog.tsx
+  <- client\src\components\admin\certificates\IssueProgramDialog.tsx
+  <- client\src\components\admin\CurriculumGenerator.jsx
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\components\admin\test\CreateExamDialog.tsx
+  <- client\src\components\coach\Approvals.jsx
+  <- client\src\components\EligiblePlayersDialog.tsx
+  <- client\src\components\RegisterTestingDialog.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\Signup.tsx
+
+client\src\components\ui\separator.tsx
+  <- client\src\components\ui\sidebar.tsx
+
+client\src\components\ui\sheet.tsx
+  <- client\src\components\EligiblePlayersDialog.tsx
+  <- client\src\components\Navbar.tsx
+  <- client\src\components\ui\sidebar.tsx
+
+client\src\components\ui\sidebar.tsx
+
+client\src\components\ui\skeleton.tsx
+  <- client\src\components\ui\sidebar.tsx
+
+client\src\components\ui\slider.tsx
+
+client\src\components\ui\sonner.tsx
+  <- client\src\App.tsx
+
+client\src\components\ui\switch.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+
+client\src\components\ui\table.tsx
+  <- client\src\components\admin\tabs\LessonsScreen.tsx
+  <- client\src\components\admin\tabs\ModulesScreen.tsx
+  <- client\src\components\admin\tabs\ProgramsScreen.tsx
+  <- client\src\components\player\PlayerAttendance.tsx
+  <- client\src\features\admin\lessons\components\LessonsTable.tsx
+  <- client\src\features\lessonQuiz\components\LessonsScreen.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+
+client\src\components\ui\tabs.tsx
+  <- client\src\components\admin\AnalyticsDashboard.jsx
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+  <- client\src\components\admin\EditPlayerDialog.tsx
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\features\belt-ranking\pages\AdminBeltRankingTab.tsx
+  <- client\src\features\student\dashboard\components\AttendanceTab.tsx
+  <- client\src\features\student\dashboard\components\CertificatesTab.tsx
+  <- client\src\features\student\dashboard\components\ExamsTab.tsx
+  <- client\src\features\student\dashboard\components\LearningTab.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+  <- client\src\pages\Admin.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+  <- client\src\pages\Library.tsx
+  <- client\src\pages\Programs.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\components\ui\textarea.tsx
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\AddModuleDialog.tsx
+  <- client\src\components\admin\AddProgramDialog.tsx
+  <- client\src\components\admin\EditModuleDialog.tsx
+  <- client\src\components\admin\EditPlayerDialog.tsx
+  <- client\src\components\admin\EditProgramDialog.tsx
+  <- client\src\components\admin\LessonEditor.jsx
+  <- client\src\components\ContactSection.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+  <- client\src\features\exams\components\AdminExamForm.tsx
+  <- client\src\features\lessonQuiz\pages\AdminLessonQuizPage.tsx
+  <- client\src\features\lessons\components\LessonQuizView.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\ExamInterface.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+
+client\src\components\ui\toast.tsx
+  <- client\src\components\ui\toaster.tsx
+  <- client\src\hooks\use-toast.ts
+
+client\src\components\ui\toaster.tsx
+  <- client\src\App.tsx
+
+client\src\components\ui\toggle-group.tsx
+
+client\src\components\ui\toggle.tsx
+  <- client\src\components\ui\toggle-group.tsx
+
+client\src\components\ui\tooltip.tsx
+  <- client\src\App.tsx
+  <- client\src\components\ui\sidebar.tsx
+
+client\src\contexts\LanguageContext.tsx
+  <- client\src\App.tsx
+  <- client\src\components\charts\AdminCharts.tsx
+  <- client\src\components\charts\InstructorCharts.tsx
+  <- client\src\components\charts\StudentCharts.tsx
+  <- client\src\components\LanguageToggle.tsx
+
+client\src\data\attendance.ts
+  <- client\src\components\player\PlayerAttendance.tsx
+
+client\src\data\coaches.ts
+  <- client\src\components\CoachesSection.tsx
+  <- client\src\pages\Coaches.tsx
+
+client\src\data\events.ts
+  <- client\src\pages\Events.tsx
+
+client\src\data\exams.ts
+
+client\src\data\players.ts
+  <- client\src\components\EligiblePlayersDialog.tsx
+  <- client\src\components\player\PlayerAchievements.tsx
+  <- client\src\components\player\PlayerHeader.tsx
+  <- client\src\components\player\PlayerHealth.tsx
+  <- client\src\components\player\PlayerStats.tsx
+  <- client\src\components\player\PlayerTraining.tsx
+  <- client\src\components\RegisterTestingDialog.tsx
+  <- client\src\pages\Admin.tsx
+  <- client\src\pages\InstructorDashboard.tsx
+
+client\src\features\admin\dashboard\api\approveRegistration.ts
+
+client\src\features\admin\dashboard\api\createExamAdmin.ts
+
+client\src\features\admin\dashboard\api\finalizeExam.ts
+
+client\src\features\admin\dashboard\api\getAdminRegistrations.ts
+
+client\src\features\admin\dashboard\api\getAdminSubmissions.ts
+
+client\src\features\admin\dashboard\api\getAllExams.ts
+
+client\src\features\admin\dashboard\api\gradeManual.ts
+
+client\src\features\admin\dashboard\api\publishExam.ts
+
+client\src\features\admin\dashboard\api\rejectRegistration.ts
+
+client\src\features\admin\dashboard\api\savePracticalScore.ts
+
+client\src\features\admin\dashboard\api\updateExam.ts
+
+client\src\features\admin\lessons\api.ts
+  <- client\src\features\admin\lessons\components\AddLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\EditLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\LessonsTable.tsx
+  <- client\src\features\admin\lessons\pages\AdminLessonsPage.tsx
+
+client\src\features\admin\lessons\components\AddLessonDialog.tsx
+  <- client\src\features\admin\lessons\pages\AdminLessonsPage.tsx
+
+client\src\features\admin\lessons\components\EditLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\LessonsTable.tsx
+
+client\src\features\admin\lessons\components\LessonForm.tsx
+  <- client\src\features\admin\lessons\components\AddLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\EditLessonDialog.tsx
+
+client\src\features\admin\lessons\components\LessonsTable.tsx
+  <- client\src\features\admin\lessons\pages\AdminLessonsPage.tsx
+
+client\src\features\admin\lessons\pages\AdminLessonsPage.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\features\admin\lessons\types.ts
+  <- client\src\features\admin\lessons\api.ts
+  <- client\src\features\admin\lessons\components\EditLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+  <- client\src\features\admin\lessons\components\LessonsTable.tsx
+  <- client\src\features\admin\lessons\pages\AdminLessonsPage.tsx
+
+client\src\features\attendance\pages\AdminAttendancePage.tsx
+
+client\src\features\attendance\pages\CoachAttendancePage.tsx
+
+client\src\features\attendance\pages\StudentAttendancePage.tsx
+
+client\src\features\belt-ranking\api\beltRankingService.ts
+  <- client\src\features\belt-ranking\pages\AdminBeltRankingTab.tsx
+
+client\src\features\belt-ranking\components\BeltRankingForm.tsx
+  <- client\src\features\belt-ranking\pages\AdminBeltRankingTab.tsx
+
+client\src\features\belt-ranking\components\BeltRankingTable.tsx
+  <- client\src\features\belt-ranking\pages\AdminBeltRankingTab.tsx
+
+client\src\features\belt-ranking\pages\AdminBeltRankingTab.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\features\belt-ranking\types\beltRanking.types.ts
+
+client\src\features\certificates\components\CertificateCard.tsx
+  <- client\src\features\certificates\pages\MyCertificatesPage.tsx
+
+client\src\features\certificates\pages\MyCertificatesPage.tsx
+
+client\src\features\exams\api\admin\createExam.ts
+  <- client\src\features\exams\pages\AdminExamEditPage.tsx
+
+client\src\features\exams\api\admin\finalizeExam.ts
+  <- client\src\features\exams\pages\AdminExamEditPage.tsx
+
+client\src\features\exams\api\admin\gradePractical.ts
+  <- client\src\features\exams\pages\AdminExamEditPage.tsx
+
+client\src\features\exams\api\admin\publishExam.ts
+  <- client\src\features\exams\pages\AdminExamEditPage.tsx
+
+client\src\features\exams\api\admin\updateExam.ts
+  <- client\src\features\exams\pages\AdminExamEditPage.tsx
+
+client\src\features\exams\api\getExamById.ts
+  <- client\src\features\exams\pages\AdminExamEditPage.tsx
+  <- client\src\pages\ExamInterface.tsx
+
+client\src\features\exams\api\getExams.ts
+  <- client\src\features\exams\pages\AdminExamListPage.tsx
+  <- client\src\features\exams\pages\StudentExamListPage.tsx
+
+client\src\features\exams\api\getMyAttempts.ts
+  <- client\src\features\student\dashboard\api\api.ts
+  <- client\src\pages\ExamInterface.tsx
+  <- client\src\pages\MyExamResults.tsx
+
+client\src\features\exams\api\getRegistrationStatus.ts
+
+client\src\features\exams\api\registerExam.ts
+
+client\src\features\exams\api\startAttempt.ts
+
+client\src\features\exams\api\submitAttempt.ts
+  <- client\src\pages\ExamInterface.tsx
+
+client\src\features\exams\components\AdminExamForm.tsx
+  <- client\src\features\exams\pages\AdminExamEditPage.tsx
+
+client\src\features\exams\components\AttemptSummary.tsx
+
+client\src\features\exams\components\ExamCard.tsx
+  <- client\src\features\exams\components\ExamList.tsx
+
+client\src\features\exams\components\ExamList.tsx
+  <- client\src\features\exams\pages\AdminExamListPage.tsx
+  <- client\src\features\exams\pages\StudentExamListPage.tsx
+
+client\src\features\exams\components\ResultCard.tsx
+
+client\src\features\exams\pages\AdminExamEditPage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\exams\pages\AdminExamListPage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\exams\pages\ExamInterfacePage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\exams\pages\MyExamResultsPage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\exams\pages\StudentExamListPage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\exams\types\exam.types.ts
+
+client\src\features\lessonQuiz\components\LessonsScreen.tsx
+
+client\src\features\lessonQuiz\pages\AdminLessonQuizPage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\lessons\api\completeLesson.ts
+  <- client\src\features\lessons\pages\LessonDetailPage.tsx
+
+client\src\features\lessons\api\getLessonById.ts
+  <- client\src\features\lessons\pages\LessonDetailPage.tsx
+
+client\src\features\lessons\api\getLessonQuiz.ts
+  <- client\src\features\lessons\pages\LessonQuizPage.tsx
+
+client\src\features\lessons\api\getStudentLessons.ts
+  <- client\src\features\lessons\pages\StudentLessonsPage.tsx
+  <- client\src\features\student\dashboard\api\api.ts
+  <- client\src\pages\MyLessonsProgress.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\features\lessons\api\saveProgress.ts
+  <- client\src\features\lessons\pages\LessonDetailPage.tsx
+
+client\src\features\lessons\api\studentQuizApi.ts
+
+client\src\features\lessons\api\submitQuizAnswers.ts
+  <- client\src\features\lessons\pages\LessonQuizPage.tsx
+
+client\src\features\lessons\components\LearningPathSection.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\features\lessons\components\LessonCard.tsx
+  <- client\src\features\lessons\components\LessonList.tsx
+
+client\src\features\lessons\components\LessonContent.tsx
+
+client\src\features\lessons\components\LessonList.tsx
+
+client\src\features\lessons\components\LessonQuizView.tsx
+
+client\src\features\lessons\hooks\useLesson.ts
+
+client\src\features\lessons\hooks\useLessonQuiz.ts
+
+client\src\features\lessons\pages\LessonDetailPage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\lessons\pages\LessonQuizPage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\lessons\pages\StudentLessonsPage.tsx
+  <- client\src\features\student\dashboard\components\LearningTab.tsx
+  <- client\src\pages\StudentDashboard.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\lessons\types\lesson.types.ts
+
+client\src\features\student\dashboard\api\api.ts
+  <- client\src\features\student\dashboard\components\ExamsTab.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\features\student\dashboard\api\getAttendanceRecords.ts
+  <- client\src\features\student\dashboard\api\api.ts
+
+client\src\features\student\dashboard\api\getAvailableExams.ts
+  <- client\src\features\student\dashboard\api\api.ts
+
+client\src\features\student\dashboard\api\getExam.ts
+
+client\src\features\student\dashboard\api\getMyBeltProgress.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\features\student\dashboard\api\getMyCertificates.ts
+
+client\src\features\student\dashboard\api\getRegistrationStatus.ts
+
+client\src\features\student\dashboard\api\getStudentAttempts.ts
+
+client\src\features\student\dashboard\api\getStudentAttendance.ts
+  <- client\src\features\student\dashboard\api\api.ts
+
+client\src\features\student\dashboard\api\getStudentCertificates.ts
+
+client\src\features\student\dashboard\api\getStudentLessons.ts
+
+client\src\features\student\dashboard\api\getStudentOverview.ts
+  <- client\src\features\student\dashboard\api\api.ts
+
+client\src\features\student\dashboard\api\myCertificates.ts
+  <- client\src\features\student\dashboard\api\api.ts
+
+client\src\features\student\dashboard\api\registerForExam.ts
+  <- client\src\features\student\dashboard\components\ExamsTab.tsx
+
+client\src\features\student\dashboard\api\startAttempt.ts
+  <- client\src\features\student\dashboard\api\api.ts
+
+client\src\features\student\dashboard\api\submitAttempt.ts
+
+client\src\features\student\dashboard\components\AttendanceTab.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\features\student\dashboard\components\BeltProgressCard.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\features\student\dashboard\components\CertificatesTab.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\features\student\dashboard\components\ExamsTab.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\features\student\dashboard\components\LearningTab.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\features\student\dashboard\components\LockedItem.tsx
+  <- client\src\features\student\dashboard\components\LockedReasons.tsx
+
+client\src\features\student\dashboard\components\LockedReasons.tsx
+
+client\src\features\student\dashboard\components\OverviewHeader.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\features\student\dashboard\components\StatsCards.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\features\student\dashboard\pages\StudentDashboard.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\features\student\dashboard\types\index.ts
+  <- client\src\features\student\dashboard\components\AttendanceTab.tsx
+  <- client\src\features\student\dashboard\components\CertificatesTab.tsx
+  <- client\src\features\student\dashboard\components\ExamsTab.tsx
+  <- client\src\features\student\dashboard\components\OverviewHeader.tsx
+  <- client\src\features\student\dashboard\components\StatsCards.tsx
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+
+client\src\hooks\use-mobile.tsx
+  <- client\src\components\ui\sidebar.tsx
+
+client\src\hooks\use-toast.ts
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\AddPlayerDialog.tsx
+  <- client\src\components\admin\EditPlayerDialog.tsx
+  <- client\src\components\admin\EditProgramDialog.tsx
+  <- client\src\components\admin\LessonEditor.jsx
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\components\admin\tabs\PlayersScreen.tsx
+  <- client\src\components\admin\test\CertificateGenerator.tsx
+  <- client\src\components\admin\test\FinalizeResultButton.tsx
+  <- client\src\components\admin\test\PracticalScoreDialog.tsx
+  <- client\src\components\coach\Approvals.jsx
+  <- client\src\components\coach\CoachDashboard.jsx
+  <- client\src\components\Navbar.tsx
+  <- client\src\components\player\lessons\LessonViewer.jsx
+  <- client\src\components\RegisterTestingDialog.tsx
+  <- client\src\components\ui\toaster.tsx
+  <- client\src\features\admin\lessons\components\AddLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\EditLessonDialog.tsx
+  <- client\src\features\admin\lessons\components\LessonsTable.tsx
+  <- client\src\features\lessonQuiz\pages\AdminLessonQuizPage.tsx
+  <- client\src\pages\Admin.tsx
+  <- client\src\pages\Events.tsx
+  <- client\src\pages\ExamInterface.tsx
+  <- client\src\pages\Login.tsx
+  <- client\src\pages\Signup.tsx
+
+client\src\hooks\useDownloadCertificate.ts
+  <- client\src\pages\Certificates.tsx
+
+client\src\lib\apiClient.ts
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\components\admin\test\CertificateGenerator.tsx
+  <- client\src\components\exam\CertificateDownloadButton.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\services\moduleService.js
+  <- client\src\services\programService.js
+  <- client\src\tests\apiTestSuite.js
+  <- client\src\utils\apiClient.js
+
+client\src\lib\utils.ts
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\components\ui\accordion.tsx
+  <- client\src\components\ui\alert-dialog.tsx
+  <- client\src\components\ui\alert.tsx
+  <- client\src\components\ui\avatar.tsx
+  <- client\src\components\ui\badge.tsx
+  <- client\src\components\ui\breadcrumb.tsx
+  <- client\src\components\ui\button.tsx
+  <- client\src\components\ui\calendar.tsx
+  <- client\src\components\ui\card.tsx
+  <- client\src\components\ui\carousel.tsx
+  <- client\src\components\ui\chart.tsx
+  <- client\src\components\ui\checkbox.tsx
+  <- client\src\components\ui\command.tsx
+  <- client\src\components\ui\context-menu.tsx
+  <- client\src\components\ui\dialog.tsx
+  <- client\src\components\ui\drawer.tsx
+  <- client\src\components\ui\dropdown-menu.tsx
+  <- client\src\components\ui\form.tsx
+  <- client\src\components\ui\hover-card.tsx
+  <- client\src\components\ui\input-otp.tsx
+  <- client\src\components\ui\input.tsx
+  <- client\src\components\ui\label.tsx
+  <- client\src\components\ui\menubar.tsx
+  <- client\src\components\ui\navigation-menu.tsx
+  <- client\src\components\ui\pagination.tsx
+  <- client\src\components\ui\popover.tsx
+  <- client\src\components\ui\progress.tsx
+  <- client\src\components\ui\radio-group.tsx
+  <- client\src\components\ui\resizable.tsx
+  <- client\src\components\ui\scroll-area.tsx
+  <- client\src\components\ui\select.tsx
+  <- client\src\components\ui\separator.tsx
+  <- client\src\components\ui\sheet.tsx
+  <- client\src\components\ui\sidebar.tsx
+  <- client\src\components\ui\skeleton.tsx
+  <- client\src\components\ui\slider.tsx
+  <- client\src\components\ui\switch.tsx
+  <- client\src\components\ui\table.tsx
+  <- client\src\components\ui\tabs.tsx
+  <- client\src\components\ui\textarea.tsx
+  <- client\src\components\ui\toast.tsx
+  <- client\src\components\ui\toggle-group.tsx
+  <- client\src\components\ui\toggle.tsx
+  <- client\src\components\ui\tooltip.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+
+client\src\main.tsx
+
+client\src\pages\Admin.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\ArticlePage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\Certificates.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\Coaches.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\Dashboard.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\Events.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\ExamInterface.tsx
+  <- client\src\features\exams\pages\ExamInterfacePage.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\Index.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\InstructorDashboard.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\LessonCenter.tsx
+
+client\src\pages\Library.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\Login.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\MyExamResults.tsx
+
+client\src\pages\MyLessonsProgress.tsx
+
+client\src\pages\NotFound.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\PlayerProfile.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\Programs.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\Rankings.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\Signup.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\SilatHistory.tsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\pages\StudentDashboard.tsx
+
+client\src\pages\TestDashboard.jsx
+  <- client\src\routes\appRoutes.jsx
+
+client\src\routes\appRoutes.jsx
+  <- client\src\App.tsx
+  <- client\src\components\dev\DevNavigatorUltra.tsx
+
+client\src\services\adminService.js
+  <- client\src\components\admin\AddPlayerDialog.tsx
+  <- client\src\components\admin\certificates\IssueExamOverrideDialog.tsx
+  <- client\src\components\admin\certificates\IssueLessonDialog.tsx
+  <- client\src\components\admin\certificates\IssueManualDialog.tsx
+  <- client\src\components\admin\certificates\IssueModuleDialog.tsx
+  <- client\src\components\admin\certificates\IssuePerformanceDialog.tsx
+  <- client\src\components\admin\certificates\IssueProgramDialog.tsx
+  <- client\src\components\admin\EditPlayerDialog.tsx
+  <- client\src\components\admin\tabs\PlayersScreen.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\services\analyticsService.js
+  <- client\src\components\admin\AnalyticsDashboard.jsx
+
+client\src\services\attendanceService.js
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\features\attendance\pages\AdminAttendancePage.tsx
+  <- client\src\features\attendance\pages\CoachAttendancePage.tsx
+  <- client\src\features\attendance\pages\StudentAttendancePage.tsx
+  <- client\src\features\student\dashboard\api\api.ts
+  <- client\src\features\student\dashboard\pages\StudentDashboard.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\services\authService.js
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Login.tsx
+  <- client\src\pages\Signup.tsx
+
+client\src\services\certificateService.js
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+  <- client\src\components\admin\certificates\IssueExamOverrideDialog.tsx
+  <- client\src\components\admin\certificates\IssueLessonDialog.tsx
+  <- client\src\components\admin\certificates\IssueManualDialog.tsx
+  <- client\src\components\admin\certificates\IssueModuleDialog.tsx
+  <- client\src\components\admin\certificates\IssuePerformanceDialog.tsx
+  <- client\src\components\admin\certificates\IssueProgramDialog.tsx
+  <- client\src\components\admin\test\CertificateGenerator.tsx
+  <- client\src\features\certificates\pages\MyCertificatesPage.tsx
+  <- client\src\features\student\dashboard\api\api.ts
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Certificates.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\services\coachService.js
+  <- client\src\components\coach\Approvals.jsx
+  <- client\src\components\coach\CoachDashboard.jsx
+  <- client\src\components\coach\PlayerProgress.jsx
+  <- client\src\pages\ApiPlayground.tsx
+
+client\src\services\curriculumService.js
+  <- client\src\components\admin\CurriculumGenerator.jsx
+  <- client\src\pages\ApiPlayground.tsx
+
+client\src\services\eligibilityService.js
+
+client\src\services\eventService.js
+  <- client\src\pages\ApiPlayground.tsx
+
+client\src\services\examService.js
+  <- client\src\components\admin\certificates\IssueExamOverrideDialog.tsx
+  <- client\src\components\admin\tabs\ExamsScreen.tsx
+  <- client\src\components\admin\test\CreateExamDialog.tsx
+  <- client\src\components\admin\test\ExamList.tsx
+  <- client\src\components\admin\test\FinalizeResultButton.tsx
+  <- client\src\components\admin\test\PracticalScoreDialog.tsx
+  <- client\src\components\player\StudentExamList.tsx
+  <- client\src\features\exams\pages\MyExamResultsPage.tsx
+  <- client\src\features\student\dashboard\api\api.ts
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\services\lessonQuizService.js
+
+client\src\services\lessonService.js
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\LessonEditor.jsx
+  <- client\src\components\admin\tabs\LessonsScreen.tsx
+  <- client\src\components\player\lessons\LessonList.jsx
+  <- client\src\components\player\lessons\LessonViewer.jsx
+  <- client\src\features\lessonQuiz\components\LessonsScreen.tsx
+  <- client\src\features\lessonQuiz\pages\AdminLessonQuizPage.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\services\libraryService.js
+  <- client\src\pages\ApiPlayground.tsx
+
+client\src\services\moduleService.js
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\AddModuleDialog.tsx
+  <- client\src\components\admin\certificates\IssueModuleDialog.tsx
+  <- client\src\components\admin\EditModuleDialog.tsx
+  <- client\src\components\admin\tabs\ModulesScreen.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+  <- client\src\pages\Dashboard.tsx
+
+client\src\services\notificationService.js
+  <- client\src\components\player\NotificationsBell.jsx
+  <- client\src\components\player\NotificationsList.jsx
+  <- client\src\pages\ApiPlayground.tsx
+
+client\src\services\playerService.js
+  <- client\src\components\admin\certificates\CertificateCenter.jsx
+  <- client\src\components\admin\tabs\AttendanceScreen.tsx
+  <- client\src\components\PlayerSection.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\PlayerProfile.tsx
+  <- client\src\pages\StudentDashboard.tsx
+
+client\src\services\programService.js
+  <- client\src\components\admin\AddLessonDialog.tsx
+  <- client\src\components\admin\AddModuleDialog.tsx
+  <- client\src\components\admin\AddProgramDialog.tsx
+  <- client\src\components\admin\certificates\IssueProgramDialog.tsx
+  <- client\src\components\admin\EditProgramDialog.tsx
+  <- client\src\components\admin\tabs\ProgramsScreen.tsx
+  <- client\src\features\admin\lessons\components\LessonForm.tsx
+  <- client\src\pages\ApiPlayground.tsx
+  <- client\src\pages\Dashboard.tsx
+  <- client\src\pages\Programs.tsx
+
+client\src\services\rankingService.js
+  <- client\src\pages\ApiPlayground.tsx
+
+client\src\services\studentCertificateService.js
+  <- client\src\components\player\StudentCertificates.tsx
+
+client\src\services\userService.js
+
+client\src\shared\api\apiClient.ts
+  <- client\src\features\admin\dashboard\api\approveRegistration.ts
+  <- client\src\features\admin\dashboard\api\createExamAdmin.ts
+  <- client\src\features\admin\dashboard\api\finalizeExam.ts
+  <- client\src\features\admin\dashboard\api\getAdminRegistrations.ts
+  <- client\src\features\admin\dashboard\api\getAdminSubmissions.ts
+  <- client\src\features\admin\dashboard\api\getAllExams.ts
+  <- client\src\features\admin\dashboard\api\gradeManual.ts
+  <- client\src\features\admin\dashboard\api\publishExam.ts
+  <- client\src\features\admin\dashboard\api\rejectRegistration.ts
+  <- client\src\features\admin\dashboard\api\savePracticalScore.ts
+  <- client\src\features\admin\dashboard\api\updateExam.ts
+  <- client\src\features\admin\lessons\api.ts
+  <- client\src\features\belt-ranking\api\beltRankingService.ts
+  <- client\src\features\certificates\components\CertificateCard.tsx
+  <- client\src\features\exams\api\admin\createExam.ts
+  <- client\src\features\exams\api\admin\finalizeExam.ts
+  <- client\src\features\exams\api\admin\gradePractical.ts
+  <- client\src\features\exams\api\admin\publishExam.ts
+  <- client\src\features\exams\api\admin\updateExam.ts
+  <- client\src\features\exams\api\getExamById.ts
+  <- client\src\features\exams\api\getExams.ts
+  <- client\src\features\exams\api\getMyAttempts.ts
+  <- client\src\features\exams\api\getRegistrationStatus.ts
+  <- client\src\features\exams\api\registerExam.ts
+  <- client\src\features\exams\api\startAttempt.ts
+  <- client\src\features\exams\api\submitAttempt.ts
+  <- client\src\features\exams\pages\MyExamResultsPage.tsx
+  <- client\src\features\lessons\api\completeLesson.ts
+  <- client\src\features\lessons\api\getLessonById.ts
+  <- client\src\features\lessons\api\getLessonQuiz.ts
+  <- client\src\features\lessons\api\getStudentLessons.ts
+  <- client\src\features\lessons\api\saveProgress.ts
+  <- client\src\features\lessons\api\studentQuizApi.ts
+  <- client\src\features\lessons\api\submitQuizAnswers.ts
+  <- client\src\features\student\dashboard\api\api.ts
+  <- client\src\features\student\dashboard\api\getAttendanceRecords.ts
+  <- client\src\features\student\dashboard\api\getAvailableExams.ts
+  <- client\src\features\student\dashboard\api\getExam.ts
+  <- client\src\features\student\dashboard\api\getMyBeltProgress.tsx
+  <- client\src\features\student\dashboard\api\getMyCertificates.ts
+  <- client\src\features\student\dashboard\api\getRegistrationStatus.ts
+  <- client\src\features\student\dashboard\api\getStudentAttendance.ts
+  <- client\src\features\student\dashboard\api\getStudentOverview.ts
+  <- client\src\features\student\dashboard\api\myCertificates.ts
+  <- client\src\features\student\dashboard\api\registerForExam.ts
+  <- client\src\features\student\dashboard\api\startAttempt.ts
+  <- client\src\features\student\dashboard\api\submitAttempt.ts
+  <- client\src\services\adminService.js
+  <- client\src\services\analyticsService.js
+  <- client\src\services\attendanceService.js
+  <- client\src\services\authService.js
+  <- client\src\services\certificateService.js
+  <- client\src\services\coachService.js
+  <- client\src\services\curriculumService.js
+  <- client\src\services\eligibilityService.js
+  <- client\src\services\eventService.js
+  <- client\src\services\examService.js
+  <- client\src\services\lessonQuizService.js
+  <- client\src\services\lessonService.js
+  <- client\src\services\libraryService.js
+  <- client\src\services\notificationService.js
+  <- client\src\services\playerService.js
+  <- client\src\services\rankingService.js
+  <- client\src\services\studentCertificateService.js
+  <- client\src\services\userService.js
+
+client\src\shared\lib\getProgressColor.ts
+  <- client\src\features\student\dashboard\components\AttendanceTab.tsx
+  <- client\src\features\student\dashboard\components\BeltProgressCard.tsx
+  <- client\src\features\student\dashboard\components\StatsCards.tsx
+
+client\src\tests\apiTestSuite.js
+  <- client\src\pages\TestDashboard.jsx
+
+client\src\utils\apiClient.js
+
+client\src\utils\extractRoutes.ts
+  <- client\src\components\dev\DevNavigatorUltra.tsx
+
+server\functions\.eslintrc.js
+
+server\functions\config\aws-config.js
+
+server\functions\controllers\adminController.js
+  <- server\functions\routes\adminRoutes.js
+
+server\functions\controllers\analyticsController.js
+  <- server\functions\routes\analyticsRoutes.js
+
+server\functions\controllers\attendanceController.js
+  <- server\functions\routes\attendanceRoutes.js
+
+server\functions\controllers\authController.js
+  <- server\functions\routes\authRoutes.js
+
+server\functions\controllers\certificateController.js
+  <- server\functions\routes\certificateRoutes.js
+
+server\functions\controllers\coachController.js
+  <- server\functions\routes\coachRoutes.js
+
+server\functions\controllers\curriculumController.js
+  <- server\functions\routes\curriculumRoutes.js
+
+server\functions\controllers\eventController.js
+  <- server\functions\routes\eventRoutes.js
+
+server\functions\controllers\examController.js
+  <- server\functions\routes\v1\examAdminRoutes.js
+  <- server\functions\routes\v1\examPlayerRoutes.js
+
+server\functions\controllers\index.js
+
+server\functions\controllers\lessonController.js
+  <- server\functions\routes\lessonRoutes.js
+
+server\functions\controllers\libraryController.js
+  <- server\functions\routes\libraryRoutes.js
+
+server\functions\controllers\moduleController.js
+  <- server\functions\routes\moduleRoutes.js
+
+server\functions\controllers\notificationController.js
+  <- server\functions\routes\notificationRoutes.js
+
+server\functions\controllers\playerController.js
+  <- server\functions\routes\playerRoutes.js
+
+server\functions\controllers\programController.js
+  <- server\functions\routes\programRoutes.js
+
+server\functions\controllers\rankingController.js
+  <- server\functions\routes\rankingRoutes.js
+
+server\functions\controllers\userController.js
+  <- server\functions\routes\userRoutes.js
+
+server\functions\index.js
+
+server\functions\middlewares\authMiddleware.js
+  <- server\functions\routes\adminRoutes.js
+  <- server\functions\routes\analyticsRoutes.js
+  <- server\functions\routes\attendanceRoutes.js
+  <- server\functions\routes\certificateRoutes.js
+  <- server\functions\routes\coachRoutes.js
+  <- server\functions\routes\curriculumRoutes.js
+  <- server\functions\routes\eventRoutes.js
+  <- server\functions\routes\lessonRoutes.js
+  <- server\functions\routes\libraryRoutes.js
+  <- server\functions\routes\moduleRoutes.js
+  <- server\functions\routes\notificationRoutes.js
+  <- server\functions\routes\playerRoutes.js
+  <- server\functions\routes\programRoutes.js
+  <- server\functions\routes\rankingRoutes.js
+  <- server\functions\routes\userRoutes.js
+  <- server\functions\routes\v1\admin.js
+  <- server\functions\routes\v1\examAdminRoutes.js
+  <- server\functions\routes\v1\examPlayerRoutes.js
+  <- server\functions\routes\v1\player.js
+
+server\functions\middlewares\errorMiddleware.js
+  <- server\functions\index.js
+
+server\functions\middlewares\uploadMiddleware.js
+
+server\functions\middlewares\validate.js
+  <- server\functions\routes\attendanceRoutes.js
+  <- server\functions\routes\authRoutes.js
+  <- server\functions\routes\certificateRoutes.js
+  <- server\functions\routes\coachRoutes.js
+  <- server\functions\routes\eventRoutes.js
+  <- server\functions\routes\lessonRoutes.js
+  <- server\functions\routes\libraryRoutes.js
+  <- server\functions\routes\moduleRoutes.js
+  <- server\functions\routes\playerRoutes.js
+  <- server\functions\routes\programRoutes.js
+  <- server\functions\routes\v1\examAdminRoutes.js
+  <- server\functions\routes\v1\examPlayerRoutes.js
+
+server\functions\models\Attendance.js
+  <- server\functions\controllers\adminController.js
+  <- server\functions\controllers\attendanceController.js
+  <- server\functions\controllers\playerController.js
+  <- server\functions\services\beltEligibilityService.js
+  <- server\functions\services\beltProgressService.js
+  <- server\functions\services\eligibilityService.js
+
+server\functions\models\BeltHistory.js
+  <- server\functions\controllers\coachController.js
+  <- server\functions\controllers\playerController.js
+
+server\functions\models\BeltRanking.js
+  <- server\functions\controllers\playerController.js
+  <- server\functions\controllers\rankingController.js
+  <- server\functions\services\beltEligibilityService.js
+  <- server\functions\services\beltProgressService.js
+
+server\functions\models\Certificate.js
+  <- server\functions\controllers\analyticsController.js
+  <- server\functions\controllers\certificateController.js
+  <- server\functions\controllers\examController.js
+  <- server\functions\controllers\playerController.js
+
+server\functions\models\Coach.js
+  <- server\functions\controllers\coachController.js
+
+server\functions\models\Event.js
+  <- server\functions\controllers\eventController.js
+
+server\functions\models\Exam.js
+  <- server\functions\controllers\certificateController.js
+  <- server\functions\controllers\coachController.js
+  <- server\functions\controllers\examController.js
+  <- server\functions\services\eligibilityService.js
+
+server\functions\models\ExamAttempt.js
+  <- server\functions\controllers\adminController.js
+  <- server\functions\controllers\analyticsController.js
+  <- server\functions\controllers\coachController.js
+  <- server\functions\controllers\examController.js
+  <- server\functions\controllers\playerController.js
+  <- server\functions\services\eligibilityService.js
+
+server\functions\models\ExamRegistration.js
+  <- server\functions\controllers\examController.js
+  <- server\functions\services\eligibilityService.js
+
+server\functions\models\FinalExamResult.js
+  <- server\functions\controllers\examController.js
+  <- server\functions\services\eligibilityService.js
+
+server\functions\models\Lesson.js
+  <- server\functions\controllers\analyticsController.js
+  <- server\functions\controllers\certificateController.js
+  <- server\functions\controllers\coachController.js
+  <- server\functions\controllers\curriculumController.js
+  <- server\functions\controllers\lessonController.js
+  <- server\functions\controllers\playerController.js
+  <- server\functions\services\beltEligibilityService.js
+  <- server\functions\services\eligibilityService.js
+
+server\functions\models\LessonProgress.js
+  <- server\functions\controllers\analyticsController.js
+  <- server\functions\controllers\attendanceController.js
+  <- server\functions\controllers\coachController.js
+  <- server\functions\controllers\lessonController.js
+  <- server\functions\controllers\playerController.js
+  <- server\functions\services\beltEligibilityService.js
+  <- server\functions\services\beltProgressService.js
+  <- server\functions\services\eligibilityService.js
+
+server\functions\models\Library.js
+  <- server\functions\controllers\libraryController.js
+
+server\functions\models\Module.js
+  <- server\functions\controllers\certificateController.js
+  <- server\functions\controllers\moduleController.js
+  <- server\functions\seed\programSeeder.js
+
+server\functions\models\Notification.js
+  <- server\functions\controllers\coachController.js
+  <- server\functions\controllers\examController.js
+  <- server\functions\controllers\lessonController.js
+  <- server\functions\controllers\notificationController.js
+  <- server\functions\controllers\playerController.js
+
+server\functions\models\Player.js
+  <- server\functions\controllers\adminController.js
+  <- server\functions\controllers\analyticsController.js
+  <- server\functions\controllers\attendanceController.js
+  <- server\functions\controllers\authController.js
+  <- server\functions\controllers\coachController.js
+  <- server\functions\controllers\examController.js
+  <- server\functions\controllers\lessonController.js
+  <- server\functions\controllers\playerController.js
+  <- server\functions\controllers\rankingController.js
+  <- server\functions\services\beltEligibilityService.js
+  <- server\functions\services\beltProgressService.js
+  <- server\functions\services\eligibilityService.js
+  <- server\functions\utils\xp.js
+
+server\functions\models\PracticalEvaluation.js
+  <- server\functions\controllers\examController.js
+
+server\functions\models\Profile.js
+  <- server\functions\controllers\adminController.js
+  <- server\functions\controllers\authController.js
+  <- server\functions\controllers\playerController.js
+
+server\functions\models\Program.js
+  <- server\functions\controllers\certificateController.js
+  <- server\functions\controllers\curriculumController.js
+  <- server\functions\controllers\lessonController.js
+  <- server\functions\controllers\moduleController.js
+  <- server\functions\controllers\playerController.js
+  <- server\functions\controllers\programController.js
+  <- server\functions\seed\programSeeder.js
+  <- server\functions\services\eligibilityService.js
+
+server\functions\models\TrainingTask.js
+  <- server\functions\controllers\coachController.js
+
+server\functions\models\User.js
+  <- server\functions\controllers\adminController.js
+  <- server\functions\controllers\analyticsController.js
+  <- server\functions\controllers\authController.js
+  <- server\functions\controllers\certificateController.js
+  <- server\functions\controllers\playerController.js
+  <- server\functions\controllers\userController.js
+  <- server\functions\middlewares\authMiddleware.js
+
+server\functions\package-lock.json
+
+server\functions\package.json
+
+server\functions\routes\adminRoutes.js
+  <- server\functions\routes\v1\admin.js
+
+server\functions\routes\analyticsRoutes.js
+  <- server\functions\routes\v1\admin.js
+
+server\functions\routes\attendanceRoutes.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\authRoutes.js
+  <- server\functions\routes\index.js
+
+server\functions\routes\certificateRoutes.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\coachRoutes.js
+  <- server\functions\routes\v1\coach.js
+
+server\functions\routes\curriculumRoutes.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\eventRoutes.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\index.js
+  <- server\functions\index.js
+
+server\functions\routes\lessonRoutes.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\libraryRoutes.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\moduleRoutes.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\notificationRoutes.js
+  <- server\functions\routes\v1\index.js
+  <- server\functions\routes\v1\player.js
+
+server\functions\routes\playerRoutes.js
+  <- server\functions\routes\v1\player.js
+
+server\functions\routes\programRoutes.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\rankingRoutes.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\userRoutes.js
+  <- server\functions\routes\v1\admin.js
+
+server\functions\routes\v1\admin.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\v1\coach.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\v1\examAdminRoutes.js
+  <- server\functions\routes\v1\exams.js
+
+server\functions\routes\v1\examPlayerRoutes.js
+  <- server\functions\routes\v1\exams.js
+
+server\functions\routes\v1\exams.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\routes\v1\index.js
+  <- server\functions\routes\index.js
+
+server\functions\routes\v1\player.js
+  <- server\functions\routes\v1\index.js
+
+server\functions\scripts\migratePlayerProfiles.js
+
+server\functions\seed\fullSeed.js
+
+server\functions\seed\programSeeder.js
+
+server\functions\services\beltEligibilityService.js
+  <- server\functions\controllers\attendanceController.js
+
+server\functions\services\beltProgressService.js
+  <- server\functions\controllers\lessonController.js
+  <- server\functions\controllers\playerController.js
+
+server\functions\services\eligibilityService.js
+  <- server\functions\controllers\examController.js
+  <- server\functions\controllers\lessonController.js
+
+server\functions\services\pdfService.js
+  <- server\functions\controllers\curriculumController.js
+
+server\functions\utils\awss3.js
+
+server\functions\utils\badges.js
+
+server\functions\utils\db.js
+  <- server\functions\index.js
+  <- server\functions\middlewares\authMiddleware.js
+
+server\functions\utils\generateToken.js
+  <- server\functions\controllers\authController.js
+
+server\functions\utils\validation.js
+  <- server\functions\controllers\attendanceController.js
+  <- server\functions\controllers\certificateController.js
+  <- server\functions\controllers\coachController.js
+  <- server\functions\controllers\eventController.js
+  <- server\functions\controllers\examController.js
+  <- server\functions\controllers\lessonController.js
+  <- server\functions\controllers\libraryController.js
+  <- server\functions\controllers\playerController.js
+  <- server\functions\middlewares\errorMiddleware.js
+  <- server\functions\services\beltProgressService.js
+  <- server\functions\services\eligibilityService.js
+
+server\functions\utils\xp.js
+  <- server\functions\controllers\attendanceController.js
+  <- server\functions\controllers\examController.js

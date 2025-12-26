@@ -1,10 +1,17 @@
-import { Menu, LogOut, User } from "lucide-react";
+import { Menu, LogOut, User, Bell } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { LanguageToggle } from "@/components/LanguageToggle";
+
+import { useQuery } from "@tanstack/react-query";
+import { getMyNotifications } from "@/services/notificationService";
+
+import { motion, AnimatePresence } from "framer-motion";
+import { NotificationCenter } from "@/features/notifications/NotificationCenter";
 
 const navLinks = [
   { name: "Home", href: "/", isRoute: true },
@@ -27,7 +34,11 @@ export const Navbar = () => {
   const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState<string | null>(null);
 
-  // Load user + token on mount
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  /* =========================
+     Load user + token
+  ========================= */
   useEffect(() => {
     const storedUser = JSON.parse(
       localStorage.getItem("user") || sessionStorage.getItem("user") || "null"
@@ -49,7 +60,22 @@ export const Navbar = () => {
     }
   }, []);
 
-  // Role-based navigation
+  /* =========================
+     Notifications
+  ========================= */
+  const { data: notifications = [] } = useQuery(
+    ["notifications"],
+    getMyNotifications,
+    {
+      enabled: isAuthenticated,
+    }
+  );
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  /* =========================
+     Role-based navigation
+  ========================= */
   const handleNavigate = () => {
     if (!token || !user) return;
 
@@ -68,7 +94,9 @@ export const Navbar = () => {
     }
   };
 
-  // Logout
+  /* =========================
+     Logout
+  ========================= */
   const handleLogout = () => {
     localStorage.removeItem("user");
     localStorage.removeItem("token");
@@ -113,7 +141,7 @@ export const Navbar = () => {
                 <Link
                   key={link.name}
                   to={link.href}
-                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-smooth rounded-md hover:bg-accent"
+                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition"
                 >
                   {link.name}
                 </Link>
@@ -121,7 +149,7 @@ export const Navbar = () => {
                 <a
                   key={link.name}
                   href={link.href}
-                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-smooth rounded-md hover:bg-accent"
+                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition"
                 >
                   {link.name}
                 </a>
@@ -135,10 +163,41 @@ export const Navbar = () => {
 
             {isAuthenticated ? (
               <>
+                {/* 🔔 Notifications */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowNotifications((v) => !v)}
+                    className="relative p-2 rounded-md hover:bg-accent"
+                  >
+                    <Bell className="h-5 w-5" />
+
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 text-xs bg-red-500 text-white rounded-full px-1">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <AnimatePresence>
+                    {showNotifications && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-0 mt-2 w-96 rounded-md border bg-background shadow-lg z-50"
+                      >
+                        <NotificationCenter />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* User */}
                 <div
                   onClick={handleNavigate}
                   role="button"
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 border border-secondary/20"
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 border border-secondary/20 cursor-pointer"
                 >
                   <User className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium">{userName}</span>
@@ -175,16 +234,14 @@ export const Navbar = () => {
 
             <SheetContent side="right" className="w-[300px] bg-card">
               <div className="flex flex-col gap-4 mt-8">
-                <div className="pb-4 border-b border-border/40">
-                  <LanguageToggle />
-                </div>
+                <LanguageToggle />
 
                 {navLinks.map((link) =>
                   link.isRoute ? (
                     <Link
                       key={link.name}
                       to={link.href}
-                      className="px-4 py-3 text-base font-medium text-foreground hover:text-primary transition-smooth rounded-md hover:bg-accent"
+                      className="px-4 py-3 text-base font-medium hover:bg-accent rounded-md"
                     >
                       {link.name}
                     </Link>
@@ -192,14 +249,14 @@ export const Navbar = () => {
                     <a
                       key={link.name}
                       href={link.href}
-                      className="px-4 py-3 text-base font-medium text-foreground hover:text-primary transition-smooth rounded-md hover:bg-accent"
+                      className="px-4 py-3 text-base font-medium hover:bg-accent rounded-md"
                     >
                       {link.name}
                     </a>
                   )
                 )}
 
-                {isAuthenticated ? (
+                {isAuthenticated && (
                   <>
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 border border-secondary/20 mt-4">
                       <User className="h-4 w-4 text-primary" />
@@ -211,18 +268,6 @@ export const Navbar = () => {
                       Logout
                     </Button>
                   </>
-                ) : (
-                  <div className="flex flex-col gap-2 mt-4 border-t border-border/40 pt-4">
-                    <Button variant="ghost" asChild>
-                      <Link to="/login">Login</Link>
-                    </Button>
-                    <Button
-                      asChild
-                      className="bg-primary hover:bg-primary-glow shadow-glow"
-                    >
-                      <Link to="/signup">Sign Up</Link>
-                    </Button>
-                  </div>
                 )}
               </div>
             </SheetContent>
