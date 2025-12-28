@@ -9,10 +9,23 @@ const beltColorMap = {
   black: "#000000",
 };
 
+const beltOrderMap = {
+  white: 0,
+  yellow: 1,
+  blue: 2,
+  brown: 3,
+  red: 4,
+  black: 5,
+};
+
+/* =========================
+   SUB SCHEMAS
+========================= */
+
 const AchievementSchema = new mongoose.Schema(
   {
     title: String,
-    date: String,
+    date: Date,
     description: String,
     type: {
       type: String,
@@ -25,7 +38,7 @@ const AchievementSchema = new mongoose.Schema(
 const HealthSchema = new mongoose.Schema(
   {
     status: String,
-    lastCheckup: String,
+    lastCheckup: Date,
     injuries: [String],
     nutritionPlan: String,
     restSchedule: String,
@@ -36,7 +49,7 @@ const HealthSchema = new mongoose.Schema(
 
 const TrainingLogSchema = new mongoose.Schema(
   {
-    date: String,
+    date: Date,
     focus: String,
     attendance: Boolean,
     performanceNotes: String,
@@ -74,6 +87,10 @@ const PlayerExamHistorySchema = new mongoose.Schema(
   { _id: false }
 );
 
+/* =========================
+   PLAYER SCHEMA
+========================= */
+
 const PlayerSchema = new mongoose.Schema(
   {
     user: {
@@ -83,12 +100,21 @@ const PlayerSchema = new mongoose.Schema(
       unique: true,
     },
 
+    /* ---------- BELT ---------- */
     beltLevel: {
       type: String,
       enum: ["white", "yellow", "blue", "brown", "red", "black"],
       default: "white",
     },
-    beltLabel: { type: String },
+
+    beltOrder: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
+
+    beltLabel: String,
+
     beltColor: {
       type: String,
       default: function () {
@@ -96,60 +122,52 @@ const PlayerSchema = new mongoose.Schema(
       },
     },
 
+    /* ---------- PROFILE ---------- */
     age: Number,
     height: String,
     weight: String,
     coach: String,
 
-    trainingStartDate: String,
+    trainingStartDate: Date,
     trainingYears: { type: Number, default: 0 },
 
+    /* ---------- PERFORMANCE ---------- */
     stats: StatsSchema,
     currentFocus: String,
     achievements: [AchievementSchema],
     health: HealthSchema,
     trainingLogs: [TrainingLogSchema],
 
-    exams: [PlayerExamHistorySchema], // belt-specific exam history
-    xp: {
-      type: Number,
-      default: 0,
-    },
-    level: {
-      type: Number,
-      default: 1,
-    },
-    streakDays: {
-      type: Number,
-      default: 0,
-    },
-    lastActiveDate: {
-      type: Date,
-    },
+    /* ---------- EXAMS ---------- */
+    exams: [PlayerExamHistorySchema],
 
-    totalLessonsCompleted: {
-      type: Number,
-      default: 0,
-    },
-    totalExamsPassed: {
-      type: Number,
-      default: 0,
-    },
+    /* ---------- GAMIFICATION ---------- */
+    xp: { type: Number, default: 0 },
+    level: { type: Number, default: 1 },
+    streakDays: { type: Number, default: 0 },
+    lastActiveDate: Date,
+
+    totalLessonsCompleted: { type: Number, default: 0 },
+    totalExamsPassed: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
 
-PlayerSchema.pre("validate", function () {
+/* =========================
+   PRE-VALIDATE NORMALIZATION
+========================= */
+PlayerSchema.pre("validate", function (next) {
   const level = (this.beltLevel || "white").toLowerCase();
+
   this.beltLevel = level;
+  this.beltOrder = beltOrderMap[level] ?? 0;
+  this.beltColor = beltColorMap[level] || beltColorMap.white;
 
-  if (!this.beltColor) {
-    this.beltColor = beltColorMap[level] || beltColorMap.white;
-  }
-
-  if (!this.beltLabel && level) {
+  if (!this.beltLabel) {
     this.beltLabel = `${level.charAt(0).toUpperCase()}${level.slice(1)} Belt`;
   }
+
+  next();
 });
 
 const Player = mongoose.model("Player", PlayerSchema);

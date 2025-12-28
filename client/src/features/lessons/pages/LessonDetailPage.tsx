@@ -49,6 +49,7 @@ export default function LessonDetailPage() {
       setLoading(false);
     }
   };
+  console.log("Lesson state:", lesson);
 
   useEffect(() => {
     if (lessonId) {

@@ -104,7 +104,7 @@ export const listLessons = asyncHandler(async (req, res) => {
 });
 
 /* =====================================================
-   GET SINGLE LESSON (LOCKED-AWARE)
+   GET SINGLE LESSON (ATTENDANCE-AWARE — NOT ORDER-BASED)
 ===================================================== */
 export const getLesson = asyncHandler(async (req, res) => {
   const lessonId = assertObjectId(req.params.lessonId || req.params.id);
@@ -117,6 +117,7 @@ export const getLesson = asyncHandler(async (req, res) => {
 
   if (!lesson) throw httpError(404, "Lesson not found");
 
+  // لو مش طالب
   if (!userId) {
     return res.json({
       success: true,
@@ -124,26 +125,94 @@ export const getLesson = asyncHandler(async (req, res) => {
     });
   }
 
+  /* =========================
+     1️⃣ Player + belt
+  ========================= */
+  const player = await Player.findOne({ user: userId }).select("beltLevel");
+  if (!player) throw httpError(404, "Player not found");
+
+  const beltLevel = normalizeBeltName(player.beltLevel || "white");
+
+  /* =========================
+     2️⃣ Attendance
+  ========================= */
   const beltProgress = await getMyBeltProgress(userId);
-  const unlockedLessons = beltProgress.lessons.unlocked;
+  const attendance = beltProgress?.attendance || {};
+  const attendedSessions = attendance.attendedSessions || 0;
 
-  const locked = lesson.order >= unlockedLessons;
+  /* =========================
+     3️⃣ Belt ranking
+  ========================= */
+  const beltRanking = await BeltRanking.findOne({
+    name: new RegExp(`^${beltLevel}\\s*(belt)?$`, "i"),
+  }).lean();
 
-  if (locked) {
-    return res.json({
-      success: true,
-      lesson: { _id: lesson._id, title: lesson.title, locked: true },
-    });
+  if (!beltRanking) {
+    throw httpError(404, `Belt ranking not configured for belt: ${beltLevel}`);
   }
 
+  const unlockEvery =
+    beltRanking.lessons?.unlockEvery && beltRanking.lessons.unlockEvery > 0
+      ? beltRanking.lessons.unlockEvery
+      : 1;
+
+  /* =========================
+     4️⃣ Progress
+  ========================= */
   const progress = await LessonProgress.findOne({
     user: userId,
     lesson: lessonId,
+    beltLevel,
   }).lean();
+
+  const completed = Boolean(progress?.completed);
+
+  /* =========================
+     5️⃣ Determine if lesson is unlocked
+     ❗ NOT order-based
+  ========================= */
+  let locked = true;
+
+  if (completed) {
+    locked = false;
+  } else {
+    // عدد الدروس اللي الطالب يقدر يفتحها
+    const allowedUnlocked = Math.floor(attendedSessions / unlockEvery) || 0;
+
+    // ترتيب الدرس وسط كل الدروس
+    const lessons = await Lesson.find({ isActive: true })
+      .sort({ order: 1 })
+      .select("_id")
+      .lean();
+
+    const index = lessons.findIndex(
+      (l) => String(l._id) === String(lesson._id)
+    );
+
+    locked = index >= allowedUnlocked;
+  }
+
+  /* =========================
+     6️⃣ Response
+  ========================= */
+  if (locked) {
+    return res.json({
+      success: true,
+      lesson: {
+        _id: lesson._id,
+        title: lesson.title,
+        locked: true,
+      },
+    });
+  }
 
   res.json({
     success: true,
-    lesson: { ...lesson, locked: false, progress },
+    lesson: {
+      ...lesson,
+      locked: false,
+      progress,
+    },
   });
 });
 
@@ -246,30 +315,33 @@ export const saveProgress = asyncHandler(async (req, res) => {
 
   res.json({ success: true, progress });
 });
-
 /* =====================================================
-   STUDENT AVAILABLE LESSONS
+   STUDENT AVAILABLE LESSONS — FINAL (NOT INDEX-BASED)
 ===================================================== */
 export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   /* =========================
-     1️⃣ Player + Belt
+     1️⃣ Player + belt
   ========================= */
   const player = await Player.findOne({ user: userId }).select("beltLevel");
   if (!player) throw httpError(404, "Player not found");
 
   /* =========================
-     2️⃣ Attendance
+     2️⃣ Attendance summary
   ========================= */
-  const attendance = await getAttendanceSummary(player._id);
-  const presentSessions = attendance?.present || 0;
+  const beltProgress = await getMyBeltProgress(userId);
+  const attendance = beltProgress?.attendance || {};
+  const attendedSessions = attendance.attendedSessions || 0;
 
   /* =========================
-     3️⃣ Belt ranking rules
+     3️⃣ Belt ranking (SOURCE OF TRUTH)
+     Handles: white / White / White Belt
   ========================= */
+  const beltKey = normalizeBeltName(player.beltLevel);
+
   const beltRanking = await BeltRanking.findOne({
-    name: player.beltLevel,
+    name: { $regex: new RegExp(`^${beltKey}`, "i") },
   }).lean();
 
   if (!beltRanking) {
@@ -279,23 +351,31 @@ export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
     );
   }
 
-  const totalLessons = beltRanking.lessons?.totalLessons ?? 0;
+  const lessonsConfig = beltRanking.lessons || {};
+
+  const totalLessons =
+    typeof lessonsConfig.totalLessons === "number"
+      ? lessonsConfig.totalLessons
+      : 0;
+
   const unlockEvery =
-    beltRanking.lessons?.unlockEvery && beltRanking.lessons.unlockEvery > 0
-      ? beltRanking.lessons.unlockEvery
-      : 1;
+    typeof lessonsConfig.unlockEvery === "number" &&
+    lessonsConfig.unlockEvery > 0
+      ? lessonsConfig.unlockEvery
+      : 1; // 🔒 safe fallback
 
   /* =========================
      4️⃣ Calculate unlocked lessons
-     كل unlockEvery حضور → درس واحد
+     every unlockEvery attendance → 1 lesson
   ========================= */
   const unlockedLessons = Math.min(
     totalLessons,
-    Math.floor(presentSessions / unlockEvery)
+    Math.floor(attendedSessions / unlockEvery)
   );
 
   /* =========================
      5️⃣ Fetch ALL lessons
+     (shown but locked/unlocked)
   ========================= */
   const lessons = await Lesson.find({ isActive: true })
     .populate("program", "title level")
@@ -304,7 +384,7 @@ export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
     .lean();
 
   /* =========================
-     6️⃣ Progress (belt scoped)
+     6️⃣ Lesson progress (belt-scoped)
   ========================= */
   const progresses = await LessonProgress.find({
     user: userId,
@@ -314,30 +394,31 @@ export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
   const progressMap = new Map(progresses.map((p) => [p.lesson.toString(), p]));
 
   /* =========================
-     7️⃣ Format lessons
+     7️⃣ Lock / Unlock logic
   ========================= */
   const formattedLessons = lessons.map((lesson, index) => {
-    const progress = progressMap.get(lesson._id.toString()) || null;
+    const progress = progressMap.get(lesson._id.toString());
     const completed = Boolean(progress?.completed);
 
     const locked = index >= unlockedLessons;
 
     let lockedReason = null;
+
     if (locked) {
-      const requiredSessions = (index + 1) * unlockEvery;
-      const remaining = requiredSessions - presentSessions;
+      const requiredAttendanceForThisLesson = (index + 1) * unlockEvery;
+      const remainingSessions =
+        requiredAttendanceForThisLesson - attendedSessions;
 
       lockedReason =
-        remaining > 0
-          ? `Attend ${remaining} more session${
-              remaining > 1 ? "s" : ""
+        remainingSessions > 0
+          ? `Attend ${remainingSessions} more session${
+              remainingSessions > 1 ? "s" : ""
             } to unlock this lesson`
           : null;
     }
 
     return {
       ...lesson,
-      progress, // ✅ مهم
       completed,
       locked,
       unlocked: !locked,
@@ -345,6 +426,9 @@ export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
     };
   });
 
+  /* =========================
+     8️⃣ Response
+  ========================= */
   res.json({
     success: true,
     data: {
@@ -353,7 +437,6 @@ export const getStudentAvailableLessons = asyncHandler(async (req, res) => {
     },
   });
 });
-
 /* =====================================================
    STUDENT LESSON PROGRESS SUMMARY
 ===================================================== */
