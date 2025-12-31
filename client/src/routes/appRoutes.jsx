@@ -38,6 +38,7 @@ import AdminExamEditPage from "@/features/exams/pages/AdminExamEditPage";
 
 // Coach dashboard
 import CoachDashboard from "@/components/coach/CoachDashboard";
+import MyProfilePage from "../pages/MyProfilePage";
 
 export const appRoutes = [
   { path: "/", element: <Index /> },
@@ -58,6 +59,14 @@ export const appRoutes = [
   // Player
   { path: "/player/:id", element: <PlayerProfile /> },
   { path: "/player/:id/certificate", element: <Certificates /> },
+  {
+    path: "/me/profile",
+    element: (
+      <ProtectedRoute>
+        <MyProfilePage />
+      </ProtectedRoute>
+    ),
+  },
   //Certificates
   { path: "/certificate/:id", element: <Certificates /> },
 

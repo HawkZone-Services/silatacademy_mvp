@@ -13,5 +13,8 @@
       ],
       "predeploy": []
     }
-  ]
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  }
 }

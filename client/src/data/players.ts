@@ -47,6 +47,7 @@ export interface Player {
   currentFocus: string;
   email: string;
   phone: string;
+  avatar?: string;
 }
 
 export const players: Player[] = [

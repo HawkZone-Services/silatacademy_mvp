@@ -25,7 +25,7 @@ const normalizePlayer = (p) => {
     coach: p.coach || "Not Assigned",
     trainingYears: p.trainingYears || 0,
 
-    image: user.avatarUrl || null,
+    image: user.profile.avatar || null,
 
     achievements: Array.isArray(p.achievements) ? p.achievements : [],
   };

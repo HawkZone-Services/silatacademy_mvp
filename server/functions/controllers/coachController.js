@@ -12,6 +12,8 @@ import Lesson from "../models/Lesson.js";
 import Exam from "../models/Exam.js";
 import { normalizeBelt } from "../utils/belt.js";
 import { assertObjectId, httpError, toObjectId } from "../utils/validation.js";
+import Media from "../models/Media.js";
+import { uploadGalleryImage } from "../services/mediaService.js";
 
 /* =====================================================
    1) LIST COACHES
@@ -188,4 +190,39 @@ export const getPlayerTasks = asyncHandler(async (req, res) => {
     .lean();
 
   res.json({ success: true, tasks });
+});
+
+/* =====================================================
+   UPLOAD COACH GALLERY IMAGE
+===================================================== */
+export const uploadCoachGallery = asyncHandler(async (req, res) => {
+  const coachId = assertObjectId(req.params.id, "coachId");
+
+  if (!req.file) {
+    throw httpError(400, "Image file is required");
+  }
+
+  // 1️⃣ Load coach
+  const coach = await Coach.findById(coachId);
+  if (!coach) {
+    throw httpError(404, "Coach not found");
+  }
+
+  // 2️⃣ Upload image to Firebase + Media collection
+  const media = await uploadGalleryImage({
+    userId: coach.user, // owner
+    buffer: req.file.buffer,
+    visibility: "public",
+    uploadedBy: req.user._id,
+  });
+
+  // 3️⃣ Optional: store reference on coach (legacy compatibility)
+  coach.gallery = coach.gallery || [];
+  coach.gallery.push(media.url);
+  await coach.save();
+
+  res.status(201).json({
+    success: true,
+    data: { media },
+  });
 });

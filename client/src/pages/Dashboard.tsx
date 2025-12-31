@@ -78,6 +78,8 @@ import AnalyticsScreen from "@/components/admin/tabs/AnalyticsScreen";
 import AdminLessonsPage from "@/features/admin/lessons/pages/AdminLessonsPage";
 import AttendanceScreen from "@/components/admin/tabs/AttendanceScreen";
 import AdminBeltRankingTab from "@/features/belt-ranking/pages/AdminBeltRankingTab";
+import CoacheScreen from "@/components/admin/tabs/CoacheScreen";
+import ArticlesScreen from "@/components/admin/tabs/ArticlesScreen";
 
 export const Table = ({ ...props }) => (
   <table className="w-full text-sm text-left" {...props} />
@@ -343,6 +345,7 @@ export default function Dashboard() {
         <Tabs defaultValue="players" className="space-y-6">
           <TabsList>
             <TabsTrigger value="players">Players</TabsTrigger>
+            <TabsTrigger value="coachs">Coaches</TabsTrigger>
             <TabsTrigger value="testing">Testing</TabsTrigger>
             <TabsTrigger value="lessons">Lessons</TabsTrigger>
             <TabsTrigger value="programs">Programs</TabsTrigger>
@@ -351,6 +354,7 @@ export default function Dashboard() {
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
             <TabsTrigger value="belt-ranking">Belt Rankings</TabsTrigger>{" "}
+            <TabsTrigger value="articles">Articles</TabsTrigger>
             <TabsTrigger value="api-playground">APIs</TabsTrigger>
           </TabsList>
 
@@ -360,6 +364,10 @@ export default function Dashboard() {
               fetchDashboardData={fetchDashboardData}
               token={token}
             />
+          </TabsContent>
+          {/* COACHS */}
+          <TabsContent value="coachs">
+            <CoacheScreen token={token} />
           </TabsContent>
 
           {/* TESTING TAB */}
@@ -395,6 +403,10 @@ export default function Dashboard() {
           {/* BELT RANKINGS */}
           <TabsContent value="belt-ranking" className="space-y-4">
             <AdminBeltRankingTab />
+          </TabsContent>
+          {/* Articles */}
+          <TabsContent value="articles">
+            <ArticlesScreen />
           </TabsContent>
           {/* API PLAYGROUND */}
           <TabsContent value="api-playground">

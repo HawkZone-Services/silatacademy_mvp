@@ -19,7 +19,7 @@ interface PlayerCardProps {
   beltColor?: string;
   age?: number;
   stats?: Partial<PlayerStats>;
-  image?: string;
+  avatar?: string;
   trainingYears?: number;
 }
 
@@ -31,6 +31,7 @@ export const PlayerCard = ({
   age,
   stats,
   trainingYears,
+  avatar,
 }: PlayerCardProps) => {
   const navigate = useNavigate();
 
@@ -63,7 +64,13 @@ export const PlayerCard = ({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-full bg-accent flex items-center justify-center border-2 border-secondary">
-              <User className="h-6 w-6 text-secondary" />
+              {avatar && (
+                <img
+                  src={avatar}
+                  alt={name}
+                  className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+                />
+              )}{" "}
             </div>
             <div>
               <h3 className="font-display text-lg font-bold">{name}</h3>

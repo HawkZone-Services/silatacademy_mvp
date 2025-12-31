@@ -13,10 +13,12 @@ import {
   addExamToPlayer,
   getEligibility,
   myBeltProgress,
+  uploadPlayerGallery,
 } from "../controllers/playerController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/authMiddleware.js";
 import { validate } from "../middlewares/validate.js";
+import { avatarUploadBusboy } from "../middlewares/avatarUploadBusboy.js";
 
 const router = express.Router();
 
@@ -89,5 +91,12 @@ router.post(
 );
 
 router.get("/my/belt-progress", protect, checkRole("student"), myBeltProgress);
+
+router.post(
+  "/players/:id/gallery",
+  protect,
+  avatarUploadBusboy, // reused
+  uploadPlayerGallery
+);
 
 export default router;

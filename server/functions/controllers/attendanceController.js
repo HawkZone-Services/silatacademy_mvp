@@ -1,6 +1,6 @@
 import asyncHandler from "express-async-handler";
 import Attendance from "../models/Attendance.js";
-import { assertObjectId, httpError } from "../utils/validation.js";
+import { assertObjectId } from "../utils/validation.js";
 import { awardXpForEvent } from "../utils/xp.js";
 import LessonProgress from "../models/LessonProgress.js";
 import Player from "../models/Player.js";

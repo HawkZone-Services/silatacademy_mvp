@@ -16,6 +16,10 @@ import { assertObjectId, httpError } from "../utils/validation.js";
 import { Types } from "mongoose";
 import { getMyBeltProgress } from "../services/beltProgressService.js";
 import { getNextBelt, normalizeBelt } from "../utils/belt.js";
+import Profile from "../models/Profile.js";
+import { deleteAvatarByUrl } from "../services/storageService.js";
+import Media from "../models/Media.js";
+import { uploadGalleryImage } from "../services/mediaService.js";
 
 /* ============================================================
    LIST PLAYERS
@@ -25,13 +29,28 @@ export const listPlayers = asyncHandler(async (req, res) => {
     .populate("user", "name email phone nationalId gender role")
     .lean();
 
+  const userIds = players.map((p) => p.user?._id).filter(Boolean);
+
+  const profiles = await Profile.find({ user: { $in: userIds } })
+    .select("user avatar firstName lastName")
+    .lean();
+
+  const profileMap = new Map(profiles.map((p) => [String(p.user), p]));
+
+  const merged = players.map((p) => ({
+    ...p,
+    user: {
+      ...p.user,
+      profile: profileMap.get(String(p.user._id)) || null,
+    },
+  }));
+
   res.status(200).json({
     success: true,
-    data: {
-      players,
-    },
+    data: { players: merged },
   });
 });
+
 /* ============================================================
    GET PLAYER BY ID
 ============================================================= */
@@ -50,10 +69,21 @@ export const getPlayer = asyncHandler(async (req, res) => {
     throw httpError(404, "Player not found");
   }
 
+  // 🔥 attach profile (avatar source of truth)
+  const profile = await Profile.findOne({ user: player.user._id })
+    .select("avatar firstName lastName")
+    .lean();
+
   res.status(200).json({
     success: true,
     data: {
-      player,
+      player: {
+        ...player,
+        user: {
+          ...player.user,
+          profile: profile || null,
+        },
+      },
     },
   });
 });
@@ -82,7 +112,7 @@ export const updatePlayer = asyncHandler(async (req, res) => {
 });
 
 /* ============================================================
-   DELETE PLAYER
+   DELETE PLAYER + PROFILE + USER + AVATAR
 ============================================================= */
 export const deletePlayer = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -90,21 +120,28 @@ export const deletePlayer = asyncHandler(async (req, res) => {
   const player = await Player.findById(id);
   if (!player) throw httpError(404, "Player not found");
 
-  // Delete Player
+  const userId = player.user;
+
+  // 🔍 Load profile to get avatar URL
+  const profile = await Profile.findOne({ user: userId }).lean();
+
+  // 🔥 Delete avatar from Firebase (best effort)
+  if (profile?.avatar) {
+    await deleteAvatarByUrl(profile.avatar);
+  }
+
+  // 🗑 Delete DB records
   await Player.deleteOne({ _id: id });
-
-  // Delete Profile
-  await Profile.deleteOne({ user: player.user });
-
-  // Delete User
-  await User.findByIdAndDelete(player.user);
+  await Profile.deleteOne({ user: userId });
+  await User.findByIdAndDelete(userId);
 
   res.json({
     success: true,
-    data: { message: "Player, profile and user deleted successfully" },
+    data: {
+      message: "Player, profile, user and avatar deleted successfully",
+    },
   });
 });
-
 /* ============================================================
    ADD ATTENDANCE ENTRY
 ============================================================= */
@@ -460,7 +497,7 @@ export const getPlayerFull = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
   const player = await Player.findOne({ user: userId })
-    .populate("user", "name email phone gender")
+    .populate("user", "name email phone gender role avatar")
     .lean();
 
   if (!player) throw httpError(404, "Player not found");
@@ -698,4 +735,42 @@ export const getMyBeltProgressTestLogicBeforeDeletion = asyncHandler(
 export const myBeltProgress = asyncHandler(async (req, res) => {
   const data = await getMyBeltProgress(req.user._id);
   res.json({ success: true, data });
+});
+
+/* =====================================================
+   UPLOAD PLAYER GALLERY IMAGE
+===================================================== */
+export const uploadPlayerGallery = asyncHandler(async (req, res) => {
+  const playerId = assertObjectId(req.params.id, "playerId");
+
+  if (!req.file) {
+    throw httpError(400, "Image file is required");
+  }
+
+  // 1️⃣ Load player
+  const player = await Player.findById(playerId);
+  if (!player) {
+    throw httpError(404, "Player not found");
+  }
+
+  // 2️⃣ Authorization
+  const isOwner = String(player.user) === String(req.user._id);
+  const isAdmin = req.user.role === "admin";
+
+  if (!isOwner && !isAdmin) {
+    throw httpError(403, "Not authorized to upload gallery image");
+  }
+
+  // 3️⃣ Upload image to Firebase + Media
+  const media = await uploadGalleryImage({
+    userId: player.user, // owner (User ID)
+    buffer: req.file.buffer,
+    visibility: "public", // default for player gallery
+    uploadedBy: req.user._id,
+  });
+
+  res.status(201).json({
+    success: true,
+    data: { media },
+  });
 });

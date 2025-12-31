@@ -12,14 +12,30 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { toast } from "sonner";
 import playerService from "@/services/playerService";
+import { players as PlayersData } from "@/data/players";
+import ComplianceParentTaskForm from "@/components/ComplianceParentTaskForm";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { AlertDialogHeader } from "@/components/ui/alert-dialog";
 
 const normalizePlayer = (p: any) => {
   return {
     id: p._id,
-    name: p.name || p.full_name || "Unknown",
-    email: p.email || "",
-    phone: p.phone || "",
-    nationalId: p.nationalId || "",
+    name: p.user.name || p.user.profile.firstName || "Unknown",
+    email: p.user.email || "",
+    phone: p.user.phone || "",
+    nationalId: p.user.nationalId || "",
+    avatar:
+      p.user?.profile?.avatar ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        p.user.name || "U N"
+      )}&background=random&size=256`,
 
     belt: p.belt || "White Belt",
     beltColor: p.beltColor || "#ffffff",
@@ -174,6 +190,25 @@ const PlayerProfile = () => {
               </div>
 
               <div className="flex items-center gap-3">
+                {/* Compliance Popup */}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="border-secondary/40 hover:bg-secondary/10"
+                    >
+                      + Compliance
+                    </Button>
+                  </DialogTrigger>
+
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create Compliance</DialogTitle>
+                    </DialogHeader>
+
+                    <ComplianceParentTaskForm />
+                  </DialogContent>
+                </Dialog>
                 <Button
                   variant="outline"
                   onClick={handlePrint}
@@ -196,6 +231,31 @@ const PlayerProfile = () => {
 
           {/* CONTENT */}
           <div className="space-y-6 animate-fade-in">
+            {/* Compliance Records */}
+            <div className="border border-border/40 rounded-lg p-6 bg-accent/20">
+              <h2 className="font-display text-2xl font-bold mb-4">
+                Compliance Records (Parents Only)
+              </h2>
+
+              <div className="space-y-4">
+                {/* Record */}
+                <div className="border rounded-lg p-4 bg-background">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold">Medical Clearance</h3>
+                    <Badge variant="destructive">ACTIVE</Badge>
+                  </div>
+
+                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                    <li>Upload medical report</li>
+                    <li>Doctor approval</li>
+                    <li>Manager review</li>
+                  </ul>
+                </div>
+
+                {/* Empty state */}
+                {/* <p className="text-muted-foreground">No compliance records</p> */}
+              </div>
+            </div>
             {/* HEADER */}
             <PlayerHeader player={player} />
 
@@ -203,14 +263,14 @@ const PlayerProfile = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left */}
               <div className="space-y-6">
-                <PlayerStats player={player} />
-                <PlayerHealth player={player} />
+                <PlayerStats player={PlayersData[0]} />
+                <PlayerHealth player={PlayersData[0]} />
               </div>
 
               {/* Right */}
               <div className="space-y-6">
-                <PlayerAchievements player={player} />
-                <PlayerTraining player={player} />
+                <PlayerAchievements player={PlayersData[0]} />
+                <PlayerTraining player={PlayersData[0]} />
               </div>
             </div>
 

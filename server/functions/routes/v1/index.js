@@ -13,6 +13,8 @@ import eventRoutes from "../eventRoutes.js";
 import libraryRoutes from "../libraryRoutes.js";
 import curriculumRoutes from "../curriculumRoutes.js";
 import moduleRoutes from "../moduleRoutes.js";
+import userRoutes from "../userRoutes.js";
+import galleryRoutes from "../galleryRoutes.js";
 
 const router = express.Router();
 
@@ -30,5 +32,7 @@ router.use("/notifications", notificationRoutes);
 router.use("/events", eventRoutes);
 router.use("/library", libraryRoutes);
 router.use("/curriculum", curriculumRoutes);
+router.use("/users", userRoutes);
+router.use("/media", galleryRoutes);
 
 export default router;

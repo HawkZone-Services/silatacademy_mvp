@@ -11,10 +11,12 @@ import {
   getStudentExamAttempts,
   assignTrainingTask,
   getPlayerTasks,
+  uploadCoachGallery,
 } from "../controllers/coachController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/authMiddleware.js";
 import { validate } from "../middlewares/validate.js";
+import { avatarUploadBusboy } from "../middlewares/avatarUploadBusboy.js";
 const router = express.Router();
 
 router.get("/", protect, checkRole("admin", "instructor"), listCoaches);
@@ -82,4 +84,14 @@ router.get(
   getPlayerTasks
 );
 
+/* =====================================================
+   COACH GALLERY
+===================================================== */
+router.post(
+  "/:id/gallery",
+  protect,
+  checkRole("admin"),
+  avatarUploadBusboy,
+  uploadCoachGallery
+);
 export default router;

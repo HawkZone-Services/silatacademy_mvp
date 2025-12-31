@@ -5,6 +5,10 @@ import type { Player } from "@/data/players";
 
 interface PlayerHeaderProps {
   player: Player;
+  isCoach: boolean;
+  isManager: boolean;
+  isOwner: boolean;
+  avatar?: string;
 }
 
 export const PlayerHeader = ({ player }: PlayerHeaderProps) => {
@@ -16,9 +20,16 @@ export const PlayerHeader = ({ player }: PlayerHeaderProps) => {
           <div className="relative">
             <div className="h-32 w-32 rounded-2xl bg-accent flex items-center justify-center border-4 border-secondary/20">
               <User className="h-16 w-16 text-secondary" />
+              {player.avatar && (
+                <img
+                  src={player.avatar}
+                  alt={player.name}
+                  className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+                />
+              )}
             </div>
             <Badge
-              className="absolute -bottom-2 left-1/2 -translate-x-1/2 font-bold px-4"
+              className="absolute -bottom-2 left-1/2 -translate-x-1/2 font-bold px-4 w-max rounded-full "
               style={{
                 backgroundColor: player.beltColor,
                 color: player.beltColor === "#1a1a1a" ? "#fff" : "#000",

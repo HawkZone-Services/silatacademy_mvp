@@ -10,19 +10,19 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import router from "./routes/index.js";
-
 import { errorHandler, notFound } from "./middlewares/errorMiddleware.js";
 import { connectDB } from "./utils/db.js";
+
 dotenv.config();
 
 const app = express();
 
 // =============
-//  Lazy DB Init
+// Lazy DB Init
 // =============
 app.use(async (req, res, next) => {
   try {
-    await connectDB(); // ❗ يربط الـ DB فقط عند الطلب وليس قبل ذلك
+    await connectDB();
     next();
   } catch (err) {
     logger.error("DB Init Error", err);
@@ -30,19 +30,25 @@ app.use(async (req, res, next) => {
   }
 });
 
-// =======
-// Middlewares
-// =======
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
+// =======================
+// ⚠️ IMPORTANT PART
+// =======================
 
+// ❌ لا تستخدم express.urlencoded مع multipart
+// ❌ لا تضع compression قبل multer
+
+// ✅ JSON فقط (آمن)
+app.use(express.json({ limit: "10mb" }));
+
+// Security
 app.use(helmet());
-app.use(compression());
+
+// Logger
 app.use(morgan("combined"));
 
-// =======
+// =======================
 // SESSION
-// =======
+// =======================
 app.use(
   cookieSession({
     name: "session",
@@ -53,12 +59,13 @@ app.use(
     sameSite: "lax",
   })
 );
+
 app.use(passport.initialize());
 app.use(passport.session());
 
-// =======
+// =======================
 // CORS
-// =======
+// =======================
 app.use(
   cors({
     origin: [
@@ -68,29 +75,43 @@ app.use(
       "https://silatacademy.net",
     ],
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// =======
+// =======================
 // ROUTES
-// =======
+// =======================
 app.use("/api", router);
+
+// =======================
+// RESPONSE COMPRESSION
+// ⚠️ AFTER ROUTES (safe)
+// =======================
+app.use(
+  compression({
+    filter: (req, res) => {
+      if (req.headers["content-type"]?.startsWith("multipart/")) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+  })
+);
 
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", message: "API running" });
 });
 
-// =======
-// ERROR HANDLERS
-// =======
+// =======================
+// ERRORS
+// =======================
 app.use(notFound);
 app.use(errorHandler);
 
-// =======
+// =======================
 // EXPORT FUNCTION
-// =======
+// =======================
 export const api = onRequest(
   {
     secrets: ["MONGO_URI", "JWT_SECRET"],
@@ -98,6 +119,11 @@ export const api = onRequest(
     memory: "512MiB",
     cpu: 1,
     maxInstances: 5,
+    cors: true,
   },
-  app
+  (req, res) => {
+    // 🔥 REQUIRED FOR MULTER (Firebase v2)
+    req.rawBody = req.rawBody || Buffer.from([]);
+    return app(req, res);
+  }
 );
