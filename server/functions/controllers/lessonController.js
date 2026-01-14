@@ -538,7 +538,7 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
   if (!player) throw httpError(404, "Player not found");
 
   const { score, answers: computed } = computeQuizScore(lesson, answers);
-  const passed = score >= 60;
+  const passed = score >= 80;
   const now = new Date();
 
   const progress = await LessonProgress.findOneAndUpdate(
@@ -551,7 +551,9 @@ export const submitLessonQuiz = asyncHandler(async (req, res) => {
       $set: {
         quizAnswers: computed,
         quizScore: score,
-        completed: passed,
+        quickCheckScore: score,
+        quickCheckPassed: passed,
+        lessonState: passed ? "quiz_passed" : "safety_done",
         lastVisitedAt: now,
         updatedAt: now,
       },
@@ -595,30 +597,98 @@ export const completeStudentLesson = asyncHandler(async (req, res) => {
   const player = await Player.findOne({ user: userId }).select("beltLevel");
   if (!player) throw httpError(404, "Player not found");
 
-  const now = new Date();
+  // 1️⃣ Get progress FIRST
+  const progress = await LessonProgress.findOne({
+    user: userId,
+    lesson: lessonId,
+    beltLevel: player.beltLevel,
+  });
 
-  const progress = await LessonProgress.findOneAndUpdate(
-    {
-      user: userId,
-      lesson: lessonId,
-      beltLevel: player.beltLevel,
-    },
-    {
-      $set: {
-        completed: true,
-        lastVisitedAt: now,
-        updatedAt: now,
-      },
-      $setOnInsert: {
-        createdAt: now,
-        beltLevel: player.beltLevel,
-      },
-    },
-    { new: true, upsert: true }
-  );
+  if (!progress) {
+    throw httpError(404, "Lesson progress not found");
+  }
+  if (!lesson.hasQuiz) {
+    progress.quickCheckPassed = true;
+  }
+
+  // 2️⃣ Content steps gate
+  if (
+    !progress.videoCompleted ||
+    !progress.pdfCompleted ||
+    !progress.drillCompleted ||
+    !progress.safetyCompleted
+  ) {
+    return res.status(403).json({
+      message: "All lesson content steps must be completed first",
+    });
+  }
+
+  // 3️⃣ Quick Check gate
+  if (!progress.quickCheckPassed) {
+    return res.status(403).json({
+      message: "Quick Check must be passed before completing lesson",
+    });
+  }
+
+  // 4️⃣ Assignment gate (Patch 3)
+  if (progress.assignmentRequired && progress.assignmentStatus !== "approved") {
+    return res.status(403).json({
+      message: "Assignment must be approved before completing lesson",
+    });
+  }
+
+  // 5️⃣ Mark lesson completed (ONLY HERE)
+  progress.completed = true;
+  progress.lessonState = "completed";
+  progress.lastVisitedAt = new Date();
+
+  await progress.save();
 
   res.json({
     success: true,
     data: { progress },
   });
 });
+
+/* =====================================================
+   TRACK LESSON STEP
+===================================================== */
+export const trackLessonStep = async (req, res) => {
+  const { lessonId } = req.params;
+  const { step } = req.body; // video | pdf | drill | safety
+  const userId = req.user.id;
+
+  const progress = await LessonProgress.findOne({
+    user: userId,
+    lesson: lessonId,
+  });
+
+  if (!progress) {
+    return res.status(404).json({ message: "Lesson progress not found" });
+  }
+
+  switch (step) {
+    case "video":
+      progress.videoCompleted = true;
+      progress.lessonState = "video_done";
+      break;
+    case "pdf":
+      progress.pdfCompleted = true;
+      progress.lessonState = "pdf_done";
+      break;
+    case "drill":
+      progress.drillCompleted = true;
+      progress.lessonState = "drill_done";
+      break;
+    case "safety":
+      progress.safetyCompleted = true;
+      progress.lessonState = "safety_done";
+      break;
+
+    default:
+      return res.status(400).json({ message: "Invalid lesson step" });
+  }
+
+  await progress.save();
+  res.json(progress);
+};

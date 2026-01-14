@@ -12,6 +12,7 @@ import {
   completeStudentLesson,
   getLessonQuiz,
   submitLessonQuiz,
+  trackLessonStep,
 } from "../controllers/lessonController.js";
 import { protect, checkRole } from "../middlewares/authMiddleware.js";
 import { validate } from "../middlewares/validate.js";
@@ -44,6 +45,14 @@ router.post(
   protect,
   checkRole("student"),
   saveProgress
+);
+
+//Lesson Steps API
+router.post(
+  "/student/:lessonId/step",
+  protect,
+  checkRole("student"),
+  trackLessonStep
 );
 
 // 3️⃣ static for quiz

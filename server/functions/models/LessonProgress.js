@@ -20,7 +20,43 @@ const LessonProgressSchema = new mongoose.Schema(
       },
     ],
     lastVisitedAt: { type: Date, default: Date.now },
+    lessonState: {
+      type: String,
+      enum: [
+        "not_started",
+        "video_done",
+        "pdf_done",
+        "drill_done",
+        "safety_done",
+        "quiz_passed",
+        "assignment_pending",
+        "assignment_approved",
+        "completed",
+      ],
+      default: "not_started",
+      index: true,
+    },
+    videoCompleted: { type: Boolean, default: false },
+    pdfCompleted: { type: Boolean, default: false },
+    drillCompleted: { type: Boolean, default: false },
+    safetyCompleted: { type: Boolean, default: false },
+    quickCheckPassed: { type: Boolean, default: false },
+    quickCheckScore: { type: Number, default: 0 },
+
+    assignmentRequired: { type: Boolean, default: false },
+    assignmentStatus: {
+      type: String,
+      enum: ["none", "pending", "approved", "needs_improvement", "redo"],
+      default: "none",
+      index: true,
+    },
+    assignmentSubmissionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AssignmentSubmission",
+      default: null,
+    },
   },
+
   { timestamps: true }
 );
 
