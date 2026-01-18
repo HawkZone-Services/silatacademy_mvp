@@ -73,13 +73,13 @@ import LessonsScreen from "@/components/admin/tabs/LessonsScreen";
 import ExamScreen from "@/components/admin/tabs/ExamsScreen";
 import ProgramsScreen from "@/components/admin/tabs/ProgramsScreen";
 import Module from "module";
-import ModulesScreen from "@/components/admin/tabs/ModulesScreen";
 import AnalyticsScreen from "@/components/admin/tabs/AnalyticsScreen";
 import AdminLessonsPage from "@/features/admin/lessons/pages/AdminLessonsPage";
 import AttendanceScreen from "@/components/admin/tabs/AttendanceScreen";
 import AdminBeltRankingTab from "@/features/belt-ranking/pages/AdminBeltRankingTab";
 import CoacheScreen from "@/components/admin/tabs/CoacheScreen";
 import ArticlesScreen from "@/components/admin/tabs/ArticlesScreen";
+import ModulesScreen from "@/features/modules-v2/components/ModulesScreen";
 
 export const Table = ({ ...props }) => (
   <table className="w-full text-sm text-left" {...props} />
@@ -191,8 +191,8 @@ export default function Dashboard() {
       const list = Array.isArray(res?.programs)
         ? res.programs
         : Array.isArray(res)
-        ? res
-        : [];
+          ? res
+          : [];
 
       setPrograms(list);
     } catch (err) {
@@ -208,8 +208,8 @@ export default function Dashboard() {
       const list = Array.isArray(res?.modules)
         ? res.modules
         : Array.isArray(res)
-        ? res
-        : [];
+          ? res
+          : [];
 
       setModules(list);
     } catch (err) {

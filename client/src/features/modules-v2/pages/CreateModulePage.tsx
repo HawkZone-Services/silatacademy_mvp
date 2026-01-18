@@ -1,9 +1,9 @@
+import moduleServices from "../api/modules.api";
 import { ModuleForm } from "../components/ModuleForm/ModuleForm";
-import { ModulesV2API } from "../api/modules.api";
 
 const CreateModulePage = () => {
   const handleSubmit = async (state: any) => {
-    await ModulesV2API.create(state);
+    await moduleServices.create(state);
     // redirect / toast
   };
   return (

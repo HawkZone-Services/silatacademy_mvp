@@ -1,27 +1,32 @@
 import apiClient from "@/shared/api/apiClient";
 
-export const ModulesV2API = {
-  list() {
+const moduleServices = {
+  // List all modules (admin sees all, student backend filters later)
+  getModules() {
     return apiClient.get("/modules");
   },
 
-  getById(id: string) {
-    return apiClient.get(`/modules/${id}`);
-  },
+  // Modules for specific program
+  getModulesByProgram: (programId: string) =>
+    apiClient.get(`/programs/${programId}/modules`),
 
-  create(payload: any) {
-    return apiClient.post("/modules", payload);
-  },
+  // Single module
+  getModuleById: (id: string) => apiClient.get(`/modules/${id}`),
+  // Create (backend sets: status=draft, isActive=false)
+  createModule: (body: any) => apiClient.post("/modules", body),
+  // Update (backend guards based on status)
+  updateModule: (id: string, body: any) =>
+    apiClient.patch(`/modules/${id}`, body),
 
-  update(id: string, payload: any) {
-    return apiClient.patch(`/modules/${id}`, payload);
-  },
+  // ✅ NEW: Activate module (admin only)
+  activateModule: (id: string) => apiClient.post(`/modules/${id}/activate`),
 
-  activate(id: string) {
-    return apiClient.post(`/modules/${id}/activate`);
-  },
+  // ✅ NEW: Archive module (admin only)
+  archiveModule: (id: string) => apiClient.post(`/modules/${id}/archive`),
 
-  archive(id: string) {
-    return apiClient.post(`/modules/${id}/archive`);
-  },
+  // ⚠️ Legacy: "delete" becomes archive (soft delete)
+  // keep the name to avoid breaking old UI calls
+  deleteModule: (id: string) => apiClient.post(`/modules/${id}/archive`),
 };
+
+export default moduleServices;

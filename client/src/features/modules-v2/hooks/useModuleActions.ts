@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ModulesV2API } from "../api/modules.api";
+import moduleServices from "../api/modules.api";
 
 export function useModuleActions(moduleId: string) {
   const [loading, setLoading] = useState(false);
@@ -9,7 +9,7 @@ export function useModuleActions(moduleId: string) {
     setLoading(true);
     setError(null);
     try {
-      const res = await ModulesV2API.activate(moduleId);
+      const res = await moduleServices.activate(moduleId);
       return res.data.module;
     } catch (e: any) {
       setError(e?.response?.data?.message || "Failed to activate module");

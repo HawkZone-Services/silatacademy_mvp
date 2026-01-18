@@ -94,7 +94,6 @@ export const createModule = asyncHandler(async (req, res) => {
     anatomyFocus = [],
     reptitionGoal,
     commonMistakes = [],
-    order = 0,
   } = req.body;
 
   const programExists = await Program.findById(program);
@@ -104,7 +103,13 @@ export const createModule = asyncHandler(async (req, res) => {
       message: "Program not found",
     });
   }
+  // 🔹 احسب الترتيب تلقائيًا
+  const lastModule = await Module.findOne({
+    program,
+    beltLevel,
+  }).sort({ order: -1 });
 
+  const nextOrder = lastModule ? lastModule.order + 1 : 1;
   const moduleDoc = await Module.create({
     program,
     title,
@@ -114,7 +119,7 @@ export const createModule = asyncHandler(async (req, res) => {
     anatomyFocus,
     reptitionGoal,
     commonMistakes,
-    order,
+    order: nextOrder,
     status: "draft",
     isActive: false,
   });

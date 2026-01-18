@@ -4,7 +4,7 @@ import Player from "../models/Player.js";
 
 export const listRanks = asyncHandler(async (req, res) => {
   const ranks = await Ranking.find().sort({ order: 1 });
-  res.json(ranks);
+  res.status(200).json(ranks);
 });
 
 export const createRank = asyncHandler(async (req, res) => {
