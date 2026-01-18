@@ -21,6 +21,12 @@ import { awardXpForEvent } from "../utils/xp.js";
 import { attachExamEligibility } from "../services/eligibilityService.js";
 import BeltHistory from "../models/BeltHistory.js";
 import { getNextBelt, normalizeBelt } from "../utils/belt.js";
+import { checkLevelGatesOrThrow } from "../services/gatesService.js";
+import { buildExamEligibility } from "../services/eligibilityService.js";
+
+// IMPORTANT:
+// This controller MUST NOT update player.beltLevel directly.
+// Belt upgrades are handled exclusively via BeltHistory approval flow.
 
 // =============================
 //  CONSTANTS & HELPERS
@@ -377,6 +383,14 @@ export const ExamRegisteration = asyncHandler(async (req, res) => {
     });
   }
 
+  await checkLevelGatesOrThrow({
+    userId,
+    beltLevel: exam.beltLevel,
+    requireAttendance: true,
+    requireLessons: true,
+    requireAssignments: true,
+  });
+
   const registration = await ExamRegistration.create({
     exam: examId,
     player: player._id,
@@ -604,11 +618,21 @@ export const startAttempt = asyncHandler(async (req, res) => {
   const exam = await Exam.findOne({ _id: examId, status: "published" }).lean();
   if (!exam) throw httpError(403, "Exam is not available to start");
 
+  // ✅ Explicit Belt Match Gate
+  if (player.beltLevel !== exam.beltLevel) {
+    throw httpError(403, "Exam is not allowed for your current belt level", {
+      reason: "BELT_MISMATCH",
+      playerBelt: player.beltLevel,
+      examBelt: exam.beltLevel,
+    });
+  }
+
+  // ✅ Gate: require approved registration
   const registration = await ExamRegistration.findOne({
     exam: examId,
     player: player._id,
     status: "approved",
-  });
+  }).lean();
 
   if (!registration) {
     throw httpError(403, "You are not approved to start this exam", {
@@ -616,19 +640,41 @@ export const startAttempt = asyncHandler(async (req, res) => {
     });
   }
 
+  // ✅ Gate: exam not finalized before
   const existingFinal = await FinalExamResult.findOne({
     exam: examId,
     student: userId,
-  });
+  }).lean();
   if (existingFinal) throw httpError(409, "Exam already finalized");
 
+  // ✅ Gate: no submitted attempt already
   const alreadySubmitted = await ExamAttempt.findOne({
     exam: examId,
     student: userId,
     submittedAt: { $ne: null },
-  });
+  }).lean();
   if (alreadySubmitted) throw httpError(400, "Attempt already submitted");
 
+  // ✅ NEW Gate: lessons + attendance (based on current belt / exam belt)
+  // (attempt/final موجودين already - لكن هنمررهم للـ eligibility)
+  const eligibility = await buildExamEligibility({
+    exam,
+    userId,
+    registration,
+    attempt: alreadySubmitted || null,
+    finalResult: existingFinal || null,
+  });
+
+  if (eligibility.locked) {
+    throw httpError(403, "Not eligible to start this exam", {
+      reason: eligibility.lockedReason || "NOT_ELIGIBLE",
+      lockedReasons: eligibility.lockedReasons || [],
+      lessonsRequired: eligibility.lessonsRequired,
+      lessonsCompleted: eligibility.lessonsCompleted,
+    });
+  }
+
+  // ✅ Create or reuse a running attempt (submittedAt:null)
   let attempt = await ExamAttempt.findOne({
     exam: examId,
     student: userId,
@@ -662,6 +708,7 @@ export const startAttempt = asyncHandler(async (req, res) => {
         passMark: exam.passMark ?? computeTheoryPassMark(exam),
       },
       questions: exam.questions || [],
+      eligibility, // ✅ مفيد للـ UI
     },
   });
 });

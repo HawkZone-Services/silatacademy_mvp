@@ -122,6 +122,16 @@ export const buildExamEligibility = async ({
   const attendanceOK = hasMinimumAttendance(attendanceSummary);
 
   const lessonStatus = await lessonCompletionForBelt(userId, exam?.beltLevel);
+  const assignmentPending = await LessonProgress.exists({
+    user: userId,
+    beltLevel: exam?.beltLevel,
+    assignmentRequired: true,
+    assignmentStatus: { $ne: "approved" },
+  });
+
+  if (assignmentPending) {
+    lockedReasons.push("PENDING_ASSIGNMENTS");
+  }
 
   const lockedReasons = [];
 

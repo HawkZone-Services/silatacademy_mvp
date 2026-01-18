@@ -28,7 +28,8 @@ import StudentLessonsPage from "@/features/lessons/pages/StudentLessonsPage";
 import LessonDetailPage from "@/features/lessons/pages/LessonDetailPage";
 import LessonQuizPage from "@/features/lessons/pages/LessonQuizPage";
 import AdminLessonQuizPage from "@/features/lessonQuiz/pages/AdminLessonQuizPage";
-
+//Modules
+import CreateModulePage from "@/features/modules-v2/pages/CreateModulePage";
 // Exams
 import StudentExamListPage from "@/features/exams/pages/StudentExamListPage";
 import ExamInterfacePage from "@/features/exams/pages/ExamInterfacePage";
@@ -39,6 +40,7 @@ import AdminExamEditPage from "@/features/exams/pages/AdminExamEditPage";
 // Coach dashboard
 import CoachDashboard from "@/components/coach/CoachDashboard";
 import MyProfilePage from "../pages/MyProfilePage";
+import path from "path";
 
 export const appRoutes = [
   { path: "/", element: <Index /> },
@@ -69,6 +71,9 @@ export const appRoutes = [
   },
   //Certificates
   { path: "/certificate/:id", element: <Certificates /> },
+
+  //Test Module Pages
+  { path: "/create-module", element: <CreateModulePage /> },
 
   // Lessons (Student)
   { path: "/student/lessons", element: <StudentLessonsPage /> },

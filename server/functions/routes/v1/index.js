@@ -15,6 +15,7 @@ import curriculumRoutes from "../curriculumRoutes.js";
 import moduleRoutes from "../moduleRoutes.js";
 import userRoutes from "../userRoutes.js";
 import galleryRoutes from "../galleryRoutes.js";
+import assignmentRoutes from "../assignmentRoutes.js";
 
 const router = express.Router();
 
@@ -34,5 +35,6 @@ router.use("/library", libraryRoutes);
 router.use("/curriculum", curriculumRoutes);
 router.use("/users", userRoutes);
 router.use("/media", galleryRoutes);
+router.use("/assignments", assignmentRoutes);
 
 export default router;

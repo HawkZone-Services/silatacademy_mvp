@@ -20,6 +20,7 @@ import Profile from "../models/Profile.js";
 import { deleteAvatarByUrl } from "../services/storageService.js";
 import Media from "../models/Media.js";
 import { uploadGalleryImage } from "../services/mediaService.js";
+import { getOrderedGatesForBelt } from "../services/beltModuleCompletionService.js";
 
 /* ============================================================
    LIST PLAYERS
@@ -36,6 +37,21 @@ export const listPlayers = asyncHandler(async (req, res) => {
     .lean();
 
   const profileMap = new Map(profiles.map((p) => [String(p.user), p]));
+
+  // ✅ TEST: compute gates per player
+  for (const p of players) {
+    if (!p.user?._id || !p.beltLevel) continue;
+
+    const gates = await getOrderedGatesForBelt({
+      userId: p.user._id,
+      beltLevel: p.beltLevel,
+    });
+
+    console.log(
+      `[GATES TEST] Player ${p.user._id} | Belt ${p.beltLevel}`,
+      gates.gates
+    );
+  }
 
   const merged = players.map((p) => ({
     ...p,

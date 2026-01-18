@@ -14,6 +14,9 @@ import { normalizeBelt } from "../utils/belt.js";
 import { assertObjectId, httpError, toObjectId } from "../utils/validation.js";
 import Media from "../models/Media.js";
 import { uploadGalleryImage } from "../services/mediaService.js";
+import FinalExamResult from "../models/FinalExamResult.js";
+import { checkLevelGatesOrThrow } from "../services/gatesService.js";
+import { promoteStudent } from "../services/promotionService.js";
 
 /* =====================================================
    1) LIST COACHES
@@ -98,27 +101,56 @@ export const approveBeltUpgrade = asyncHandler(async (req, res) => {
     );
   }
 
-  // Update player
-  player.beltLevel = newBelt;
-  await player.save();
+  // 1️⃣ تأكد إن الامتحان Finalized & Passed
+  if (history.examId) {
+    const final = await FinalExamResult.findOne({
+      exam: history.examId,
+      student: player.user,
+    }).lean();
 
-  // Update history
+    if (!final?.passed) {
+      throw httpError(403, "Cannot approve upgrade: final exam not passed");
+    }
+  }
+
+  // 2️⃣ Gates على مستوى الحزام الحالي
+  await checkLevelGatesOrThrow({
+    userId: player.user,
+    beltLevel: history.fromBelt,
+    requireAttendance: true,
+    requireLessons: true,
+    requireAssignments: true,
+  });
+
+  // 3️⃣ الترقية الرسمية (Single Source of Truth)
+  const { nextBelt } = await promoteStudent({
+    userId: player.user,
+    beltLevel: history.fromBelt,
+    examId: history.examId,
+    approvedBy: req.user._id,
+  });
+
+  // 4️⃣ تحديث سجل الطلب
   history.status = "approved";
-  history.toBelt = newBelt;
+  history.toBelt = nextBelt;
   history.approvedAt = new Date();
-  history.approvedBy = req.user?._id ? toObjectId(req.user._id) : undefined;
+  history.approvedBy = toObjectId(req.user._id);
   if (note) history.note = note;
   await history.save();
 
-  // Notify user
+  // 5️⃣ إخطار اللاعب
   await Notification.create({
     user: player.user,
     title: "Belt Upgrade Approved",
-    message: `Your belt has been upgraded to ${newBelt}.`,
+    message: `Your belt has been upgraded to ${nextBelt}.`,
     type: "belt",
   });
 
-  res.json({ success: true, history, player });
+  // ✅ Response الجديدة
+  return res.json({
+    success: true,
+    data: { nextBelt },
+  });
 });
 
 /* =====================================================

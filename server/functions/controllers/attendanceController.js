@@ -1,12 +1,12 @@
 import asyncHandler from "express-async-handler";
 import Attendance from "../models/Attendance.js";
-import { assertObjectId } from "../utils/validation.js";
 import { awardXpForEvent } from "../utils/xp.js";
 import LessonProgress from "../models/LessonProgress.js";
 import Player from "../models/Player.js";
 import { computeAttendanceProgress } from "../services/beltEligibilityService.js";
 // داخل addAttendance / markAttendance بعد الإنشاء:
-
+import Lesson from "../models/Lesson.js";
+import { httpError, assertObjectId } from "../utils/validation.js";
 const getMyPlayerId = async (userId) => {
   const player = await Player.findOne({ user: userId }).select("_id").lean();
   if (!player) throw httpError(404, "Player profile not found");
@@ -134,32 +134,43 @@ export const myAttendance = asyncHandler(async (req, res) => {
 });
 
 export const completeLesson = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
-  const { lessonId } = req.body;
+  const userId = req.user?._id;
+  if (!userId) throw httpError(401, "Unauthorized");
 
-  // upsert progress
-  const progress = await LessonProgress.findOneAndUpdate(
-    { user: userId, lesson: lessonId },
-    { completed: true, completedAt: new Date() },
-    { new: true, upsert: true }
-  );
+  const lessonId = assertObjectId(req.body.lessonId, "lessonId");
 
-  // إحضار اللاعب المرتبط بالمستخدم
-  const player = await Player.findOne({ user: userId });
-  if (player) {
-    // زيادة عداد الدروس (لو أول مرة يكمل هذا الدرس)
-    const alreadyCompleted = await LessonProgress.countDocuments({
-      user: userId,
-      lesson: lessonId,
-      completed: true,
-    });
+  const lesson = await Lesson.findById(lessonId).lean();
+  if (!lesson) throw httpError(404, "Lesson not found");
 
-    if (alreadyCompleted === 1) {
-      player.totalLessonsCompleted = (player.totalLessonsCompleted || 0) + 1;
-      await player.save();
-      await awardXpForEvent(player._id, "LESSON_COMPLETE");
-    }
+  // لازم يكون فيه Progress موجود (من track steps/quiz/assignment)
+  const progress = await LessonProgress.findOne({
+    user: userId,
+    lesson: lessonId,
+  });
+  if (!progress) throw httpError(404, "Lesson progress not found");
+
+  // نفس gates بتاعت completeStudentLesson
+  if (
+    !progress.videoCompleted ||
+    !progress.pdfCompleted ||
+    !progress.drillCompleted ||
+    !progress.safetyCompleted
+  ) {
+    throw httpError(403, "All lesson steps must be completed first");
   }
+
+  if (!progress.quickCheckPassed) {
+    throw httpError(403, "Quick Check must be passed");
+  }
+
+  if (progress.assignmentRequired && progress.assignmentStatus !== "approved") {
+    throw httpError(403, "Assignment must be approved");
+  }
+
+  progress.completed = true;
+  progress.lessonState = "completed";
+  progress.completedAt = new Date();
+  await progress.save();
 
   res.json({ success: true, progress });
 });

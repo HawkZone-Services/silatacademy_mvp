@@ -1,8 +1,8 @@
-module.exports = {
+export default {
   testEnvironment: "node",
-  transform: {},
+
+  globalSetup: "@hawkzone_labs/testkit/jest/globalSetup",
+  globalTeardown: "@hawkzone_labs/testkit/jest/globalTeardown",
+
   testMatch: ["<rootDir>/tests/**/*.test.js"],
-  testTimeout: 30000,
-  globalSetup: "<rootDir>/tests/globalSetup.js",
-  globalTeardown: "<rootDir>/tests/globalTeardown.js",
 };

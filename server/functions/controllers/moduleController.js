@@ -7,7 +7,19 @@ import Program from "../models/Program.js";
  * @route GET /api/modules
  */
 export const listModules = asyncHandler(async (req, res) => {
-  const modules = await Module.find().populate("program", "title level");
+  const filter = {};
+
+  // 👇 Student sees only active modules
+
+  if (!req.user || req.user.role !== "admin") {
+    filter.isActive = true;
+  }
+
+  if (req.user?.role === "student") {
+    filter.status = "active";
+  }
+
+  const modules = await Module.find(filter).populate("program", "title level");
 
   return res.status(200).json({
     success: true,
@@ -73,7 +85,17 @@ export const getModule = asyncHandler(async (req, res) => {
  * @route POST /api/modules
  */
 export const createModule = asyncHandler(async (req, res) => {
-  const { program, title, topics } = req.body;
+  const {
+    program,
+    title,
+    moduleType,
+    beltLevel,
+    objectives = [],
+    anatomyFocus = [],
+    reptitionGoal,
+    commonMistakes = [],
+    order = 0,
+  } = req.body;
 
   const programExists = await Program.findById(program);
   if (!programExists) {
@@ -86,7 +108,15 @@ export const createModule = asyncHandler(async (req, res) => {
   const moduleDoc = await Module.create({
     program,
     title,
-    topics: topics || [],
+    moduleType,
+    beltLevel,
+    objectives,
+    anatomyFocus,
+    reptitionGoal,
+    commonMistakes,
+    order,
+    status: "draft",
+    isActive: false,
   });
 
   return res.status(201).json({
@@ -101,16 +131,34 @@ export const createModule = asyncHandler(async (req, res) => {
  * @route PATCH /api/modules/:id
  */
 export const updateModule = asyncHandler(async (req, res) => {
-  const moduleDoc = await Module.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-  });
+  const moduleId = req.params.id;
 
+  const moduleDoc = await Module.findById(moduleId);
   if (!moduleDoc) {
-    return res.status(404).json({
-      success: false,
-      message: "Module not found",
-    });
+    return res
+      .status(404)
+      .json({ success: false, message: "Module not found" });
   }
+
+  if (moduleDoc.status === "archived") {
+    return res.status(403).json({ success: false, message: "MODULE_ARCHIVED" });
+  }
+
+  const forbiddenOnActive = ["moduleType", "beltLevel", "program"];
+  if (moduleDoc.status === "active") {
+    for (const f of forbiddenOnActive) {
+      if (req.body[f] != null) {
+        return res.status(403).json({
+          success: false,
+          message: "FIELD_LOCKED_ON_ACTIVE_MODULE",
+          field: f,
+        });
+      }
+    }
+  }
+
+  Object.assign(moduleDoc, req.body);
+  await moduleDoc.save();
 
   return res.json({
     success: true,
@@ -124,17 +172,90 @@ export const updateModule = asyncHandler(async (req, res) => {
  * @route DELETE /api/modules/:id
  */
 export const deleteModule = asyncHandler(async (req, res) => {
-  const moduleDoc = await Module.findByIdAndDelete(req.params.id);
+  const moduleDoc = await Module.findById(req.params.id);
 
   if (!moduleDoc) {
-    return res.status(404).json({
-      success: false,
-      message: "Module not found",
-    });
+    return res
+      .status(404)
+      .json({ success: false, message: "Module not found" });
   }
+
+  moduleDoc.status = "archived";
+  moduleDoc.isActive = false;
+  moduleDoc.archivedAt = new Date();
+  await moduleDoc.save();
 
   return res.json({
     success: true,
-    message: "Module deleted successfully",
+    message: "Module archived (soft delete)",
+    module: moduleDoc,
+  });
+});
+
+/**
+ * @desc Activate a module
+ * @route POST /api/modules/:id/activate
+ */
+
+export const activateModule = asyncHandler(async (req, res) => {
+  const moduleId = req.params.id;
+
+  const moduleDoc = await Module.findById(moduleId).populate("lessons");
+
+  if (!moduleDoc) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Module not found" });
+  }
+
+  if (moduleDoc.status === "archived") {
+    return res.status(403).json({ success: false, message: "MODULE_ARCHIVED" });
+  }
+
+  const hasLessons = (moduleDoc.lessons || []).length > 0;
+  if (!hasLessons) {
+    return res
+      .status(403)
+      .json({ success: false, message: "MODULE_NOT_READY_NO_LESSONS" });
+  }
+
+  moduleDoc.status = "active";
+  moduleDoc.isActive = true;
+  moduleDoc.activatedAt = new Date();
+  await moduleDoc.save();
+
+  return res.status(200).json({
+    success: true,
+    message: "Module activated",
+    module: moduleDoc,
+  });
+});
+
+/**
+ * @desc Archive a module
+ * @route POST /api/modules/:id/archive
+ */
+
+export const archiveModule = asyncHandler(async (req, res) => {
+  const moduleId = req.params.id;
+
+  const moduleDoc = await Module.findById(moduleId);
+
+  if (!moduleDoc) {
+    return res
+      .status(404)
+      .json({ success: false, message: "Module not found" });
+  }
+
+  // archive is final
+  moduleDoc.status = "archived";
+  moduleDoc.isActive = false;
+  moduleDoc.archivedAt = new Date();
+  await moduleDoc.save();
+
+  return res.status(200).json({
+    success: true,
+    message: "Module archived",
+    module: moduleDoc,
   });
 });

@@ -12,6 +12,9 @@ import { AddLessonDialog } from "../components/AddLessonDialog";
 import { LessonsTable } from "../components/LessonsTable";
 import { getAdminLessons } from "../api";
 import { Lesson } from "../types";
+import { EditLessonPage } from "@/features/lessons-v2/pages/EditLessonPage";
+import CreateLessonPage from "@/features/lessons-v2/pages/CreateLessonPage";
+import { LessonForm } from "@/features/lessons-v2/components/LessonForm/LessonForm";
 
 export default function AdminLessonsPage() {
   const { data, isLoading, isError } = useQuery({
@@ -32,6 +35,9 @@ export default function AdminLessonsPage() {
               Manage all lessons and training material.
             </CardDescription>
           </div>
+          <LessonForm />
+          <EditLessonPage />
+          <CreateLessonPage />
           <AddLessonDialog />
         </div>
       </CardHeader>

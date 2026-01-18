@@ -38,10 +38,8 @@ export default function ModulesScreen() {
     try {
       const res = await moduleService.getModules();
 
-      const list =
-        res?.modules || res?.data?.modules || res?.data || Array.isArray(res)
-          ? res
-          : [];
+      const list = res?.data?.modules || res?.modules || res?.modules || [];
+
       console.log("Fetched Modules:", list);
       setModules(Array.isArray(list) ? list : []);
     } catch (err) {
@@ -54,7 +52,6 @@ export default function ModulesScreen() {
   useEffect(() => {
     fetchModules();
   }, []);
-
   // ===============================
   // EDIT MODULE
   // ===============================

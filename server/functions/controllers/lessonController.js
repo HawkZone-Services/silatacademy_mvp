@@ -16,6 +16,7 @@ import {
 } from "../services/eligibilityService.js";
 import { getMyBeltProgress } from "../services/beltProgressService.js";
 import BeltRanking from "../models/BeltRanking.js";
+import Module from "../models/Module.js";
 
 /* =====================================================
    QUIZ SCORING
@@ -64,6 +65,12 @@ export const createLesson = asyncHandler(async (req, res) => {
     ...rest
   } = req.body;
   if (!title) throw httpError(400, "title is required");
+  const module = await Module.findById(moduleId);
+  if (!module) throw httpError(404, "Module not found");
+
+  if (module.status === "archived") {
+    throw httpError(403, "MODULE_ARCHIVED");
+  }
 
   const lesson = await Lesson.create({
     title,
@@ -82,25 +89,60 @@ export const createLesson = asyncHandler(async (req, res) => {
 export const listLessons = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
 
-  const lessons = await Lesson.find({})
-    .populate("module", "title")
+  // 1️⃣ جلب الدروس
+  let lessons = await Lesson.find({})
+    .populate({
+      path: "module",
+      select: "title moduleType beltLevel isActive",
+      match: { isActive: true },
+    })
     .populate("program", "title level")
     .sort({ order: 1 })
     .lean();
 
+  // 🔥 فلترة الموديول null (بعد الـ populate)
+  lessons = lessons.filter((l) => l.module !== null);
+
+  // 2️⃣ لو مفيش مستخدم
   if (!userId) {
     return res.json({ success: true, lessons });
   }
 
+  // 3️⃣ جلب التقدم
   const progresses = await LessonProgress.find({ user: userId }).lean();
-  const map = new Map(progresses.map((p) => [p.lesson.toString(), p]));
+  const progressMap = new Map(progresses.map((p) => [p.lesson.toString(), p]));
 
-  const enriched = lessons.map((l) => ({
-    ...l,
-    progress: map.get(l._id.toString()) || null,
-  }));
+  // 4️⃣ تخصيب الدروس
+  const enrichedLessons = [];
 
-  res.json({ success: true, lessons: enriched });
+  for (const lesson of lessons) {
+    const progress = progressMap.get(lesson._id.toString()) || null;
+
+    let locked = false;
+    let lockReason = null;
+
+    // 🔒 منطق P Module
+    if (lesson.module?.moduleType === "P") {
+      const completion = await getBeltModuleCompletion({
+        userId,
+        beltLevel: lesson.module.beltLevel,
+      });
+
+      if (!completion.A || !completion.B) {
+        locked = true;
+        lockReason = "COMPLETE_A_AND_B_FIRST";
+      }
+    }
+
+    enrichedLessons.push({
+      ...lesson,
+      progress,
+      locked,
+      lockReason,
+    });
+  }
+
+  res.json({ success: true, lessons: enrichedLessons });
 });
 
 /* =====================================================

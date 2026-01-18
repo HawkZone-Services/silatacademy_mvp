@@ -33,6 +33,7 @@ import {
   StudentInfo,
   BeltLevel,
 } from "../types";
+//import { LessonPlayerPage } from "@/features/lessons-v2/pages/LessonPlayerPage";
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
@@ -154,6 +155,7 @@ export default function StudentDashboard() {
             <TabsTrigger value="exams">Exams & Results</TabsTrigger>
             <TabsTrigger value="certificates">Certificates</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="lessons">Lessons</TabsTrigger>
           </TabsList>
 
           <LearningTab />
@@ -167,6 +169,7 @@ export default function StudentDashboard() {
             attendance={attendance}
             attendanceRecords={attendanceRecords}
           />
+          {/*<LessonPlayerPage />*/}
         </Tabs>
       </main>
 

@@ -1,5 +1,3 @@
-import { onRequest } from "firebase-functions/v2/https";
-import * as logger from "firebase-functions/logger";
 import express from "express";
 import passport from "passport";
 import cookieSession from "cookie-session";
@@ -25,19 +23,14 @@ app.use(async (req, res, next) => {
     await connectDB();
     next();
   } catch (err) {
-    logger.error("DB Init Error", err);
+    console.error("DB Init Error", err);
     res.status(500).json({ message: "Database connection failed" });
   }
 });
 
 // =======================
-// ⚠️ IMPORTANT PART
+// BODY PARSING
 // =======================
-
-// ❌ لا تستخدم express.urlencoded مع multipart
-// ❌ لا تضع compression قبل multer
-
-// ✅ JSON فقط (آمن)
 app.use(express.json({ limit: "10mb" }));
 
 // Security
@@ -54,7 +47,7 @@ app.use(
     name: "session",
     keys: [process.env.SESSION_SECRET || "fallback"],
     maxAge: 24 * 60 * 60 * 1000,
-    secure: false, // emulator only
+    secure: false, // local / emulator
     httpOnly: true,
     sameSite: "lax",
   })
@@ -85,7 +78,6 @@ app.use("/api", router);
 
 // =======================
 // RESPONSE COMPRESSION
-// ⚠️ AFTER ROUTES (safe)
 // =======================
 app.use(
   compression({
@@ -109,21 +101,4 @@ app.get("/api/health", (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
-// =======================
-// EXPORT FUNCTION
-// =======================
-export const api = onRequest(
-  {
-    secrets: ["MONGO_URI", "JWT_SECRET"],
-    timeoutSeconds: 60,
-    memory: "512MiB",
-    cpu: 1,
-    maxInstances: 5,
-    cors: true,
-  },
-  (req, res) => {
-    // 🔥 REQUIRED FOR MULTER (Firebase v2)
-    req.rawBody = req.rawBody || Buffer.from([]);
-    return app(req, res);
-  }
-);
+export default app;

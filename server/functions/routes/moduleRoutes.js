@@ -6,6 +6,8 @@ import {
   createModule,
   updateModule,
   deleteModule,
+  activateModule,
+  archiveModule,
 } from "../controllers/moduleController.js";
 import { protect, checkRole } from "../middlewares/authMiddleware.js";
 import { validate } from "../middlewares/validate.js";
@@ -54,6 +56,23 @@ router.delete(
   checkRole("admin"),
   validate([check("id").isMongoId()]),
   deleteModule
+);
+
+// ACTIVATE module
+router.post(
+  "/:id/activate",
+  protect,
+  checkRole("admin"),
+  validate([check("id").isMongoId()]),
+  activateModule
+);
+// ARCHIVE module
+router.post(
+  "/:id/archive",
+  protect,
+  checkRole("admin"),
+  validate([check("id").isMongoId()]),
+  archiveModule
 );
 
 export default router;
