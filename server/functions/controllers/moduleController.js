@@ -9,17 +9,24 @@ import Program from "../models/Program.js";
 export const listModules = asyncHandler(async (req, res) => {
   const filter = {};
 
-  // 👇 Student sees only active modules
-
-  if (!req.user || req.user.role !== "admin") {
-    filter.isActive = true;
+  // 🔐 Admin sees ALL modules (no filters)
+  if (req.user?.role === "admin") {
+    // no filter
   }
-
-  if (req.user?.role === "student") {
+  // 🎓 Student sees only active modules
+  else if (req.user?.role === "student") {
+    filter.isActive = true;
+    filter.status = "active";
+  }
+  // 👀 Guest / public (لو موجود)
+  else {
+    filter.isActive = true;
     filter.status = "active";
   }
 
-  const modules = await Module.find(filter).populate("program", "title level");
+  const modules = await Module.find(filter)
+    .populate("program", "title level")
+    .sort({ beltLevel: 1, order: 1 });
 
   return res.status(200).json({
     success: true,
@@ -64,7 +71,7 @@ export const listModulesByProgram = asyncHandler(async (req, res) => {
 export const getModule = asyncHandler(async (req, res) => {
   const moduleDoc = await Module.findById(req.params.id).populate(
     "program",
-    "title level"
+    "title level",
   );
 
   if (!moduleDoc) {

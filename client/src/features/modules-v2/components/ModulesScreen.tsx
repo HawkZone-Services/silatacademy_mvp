@@ -51,6 +51,7 @@ export default function ModulesScreen() {
   useEffect(() => {
     fetchModules();
   }, []);
+  console.log("Modules state:", modules);
   // ===============================
   // EDIT MODULE
   // ===============================
@@ -158,7 +159,7 @@ export default function ModulesScreen() {
                             onClick={async () => {
                               if (
                                 !confirm(
-                                  "Activate this module? It will be visible to students."
+                                  "Activate this module? It will be visible to students.",
                                 )
                               )
                                 return;
@@ -192,7 +193,7 @@ export default function ModulesScreen() {
             </Table>
           </div>
         )}
-        EDIT DIALOG
+
         {editModule && (
           <EditModuleDialog
             open={editModuleOpen}

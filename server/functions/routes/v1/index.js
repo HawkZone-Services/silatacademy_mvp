@@ -16,6 +16,7 @@ import moduleRoutes from "../moduleRoutes.js";
 import userRoutes from "../userRoutes.js";
 import galleryRoutes from "../galleryRoutes.js";
 import assignmentRoutes from "../assignmentRoutes.js";
+import attendanceRoutesV2 from "../../features/attendance/attendance.routes.js";
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.use("/coach", coachRoutes);
 router.use("/exams", examRoutes);
 router.use("/lessons", lessonRoutes);
 router.use("/certificates", certificateRoutes);
+router.use("/attendance/v2", attendanceRoutesV2);
 router.use("/attendance", attendanceRoutes);
 router.use("/programs", programRoutes);
 router.use("/modules", moduleRoutes);
