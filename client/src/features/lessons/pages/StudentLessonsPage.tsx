@@ -6,8 +6,8 @@ import {
   CardContent,
   CardTitle,
   CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+} from "@/shared/ui/card";
+import { Button } from "@/shared/ui/button";
 import { Lock, PlayCircle, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 

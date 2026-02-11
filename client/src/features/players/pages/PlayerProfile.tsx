@@ -1,0 +1,288 @@
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Button } from "@/shared/ui/button";
+import { ArrowLeft, Download, Printer } from "lucide-react";
+import { PlayerHeader } from "@/features/players/components/PlayerHeader";
+import { PlayerStats } from "@/features/players/components/PlayerStats";
+import { PlayerAchievements } from "@/features/players/components/PlayerAchievements";
+import { PlayerHealth } from "@/features/players/components/PlayerHealth";
+import { PlayerTraining } from "@/features/players/components/PlayerTraining";
+import { PlayerAttendance } from "@/features/players/components/PlayerAttendance";
+import { Navbar } from "@/shared/ui/Navbar";
+import { Footer } from "@/shared/ui/Footer";
+import { toast } from "sonner";
+import playerService from "@/features/players/api/playerService";
+import { players as PlayersData } from "@/features/players/constants/players";
+import ComplianceParentTaskForm from "@/features/gates/parent/components/ComplianceParentTaskForm";
+import { Badge } from "@/shared/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/shared/ui/dialog";
+import { AlertDialogHeader } from "@/shared/ui/alert-dialog";
+
+const normalizePlayer = (p: any) => {
+  return {
+    id: p._id,
+    name: p.user.name || p.user.profile.firstName || "Unknown",
+    email: p.user.email || "",
+    phone: p.user.phone || "",
+    nationalId: p.user.nationalId || "",
+    avatar:
+      p.user?.profile?.avatar ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        p.user.name || "U N"
+      )}&background=random&size=256`,
+
+    belt: p.belt || "White Belt",
+    beltColor: p.beltColor || "#ffffff",
+
+    age: p.age || 0,
+    height: p.height || "N/A",
+    weight: p.weight || "N/A",
+    coach: p.coach || "Unknown",
+
+    trainingStartDate: p.trainingStartDate || new Date().toISOString(),
+    trainingYears: p.trainingYears || 0,
+    currentFocus: p.currentFocus || "No focus assigned",
+
+    stats: p.stats || {
+      power: 0,
+      flexibility: 0,
+      endurance: 0,
+      speed: 0,
+    },
+
+    achievements: Array.isArray(p.achievements) ? p.achievements : [],
+
+    health: {
+      status: p.health?.status || "excellent",
+      lastCheckup: p.health?.lastCheckup || new Date().toISOString(),
+      injuries: p.health?.injuries || [],
+      nutritionPlan: p.health?.nutritionPlan || "Not assigned",
+      restSchedule: p.health?.restSchedule || "Not assigned",
+      medicalNotes: p.health?.medicalNotes || "",
+    },
+
+    trainingLogs: Array.isArray(p.trainingLogs) ? p.trainingLogs : [],
+  };
+};
+
+const PlayerProfile = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [player, setPlayer] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const token =
+    localStorage.getItem("token") || sessionStorage.getItem("token");
+
+  // Fetch the player from the API
+  const fetchPlayer = async () => {
+    try {
+      const res = await playerService.getPlayer(id as string);
+
+      console.log("Raw player response:", res);
+
+      const payload = res.data || res.raw || {};
+      const playerPayload = payload.player || payload;
+
+      // لو الـ backend رجع 404 من داخل JSON
+      if (!res.success || !playerPayload) {
+        setPlayer(null);
+        return;
+      }
+
+      // الآن res.player هو الـ data الحقيقي
+      const normalized = normalizePlayer(playerPayload);
+      setPlayer(normalized);
+    } catch (error) {
+      console.error("Player fetch error:", error);
+      setPlayer(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    fetchPlayer();
+  }, [id]);
+
+  // Loading screen
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p>Loading player data...</p>
+      </div>
+    );
+  }
+
+  // Player not found
+  if (!player) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h1 className="font-display text-4xl font-bold">Player Not Found</h1>
+          <p className="text-muted-foreground">
+            The athlete profile you're looking for doesn't exist.
+          </p>
+          <Button
+            onClick={() => navigate("/admin-dashboard")}
+            className="bg-primary hover:bg-primary-glow"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleGenerateReport = () => {
+    toast.success("Generating player report...", {
+      description: `Creating comprehensive health & training report for ${player.name}`,
+    });
+
+    setTimeout(() => {
+      toast.success("Report ready for download!", {
+        description: "The player report has been generated successfully",
+      });
+    }, 2000);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+
+      <div className="pt-24 pb-16">
+        <div className="container px-4">
+          {/* PAGE HEADER */}
+          <div className="mb-8 space-y-4">
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/admin-dashboard")}
+              className="hover:bg-accent"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Button>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="font-display text-3xl sm:text-4xl font-bold mb-2">
+                  Athlete Profile
+                </h1>
+                <p className="text-muted-foreground">
+                  Comprehensive performance and health monitoring
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Compliance Popup */}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="border-secondary/40 hover:bg-secondary/10"
+                    >
+                      + Compliance
+                    </Button>
+                  </DialogTrigger>
+
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create Compliance</DialogTitle>
+                    </DialogHeader>
+
+                    <ComplianceParentTaskForm />
+                  </DialogContent>
+                </Dialog>
+                <Button
+                  variant="outline"
+                  onClick={handlePrint}
+                  className="border-secondary/40 hover:bg-secondary/10"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print
+                </Button>
+
+                <Button
+                  onClick={handleGenerateReport}
+                  className="bg-primary hover:bg-primary-glow shadow-glow"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Generate Report
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* CONTENT */}
+          <div className="space-y-6 animate-fade-in">
+            {/* Compliance Records */}
+            <div className="border border-border/40 rounded-lg p-6 bg-accent/20">
+              <h2 className="font-display text-2xl font-bold mb-4">
+                Compliance Records (Parents Only)
+              </h2>
+
+              <div className="space-y-4">
+                {/* Record */}
+                <div className="border rounded-lg p-4 bg-background">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold">Medical Clearance</h3>
+                    <Badge variant="destructive">ACTIVE</Badge>
+                  </div>
+
+                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                    <li>Upload medical report</li>
+                    <li>Doctor approval</li>
+                    <li>Manager review</li>
+                  </ul>
+                </div>
+
+                {/* Empty state */}
+                {/* <p className="text-muted-foreground">No compliance records</p> */}
+              </div>
+            </div>
+            {/* HEADER */}
+            <PlayerHeader player={player} />
+
+            {/* TWO COLUMN LAYOUT */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Left */}
+              <div className="space-y-6">
+                <PlayerStats player={PlayersData[0]} />
+                <PlayerHealth player={PlayersData[0]} />
+              </div>
+
+              {/* Right */}
+              <div className="space-y-6">
+                <PlayerAchievements player={PlayersData[0]} />
+                <PlayerTraining player={PlayersData[0]} />
+              </div>
+            </div>
+
+            {/* Attendance */}
+            <PlayerAttendance playerId={player.id} />
+          </div>
+        </div>
+      </div>
+
+      <Footer />
+    </div>
+  );
+};
+
+export default PlayerProfile;

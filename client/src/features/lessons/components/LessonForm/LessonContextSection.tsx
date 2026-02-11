@@ -1,4 +1,4 @@
-import { Select } from "@/components/ui/select";
+import { Select } from "@/shared/ui/select";
 import React from "react";
 
 const LessonContextSection = () => {

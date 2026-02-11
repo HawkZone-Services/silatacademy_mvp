@@ -1,7 +1,7 @@
 // src/features/lessons/components/LessonQuizView.tsx
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
+import { RadioGroup, RadioGroupItem } from "@/shared/ui/radio-group";
+import { Textarea } from "@/shared/ui/textarea";
+import { Button } from "@/shared/ui/button";
 import { LessonQuizPayload, LessonQuizQuestion } from "../types/lesson.types";
 
 type LessonQuizViewProps = {

@@ -44,7 +44,7 @@ const withAuthHeaders = (headers: HeadersInit = {}) => {
 const request = async (
   method: string,
   endpoint: string,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
 ) => {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),

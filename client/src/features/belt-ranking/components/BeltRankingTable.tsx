@@ -1,8 +1,8 @@
 // src/features/belt-ranking/components/BeltRankingTable.tsx
 
 import { BeltRanking } from "../types/beltRanking.types";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/shared/ui/button";
+import { Badge } from "@/shared/ui/badge";
 
 interface Props {
   data: BeltRanking[];

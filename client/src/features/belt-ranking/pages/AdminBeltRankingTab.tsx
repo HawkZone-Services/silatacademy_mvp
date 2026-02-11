@@ -1,8 +1,8 @@
 // src/features/belt-ranking/pages/AdminBeltRankingTab.tsx
 
 import { useEffect, useState } from "react";
-import { TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { TabsContent } from "@/shared/ui/tabs";
+import { Button } from "@/shared/ui/button";
 import { Plus } from "lucide-react";
 
 import beltRankingService from "../api/beltRankingService";

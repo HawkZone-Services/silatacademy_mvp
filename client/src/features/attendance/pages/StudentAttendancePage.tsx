@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import attendanceService from "@/services/attendanceService";
+import attendanceService from "@/features/attendance/api/attendanceService";
 
 export default function StudentAttendancePage() {
   const { data, isLoading } = useQuery(["my-attendance"], () =>

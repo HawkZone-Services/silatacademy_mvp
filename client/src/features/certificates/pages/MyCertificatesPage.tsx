@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import certificateService from "@/services/certificateService";
+import certificateService from "@/features/certificates/api/certificateService";
 import { CertificateCard } from "../components/CertificateCard";
 
 export default function MyCertificatesPage() {

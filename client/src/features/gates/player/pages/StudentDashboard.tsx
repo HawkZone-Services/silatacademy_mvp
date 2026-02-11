@@ -1,0 +1,179 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+import { Navbar } from "@/shared/ui/Navbar";
+import { Footer } from "@/shared/ui/Footer";
+import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/tabs";
+
+import OverviewHeader from "../components/OverviewHeader";
+import StatsCards from "../components/StatsCards";
+import LearningTab from "../components/LearningTab";
+import ExamsTab from "../components/ExamsTab";
+import CertificatesTab from "../components/CertificatesTab";
+import AttendanceTab from "../components/AttendanceTab";
+import BeltProgressCard from "../components/BeltProgressCard";
+
+import {
+  getStudentAttempts,
+  getStudentCertificates,
+  getStudentExams,
+  getStudentLessonsList,
+  getStudentOverview,
+} from "../api/api";
+
+import { getMyBeltProgress } from "../api/getMyBeltProgress";
+import attendanceService from "@/features/attendance/api/attendanceService";
+
+import {
+  AttendanceSummary,
+  AttemptItem,
+  CertificateItem,
+  ExamItem,
+  LessonItem,
+  StudentInfo,
+  BeltLevel,
+} from "../types";
+//import { LessonPlayerPage } from "@/features/lessons/v2/pages/LessonPlayerPage";
+
+export default function StudentDashboard() {
+  const navigate = useNavigate();
+
+  const token =
+    localStorage.getItem("token") || sessionStorage.getItem("token");
+
+  const [student, setStudent] = useState<StudentInfo | null>(null);
+  const [attendance, setAttendance] = useState<AttendanceSummary | null>(null);
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<LessonItem[]>([]);
+  const [exams, setExams] = useState<ExamItem[]>([]);
+  const [attempts, setAttempts] = useState<AttemptItem[]>([]);
+  const [certificates, setCertificates] = useState<CertificateItem[]>([]);
+  const [beltProgress, setBeltProgress] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const beltLevel: BeltLevel = (student?.beltLevel || "white") as BeltLevel;
+
+  const checkAuth = () => {
+    const savedUser =
+      JSON.parse(localStorage.getItem("user") || "null") ||
+      JSON.parse(sessionStorage.getItem("user") || "null");
+
+    if (!token || !savedUser) {
+      navigate("/login");
+    }
+  };
+
+  useEffect(() => {
+    checkAuth();
+
+    const loadAll = async () => {
+      setLoading(true);
+
+      try {
+        const [
+          studentInfo,
+          lessonsList,
+          examsList,
+          attemptsList,
+          certs,
+          beltProgressRes,
+          attendanceLogsRes,
+        ] = await Promise.all([
+          getStudentOverview(),
+          getStudentLessonsList(),
+          getStudentExams(beltLevel),
+          getStudentAttempts(),
+          getStudentCertificates(),
+          getMyBeltProgress(),
+          attendanceService.getMyAttendanceDashboard(),
+        ]);
+
+        setLessons(lessonsList);
+        setExams(examsList);
+        setAttempts(attemptsList);
+        setCertificates(certs);
+
+        const beltData = beltProgressRes?.data || null;
+        setBeltProgress(beltData);
+        setStudent(beltData);
+
+        // ✅ Attendance summary جاي من belt progress
+        setAttendance(beltData?.attendance || null);
+
+        // ✅ Attendance logs منفصلة
+        setAttendanceRecords(attendanceLogsRes?.data?.attendance || []);
+      } catch (err) {
+        console.error("Dashboard load failed", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-lg">Loading your dashboard...</div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+  // ✅ refresh exams (يستدعي api بالبيلت الحالي ويعمل setExams)
+  const refreshExams = async () => {
+    try {
+      const examsList = await getStudentExams(beltLevel);
+      setExams(examsList);
+    } catch (e) {
+      console.error("refreshExams failed", e);
+    }
+  };
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+
+      <main className="container mx-auto px-4 py-10 mt-16 space-y-8">
+        <OverviewHeader student={student} attendance={attendance} />
+
+        <StatsCards
+          attendance={attendance}
+          lessons={lessons}
+          exams={exams}
+          certificates={certificates}
+        />
+
+        <BeltProgressCard data={beltProgress} />
+
+        <Tabs defaultValue="learning" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="learning">Learning Path</TabsTrigger>
+            <TabsTrigger value="exams">Exams & Results</TabsTrigger>
+            <TabsTrigger value="certificates">Certificates</TabsTrigger>
+            <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="lessons">Lessons</TabsTrigger>
+          </TabsList>
+
+          <LearningTab />
+          <ExamsTab
+            exams={exams}
+            attempts={attempts}
+            onRefreshExams={refreshExams}
+          />
+          <CertificatesTab certificates={certificates} />
+          <AttendanceTab
+            attendance={attendance}
+            attendanceRecords={attendanceRecords}
+          />
+          {/*<LessonPlayerPage />*/}
+        </Tabs>
+      </main>
+
+      <Footer />
+    </div>
+  );
+}
